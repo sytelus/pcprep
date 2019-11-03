@@ -1,0 +1,21 @@
+#!/bin/bash
+#fail if any errors
+set -e
+set -o xtrace
+
+bash cp_dotfiles.sh
+
+# if we are in Azure DSVM, don't install all these stuff
+if [ ! -d "/dsvm/" ]; then
+    bash system.sh
+    bash gitconfig.sh
+    bash anaconda.sh
+    bash python.sh
+    # install cuda only if we are not in WSL
+    if [ -z "$IS_WSL" ]; then
+        bash cuda.sh
+    fi
+    bash ml.sh
+fi
+bash rl.sh
+bash gitclones.sh

@@ -1,0 +1,6 @@
+[
+	{ "keys": ["ctrl+alt+e"], "command": "open_dir", 
+    "args": {"dir": "$file_path", "file": "$file_name"} },
+    { "keys": ["ctrl+shift+alt+s"], "command": "save" },
+    { "keys": ["ctrl+s"], "command": "save_all" }
+]

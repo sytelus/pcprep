@@ -1,0 +1,1 @@
+reg delete HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome /f

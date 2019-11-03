@@ -1,0 +1,19 @@
+{
+	"bootstrapped": true,
+	"in_process_packages":
+	[
+	],
+	"installed_packages":
+	[
+		"All Autocomplete",
+		"C++ Completions",
+		"C++ Starting Kit",
+		"C++NamespaceTool",
+		"File Rename",
+		"Markdown Preview",
+		"Modific",
+		"Package Control",
+		"SideBarEnhancements",
+		"Sublimerge Pro"
+	]
+}
