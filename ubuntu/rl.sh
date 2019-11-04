@@ -6,6 +6,8 @@ pip install -q gym[classic_control]
 pip install -q gym[atari]
 
 pip install ray[rllib]
+pip install ray[tune]
+pip install ray[debug]
 
 #DSVM needs additional installs for stable-baselines
 sudo apt-get -y update

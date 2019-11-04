@@ -48,6 +48,7 @@ sudo apt-get -y install gcc-arm-linux-gnueabi g++-arm-linux-gnueabi
 sudo apt-get -y install libusb-1.0-0-dev
 sudo apt-get -y install g++
 sudo apt-get -y install gconf-editor
+sudo apt-get -y install htop
 
 sudo adduser $USER dialout
 
