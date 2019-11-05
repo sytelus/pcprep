@@ -24,8 +24,8 @@ install_from_git openai spinningup
 [ ! -d 'AirSim' ] && git clone https://github.com/microsoft/AirSim.git
 [ ! -d 'shitalshah.com-v5' ] && git clone https://github.com/sytelus/shitalshah.com-v5.git
 [ ! -d 'gymexp' ] && git clone https://github.com/sytelus/gymexp.git
-[ ! -d 'dsvm_utils' ] && git clone https://github.com/sytelus/dsvm_utils.git
-[ ! -d 'rl-experiments' ] && https://github.com/sytelus/rl-experiments.git
-[ ! -d 'rl-experiments' ] && https://github.com/sytelus/rl-baselines-zoo.git
+[ ! -d 'pcprep' ] && git clone https://github.com/sytelus/pcprep.git
+[ ! -d 'rl-experiments' ] && git clone https://github.com/sytelus/rl-experiments.git
+[ ! -d 'rl-baselines-zoo' ] && git clone https://github.com/sytelus/rl-baselines-zoo.git
 
 popd
