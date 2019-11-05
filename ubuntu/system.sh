@@ -53,3 +53,11 @@ sudo apt-get -y install htop
 sudo adduser $USER dialout
 
 sudo update-alternatives --set editor /usr/bin/code
+
+# nodejs 12.x
+curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+#fd utility for file/folder search
+wget -P ~/Downloads/ https://github.com/sharkdp/fd/releases/download/v7.4.0/fd-musl_7.4.0_amd64.deb
+sudo dpkg -i ~/Downloads/fd-musl_7.4.0_amd64.deb

@@ -21,7 +21,7 @@ pip install -q gpustat azureml-sdk
 conda install -y -c conda-forge jupyter_contrib_nbextensions
 pip -q install qgrid
 jupyter nbextension enable --py --sys-prefix widgetsnbextension
-pip -q install pyyaml pybullet optuna pytablewriter scikit-optimize py-spy filelock tabulate
+pip -q install pyyaml pybullet optuna pytablewriter scikit-optimize py-spy filelock tabulate aiohttp psutil
 
 #pip install -q glances[gpu] 
 #conda install -y h5py==2.8.0
