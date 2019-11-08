@@ -7,7 +7,7 @@ mkdir -p ~/GitHubSrc
 pushd ~/GitHubSrc
 
 function install_from_git {
-	if [ -d "~/GitHubSrc/$2" ]; then
+	if [ ! -d "~/GitHubSrc/$2" ]; then
 		git clone https://github.com/$1/$2.git
 		cd "$2"
 		pip install -e .
