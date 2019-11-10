@@ -16,6 +16,10 @@ if [ ! -d "/dsvm/" ]; then
         bash cuda.sh
     fi
     bash ml.sh
+else
+    # the default is anaconda 2ith Python 2.7
+    echo Please relogin so dot files takes effect and rerun this script.
+    exit 0
 fi
 bash rl.sh
 bash gitclones.sh
