@@ -61,3 +61,15 @@ sudo apt-get install -y nodejs
 #fd utility for file/folder search
 wget -P ~/Downloads/ https://github.com/sharkdp/fd/releases/download/v7.4.0/fd-musl_7.4.0_amd64.deb
 sudo dpkg -i ~/Downloads/fd-musl_7.4.0_amd64.deb
+
+# docker, minikube, kvm
+sudo apt-get -y install apt-transport-https ca-certificates software-properties-common cpu-checker
+# kvm is very 18.10 specific: https://help.ubuntu.com/community/KVM/Installation
+sudo apt-get -y install qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && sudo install minikube-linux-amd64 /usr/local/bin/minikube
+sudo apt -y install docker.io
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo adduser `id -un` libvirt
+
+sudo apt-get -y update
