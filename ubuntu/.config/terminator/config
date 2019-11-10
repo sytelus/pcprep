@@ -1,0 +1,134 @@
+[global_config]
+  enabled_plugins = LaunchpadCodeURLHandler, APTURLHandler, LaunchpadBugURLHandler
+  window_state = maximise
+  suppress_multiple_term_dialog = True
+[keybindings]
+[profiles]
+  [[default]]
+    palette = "#000000:#cc0000:#4e9a06:#c4a000:#3465a4:#75507b:#06989a:#d3d7cf:#555753:#ef2929:#8ae234:#fce94f:#729fcf:#ad7fa8:#34e2e2:#eeeeec"
+    font = Bitstream Charter 10
+    visible_bell = True
+    scrollback_lines = 5000
+    background_image = None
+    foreground_color = "#ffffff"
+    copy_on_selection = True
+    audible_bell = True
+[layouts]
+  [[default]]
+    [[[child0]]]
+      position = 65:24
+      type = Window
+      order = 0
+      parent = ""
+      size = 1535, 876
+    [[[child1]]]
+      position = 438
+      type = VPaned
+      order = 0
+      parent = child0
+    [[[child2]]]
+      position = 767
+      type = HPaned
+      order = 0
+      parent = child1
+    [[[child5]]]
+      position = 767
+      type = HPaned
+      order = 1
+      parent = child1
+    [[[terminal3]]]
+      profile = default
+      type = Terminal
+      order = 0
+      parent = child2
+    [[[terminal4]]]
+      profile = default
+      type = Terminal
+      order = 1
+      parent = child2
+    [[[terminal7]]]
+      profile = default
+      type = Terminal
+      order = 1
+      parent = child5
+    [[[terminal6]]]
+      profile = default
+      type = Terminal
+      order = 0
+      parent = child5
+  [[Win1]]
+    [[[child1]]]
+      type = Terminal
+      parent = window0
+      profile = default
+    [[[window0]]]
+      type = Window
+      parent = ""
+  [[DroneShell]]
+    [[[child0]]]
+      position = 7746:30
+      type = Window
+      order = 0
+      parent = ""
+    [[[child1]]]
+      position = 1911
+      type = VPaned
+      order = 0
+      parent = child0
+    [[[child2]]]
+      position = 1046
+      type = HPaned
+      order = 0
+      parent = child1
+    [[[child3]]]
+      position = 955
+      type = VPaned
+      order = 0
+      parent = child2
+    [[[child6]]]
+      position = 955
+      type = VPaned
+      order = 1
+      parent = child2
+    [[[child9]]]
+      position = 1046
+      type = HPaned
+      order = 1
+      parent = child1
+    [[[terminal11]]]
+      profile = default
+      type = Terminal
+      order = 1
+      parent = child9
+      command = rosrun air_ros DroneShellNode
+    [[[terminal10]]]
+      profile = default
+      type = Terminal
+      order = 0
+      parent = child9
+      command = rosrun air_ros AirNode
+    [[[terminal5]]]
+      profile = default
+      type = Terminal
+      order = 1
+      parent = child3
+      command = ""
+    [[[terminal4]]]
+      profile = default
+      type = Terminal
+      order = 0
+      parent = child3
+      command = roslaunch guidance load_calib_file.launch
+    [[[terminal7]]]
+      profile = default
+      type = Terminal
+      order = 0
+      parent = child6
+      command = roslaunch dji_sdk mat2.launch
+    [[[terminal8]]]
+      profile = default
+      command = ""
+      type = Terminal
+      order = 1
+      parent = child6
+[plugins]
