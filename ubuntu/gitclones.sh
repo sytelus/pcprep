@@ -7,7 +7,7 @@ mkdir -p ~/GitHubSrc
 pushd ~/GitHubSrc
 
 function install_from_git {
-	if [ ! -d "~/GitHubSrc/$2" ]; then
+	if [ ! -d ~/GitHubSrc/$2 ]; then
 		git clone https://github.com/$1/$2.git
 		cd "$2"
 		pip install -e .
@@ -15,15 +15,15 @@ function install_from_git {
 	fi
 }
 
-install_from_git microsoft tensorwatch
-install_from_git sytelus podworld
-install_from_git sytelus regim
-install_from_git hill-a stable-baselines
-
 if [ ! -d "/dsvm/" ]; then
 	# tensorflow 1.14 incompatibility
 	install_from_git openai spinningup
 fi
+
+install_from_git microsoft tensorwatch
+install_from_git sytelus podworld
+install_from_git sytelus regim
+install_from_git hill-a stable-baselines
 
 [ ! -d 'AirSim' ] && git clone https://github.com/microsoft/AirSim.git
 [ ! -d 'shitalshah.com-v5' ] && git clone https://github.com/sytelus/shitalshah.com-v5.git

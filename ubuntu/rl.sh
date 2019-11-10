@@ -7,29 +7,34 @@ pip install -q gym[atari]
 
 # necessory packages for Ray
 pip install -q filelock tabulate aiohttp psutil
-# below assumes npm 12.x is already installed
-pushd ~/GitHubSrc
-# ---- ray install starts
-git clone https://github.com/ray-project/ray.git
 
-# Install Bazel.
-ray/ci/travis/install-bazel.sh
+if [ ! -d ~/GitHubSrc/ray/ ]; then
+    # below assumes npm 12.x is already installed
+    pushd ~/GitHubSrc
+    # ---- ray install starts
+    git clone https://github.com/ray-project/ray.git
 
-# Optionally build the dashboard 
-pushd ray/python/ray/dashboard/client
-npm ci
-npm run build
-popd
+    # Install Bazel.
+    ray/ci/travis/install-bazel.sh
 
-# Install Ray.
-cd ray/python
-pip install -e . --verbose 
-#---- ray install ends
-popd
+    # Optionally build the dashboard 
+    pushd ray/python/ray/dashboard/client
+    npm ci
+    npm run build
+    popd
 
-#pip install ray[rllib]
-#pip install ray[tune]
-#pip install ray[debug]
+    # Install Ray.
+    cd ray/python
+    pip install -e . --verbose 
+    #---- ray install ends
+    popd
+
+    #pip install ray[rllib]
+    #pip install ray[tune]
+    #pip install ray[debug]
+else
+    echo *********** ray installation detected so would not be installed
+fi
 
 #DSVM needs additional installs for stable-baselines
 sudo apt-get -y update

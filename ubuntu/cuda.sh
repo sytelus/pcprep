@@ -3,6 +3,11 @@
 set -e
 set -o xtrace
 
+if [ -d "/usr/local/cuda-10.0" ]; then
+    echo *********** cuda 10.0 already detected so not installed
+    exit 0
+fi
+
 # ----------------------------- CUDA 10.0 -----------------------
 # #CUDA 10.0
 wget -P ~/Downloads/ https://developer.nvidia.com/compute/cuda/10.0/Prod/local_installers/cuda_10.0.130_410.48_linux
