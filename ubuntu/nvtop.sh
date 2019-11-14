@@ -17,8 +17,10 @@ mkdir -p nvtop/build && cd nvtop/build
 # if conda environment then first deactivate it
 env="${CONDA_DEFAULT_ENV}"
 if [[ ! -z "${env}" ]]; then
+    # https://github.com/conda/conda/issues/7980#issuecomment-524154596
+    eval "$(conda shell.bash hook)"
     conda deactivate
-
+fi
 cmake ..
 
 # If it errors with "Could NOT find NVML (missing: NVML_INCLUDE_DIRS)"
@@ -31,5 +33,5 @@ sudo make install # You may need sufficient permission for that (root)
 # reactivate conda environment
 if [[ ! -z "${env}" ]]; then
     conda activate "${env}"
-
+fi
 popd
