@@ -1,134 +1,144 @@
 [global_config]
-  enabled_plugins = LaunchpadCodeURLHandler, APTURLHandler, LaunchpadBugURLHandler
-  window_state = maximise
   suppress_multiple_term_dialog = True
+  title_transmit_bg_color = "#c00909"
 [keybindings]
-[profiles]
-  [[default]]
-    palette = "#000000:#cc0000:#4e9a06:#c4a000:#3465a4:#75507b:#06989a:#d3d7cf:#555753:#ef2929:#8ae234:#fce94f:#729fcf:#ad7fa8:#34e2e2:#eeeeec"
-    font = Bitstream Charter 10
-    visible_bell = True
-    scrollback_lines = 5000
-    background_image = None
-    foreground_color = "#ffffff"
-    copy_on_selection = True
-    audible_bell = True
 [layouts]
   [[default]]
     [[[child0]]]
-      position = 65:24
-      type = Window
+      fullscreen = False
+      last_active_term = f6492e56-7053-4ce3-8780-d71bd7ae0843
+      last_active_window = True
+      maximised = True
       order = 0
       parent = ""
-      size = 1535, 876
+      position = 0:25
+      size = 2560, 1391
+      type = Window
     [[[child1]]]
-      position = 438
-      type = VPaned
       order = 0
       parent = child0
-    [[[child2]]]
-      position = 767
-      type = HPaned
-      order = 0
-      parent = child1
-    [[[child5]]]
-      position = 767
-      type = HPaned
-      order = 1
-      parent = child1
-    [[[terminal3]]]
-      profile = default
-      type = Terminal
-      order = 0
-      parent = child2
-    [[[terminal4]]]
-      profile = default
-      type = Terminal
-      order = 1
-      parent = child2
-    [[[terminal7]]]
-      profile = default
-      type = Terminal
-      order = 1
-      parent = child5
-    [[[terminal6]]]
-      profile = default
-      type = Terminal
-      order = 0
-      parent = child5
-  [[Win1]]
-    [[[child1]]]
-      type = Terminal
-      parent = window0
-      profile = default
-    [[[window0]]]
-      type = Window
-      parent = ""
-  [[DroneShell]]
-    [[[child0]]]
-      position = 7746:30
-      type = Window
-      order = 0
-      parent = ""
-    [[[child1]]]
-      position = 1911
+      position = 1035
+      ratio = 0.745147375988
       type = VPaned
-      order = 0
-      parent = child0
-    [[[child2]]]
-      position = 1046
+    [[[child13]]]
+      order = 1
+      parent = child1
+      position = 681
+      ratio = 0.2666015625
       type = HPaned
+    [[[child15]]]
+      order = 1
+      parent = child13
+      position = 1210
+      ratio = 0.64578891258
+      type = HPaned
+    [[[child2]]]
       order = 0
       parent = child1
+      position = 855
+      ratio = 0.3345703125
+      type = HPaned
     [[[child3]]]
-      position = 955
-      type = VPaned
       order = 0
       parent = child2
+      position = 464
+      ratio = 0.449758454106
+      type = VPaned
     [[[child6]]]
-      position = 955
-      type = VPaned
       order = 1
       parent = child2
-    [[[child9]]]
-      position = 1046
+      position = 851
+      ratio = 0.500881316099
       type = HPaned
+    [[[child8]]]
       order = 1
-      parent = child1
-    [[[terminal11]]]
-      profile = default
-      type = Terminal
-      order = 1
-      parent = child9
-      command = rosrun air_ros DroneShellNode
+      parent = child6
+      position = 735
+      ratio = 0.711594202899
+      type = VPaned
+    [[[child9]]]
+      order = 0
+      parent = child8
+      position = 293
+      ratio = 0.400680272109
+      type = VPaned
     [[[terminal10]]]
-      profile = default
-      type = Terminal
+      command = git status; bash
+      directory = /home/shitals/GitHubSrc/gymexp
       order = 0
       parent = child9
-      command = rosrun air_ros AirNode
-    [[[terminal5]]]
       profile = default
       type = Terminal
+      uuid = 92ef2adb-68c8-47e1-b2d2-ca115ec0774c
+    [[[terminal11]]]
+      command = git status; bash
+      directory = /home/shitals/GitHubSrc/pcprep
       order = 1
-      parent = child3
-      command = ""
+      parent = child9
+      profile = default
+      type = Terminal
+      uuid = 1919ef4b-f5ea-4775-92ab-009353ee2bf3
+    [[[terminal12]]]
+      command = git status; bash
+      directory = /home/shitals/GitHubSrc
+      order = 1
+      parent = child8
+      profile = default
+      type = Terminal
+      uuid = 13170897-e4ad-4ab0-8b60-cf19e4a62109
+    [[[terminal14]]]
+      directory = /home/shitals/GitHubSrc
+      order = 0
+      parent = child13
+      profile = default
+      type = Terminal
+      uuid = 780ba7fd-b4de-4124-b153-01d40809abef
+    [[[terminal16]]]
+      directory = /home/shitals/GitHubSrc
+      order = 0
+      parent = child15
+      profile = default
+      type = Terminal
+      uuid = 1efcf7f5-9cc9-4964-a8e7-8a4dd6db1ad1
+    [[[terminal17]]]
+      command = top; bash
+      directory = ""
+      order = 1
+      parent = child15
+      profile = default
+      type = Terminal
+      uuid = f6492e56-7053-4ce3-8780-d71bd7ae0843
     [[[terminal4]]]
-      profile = default
-      type = Terminal
+      command = git status; bash
+      directory = /home/shitals/GitHubSrc/fast-autoaugment
       order = 0
       parent = child3
-      command = roslaunch guidance load_calib_file.launch
-    [[[terminal7]]]
       profile = default
       type = Terminal
+      uuid = 28c90f53-52db-4361-a5ee-dc8641ec0c1e
+    [[[terminal5]]]
+      command = git status; bash
+      directory = /home/shitals/GitHubSrc/darts
+      order = 1
+      parent = child3
+      profile = default
+      type = Terminal
+      uuid = 10c0a6a0-e6bd-4ea5-8e2e-dfddee4abeaa
+    [[[terminal7]]]
+      command = git status; bash
+      directory = /home/shitals/GitHubSrc/podworld
       order = 0
       parent = child6
-      command = roslaunch dji_sdk mat2.launch
-    [[[terminal8]]]
       profile = default
-      command = ""
       type = Terminal
-      order = 1
-      parent = child6
+      uuid = a429cb9f-b7cf-4064-9883-155690120316
 [plugins]
+[profiles]
+  [[default]]
+    background_color = "#131926"
+    background_image = None
+    font = Consolas 10
+    foreground_color = "#b7b7b7"
+    palette = "#2e3436:#e04949:#4e9a06:#c4a000:#3465a4:#75507b:#06989a:#d3d7cf:#555753:#ef2929:#8ae234:#fce94f:#729fcf:#ad7fa8:#34e2e2:#eeeeec"
+    scrollback_infinite = True
+    use_system_font = False

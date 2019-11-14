@@ -3,6 +3,8 @@
 set -e
 set -o xtrace
 
+bash gsettings.sh
+
 # install VS code, dropbox, chrome: https://code.visualstudio.com/, anaconda.sh
 
 sudo apt-get -y update
@@ -78,5 +80,7 @@ curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add
 echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
 sudo apt-get update
 sudo apt-get install -y kubectl
+sudo apt-get install -y compiz compizconfig-settings-manager compiz-plugins
 
 sudo apt-get -y update
+
