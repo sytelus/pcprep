@@ -18,3 +18,7 @@ git config --global diff.tool vscode
 git config --global difftool.vscode.cmd "code --wait --diff $LOCAL $REMOTE"
 git config --global core.editor "code --new-window -wait"
 
+if [ ! -d "/dsvm/" ]; then
+    git config --global url."git@github.com:".insteadOf "https://github.com/"
+fi
+
