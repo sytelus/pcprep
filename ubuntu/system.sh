@@ -19,7 +19,7 @@ git config --global core.editor "code --wait"
 
 sudo apt-get -y install bash-completion gnome-tweak-tool gnome-shell-extensions gnome-tweaks
 sudo apt-get -y install numix-gtk-theme materia-gtk-theme gtk2-engines-murrine gtk2-engines-pixbuf gnome-themes-standard
-sudo apt-get -y install tlp powertop tlp-rdw inxi nvidia-prime
+sudo apt-get -y install tlp powertop tlp-rdw inxi nvidia-prime #conky-all #conky-cli
 sudo apt-get -y install gnome-calculator #will get you GTK
 sudo apt-get -y install libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 liblcms2-dev libxtst6
 sudo apt-get -y install swig cmake libopenmpi-dev python3-dev zlib1g-dev
@@ -81,6 +81,9 @@ echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/
 sudo apt-get update
 sudo apt-get install -y kubectl
 sudo apt-get install -y compiz compizconfig-settings-manager compiz-plugins
+
+# install glances
+#sudo wget -O- https://bit.ly/glances | /bin/bash
 
 sudo apt-get -y update
 

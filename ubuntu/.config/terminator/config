@@ -101,7 +101,7 @@
       type = Terminal
       uuid = 1efcf7f5-9cc9-4964-a8e7-8a4dd6db1ad1
     [[[terminal17]]]
-      command = top; bash
+      command = nvtop -d 30; bash
       directory = ""
       order = 1
       parent = child15
