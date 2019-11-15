@@ -24,6 +24,9 @@ sudo apt-get -y install gnome-calculator #will get you GTK
 sudo apt-get -y install libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 liblcms2-dev libxtst6
 sudo apt-get -y install swig cmake libopenmpi-dev python3-dev zlib1g-dev
 
+#fun stuff
+sudo apt-get -y install fortune-mod sl libaa-bin espeak figlet sysvbanner cowsay oneko cmatrix toilet moo pi xcowsay aview bb rig
+sudo snap install ponysay
 
 # curl -O https://repo.anaconda.com/archive/Anaconda3-2019.07-Linux-x86_64.sh
 # bash Anaconda3-2019.07-Linux-x86_64.sh
