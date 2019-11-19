@@ -5,17 +5,12 @@ set -o xtrace
 
 bash gsettings.sh
 
-# install VS code, dropbox, chrome: https://code.visualstudio.com/, anaconda.sh
-
 sudo apt-get -y update
 sudo apt-get -y install git curl
 
 #conda install python=3.6
 
 sudo apt-get -y install git curl wget xclip
-git config --global diff.tool vscode
-git config --global difftool.vscode.cmd "code --wait --diff $LOCAL $REMOTE"
-git config --global core.editor "code --wait"
 
 sudo apt-get -y install bash-completion gnome-tweak-tool gnome-shell-extensions gnome-tweaks
 sudo apt-get -y install numix-gtk-theme materia-gtk-theme gtk2-engines-murrine gtk2-engines-pixbuf gnome-themes-standard
@@ -25,7 +20,7 @@ sudo apt-get -y install libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxs
 sudo apt-get -y install swig cmake libopenmpi-dev python3-dev zlib1g-dev
 
 #fun stuff
-sudo apt-get -y install fortune-mod sl libaa-bin espeak figlet sysvbanner cowsay oneko cmatrix toilet moo pi xcowsay aview bb rig
+sudo apt-get -y install fortune-mod sl libaa-bin espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig
 sudo snap install ponysay
 
 # curl -O https://repo.anaconda.com/archive/Anaconda3-2019.07-Linux-x86_64.sh
