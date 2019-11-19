@@ -47,3 +47,8 @@ gconftool-2 --type string --set /apps/gedit-2/preferences/editor/colors/scheme "
 # Terminal
 gconftool-2 --set /apps/gnome-terminal/global/use_menu_accelerators --type boolean true
 gconftool-2 --set /apps/gnome-terminal/profiles/Default/scrollback_unlimited --type boolean true
+
+# increase number watches so VS Code doesn't complain
+FILE=/etc/sysctl.conf
+LINE='fs.inotify.max_user_watches=524288'
+grep -q "$LINE" "$FILE" || sudo echo "$LINE" >> "$FILE"
