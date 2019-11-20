@@ -80,6 +80,21 @@ sudo apt-get update
 sudo apt-get install -y kubectl
 sudo apt-get install -y compiz compizconfig-settings-manager compiz-plugins
 
+# install brew
+sudo apt install -y linuxbrew-wrapper
+yes '' | brew tap git-time-metric/gtm
+FILE=~/.bashrc
+LINE='export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"'
+grep -q "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+LINE='export MANPATH="/home/linuxbrew/.linuxbrew/share/man:$MANPATH"'
+grep -q "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+LINE='export INFOPATH="/home/linuxbrew/.linuxbrew/share/info:$INFOPATH"'
+grep -q "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+
+# for some reason, this needs to be done twice?
+brew tap git-time-metric/gtm
+brew install gtm
+
 # install glances
 #sudo wget -O- https://bit.ly/glances | /bin/bash
 
