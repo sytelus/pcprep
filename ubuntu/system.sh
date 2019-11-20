@@ -6,11 +6,7 @@ set -o xtrace
 bash gsettings.sh
 
 sudo apt-get -y update
-sudo apt-get -y install git curl
-
-#conda install python=3.6
-
-sudo apt-get -y install git curl wget xclip
+sudo apt-get -y install git curl wget xclip xz-utils tar apt-transport-https
 
 sudo apt-get -y install bash-completion gnome-tweak-tool gnome-shell-extensions gnome-tweaks
 sudo apt-get -y install numix-gtk-theme materia-gtk-theme gtk2-engines-murrine gtk2-engines-pixbuf gnome-themes-standard
@@ -97,6 +93,14 @@ brew install gtm
 
 # install glances
 #sudo wget -O- https://bit.ly/glances | /bin/bash
+
+# font
+sudo apt install -y fonts-firacode fonts-powerline font-manager
+bash codefonts.sh
+
+# tex & .net
+sudo apt install -y texlive-full hugo mono-complete
+bash dotnet.sh
 
 sudo apt-get -y update
 

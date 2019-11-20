@@ -33,3 +33,4 @@ choco install -y  putty.install
 choco install -y  freecad
 choco install -y notepadplusplus
 choco install -y conemu
+choco install -y firacode cascadiacode

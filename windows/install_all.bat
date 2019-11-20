@@ -14,3 +14,6 @@ call install_python.bat
 call install_ml.bat
 call install_rl.bat
 call gitclones.bat
+
+REM install code face fonts
+powershell -Command "&{ Start-Process powershell -ArgumentList '-File codeface.ps' -Verb RunAs}"
