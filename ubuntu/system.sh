@@ -71,21 +71,15 @@ sudo adduser `id -un` libvirt
 # kubectl
 sudo apt-get update && sudo apt-get install -y apt-transport-https
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
-sudo apt-get update
+#echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+FILE=~/etc/apt/sources.list.d/kubernetes.list
+LINE='deb https://apt.kubernetes.io/ kubernetes-xenial main'
+grep -q "$LINE" "$FILE" || sudo echo "$LINE" >> "$FILE"sudo apt-get update
 sudo apt-get install -y kubectl
 sudo apt-get install -y compiz compizconfig-settings-manager compiz-plugins
 
 # install brew
-sudo apt install -y linuxbrew-wrapper
-yes '' | brew tap git-time-metric/gtm
-FILE=~/.bashrc
-LINE='export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"'
-grep -q "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE='export MANPATH="/home/linuxbrew/.linuxbrew/share/man:$MANPATH"'
-grep -q "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE='export INFOPATH="/home/linuxbrew/.linuxbrew/share/info:$INFOPATH"'
-grep -q "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+bash brew.sh
 
 # for some reason, this needs to be done twice?
 brew tap git-time-metric/gtm
