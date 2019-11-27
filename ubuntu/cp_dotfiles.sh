@@ -5,4 +5,4 @@ else
 fi
 cp -f .bash_aliases ~/.bash_aliases
 cp -f .inputrc ~/.inputrc
-cp -rf .config/ ~/.config/
+cp -rf .config/ ~/
