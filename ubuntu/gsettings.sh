@@ -51,6 +51,4 @@ gconftool-2 --set /apps/gnome-terminal/profiles/Default/scrollback_unlimited --t
 # increase number watches so VS Code doesn't complain
 FILE=/etc/sysctl.conf
 LINE='fs.inotify.max_user_watches=524288'
-set +e # for some reason below gets permission denied
-sudo grep -q "$LINE" "$FILE" || sudo echo "$LINE" >> "$FILE"
-set -e
+grep -q "$LINE" "$FILE" || (echo "$LINE" | sudo tee -a "$FILE")

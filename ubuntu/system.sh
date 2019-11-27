@@ -67,19 +67,13 @@ sudo apt -y install docker.io
 sudo systemctl start docker
 sudo systemctl enable docker
 sudo adduser `id -un` libvirt
-
-# kubectl
-sudo apt-get update && sudo apt-get install -y apt-transport-https
-curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-#echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
-FILE=~/etc/apt/sources.list.d/kubernetes.list
-LINE='deb https://apt.kubernetes.io/ kubernetes-xenial main'
-grep -q "$LINE" "$FILE" || sudo echo "$LINE" >> "$FILE"sudo apt-get update
-sudo apt-get install -y kubectl
 sudo apt-get install -y compiz compizconfig-settings-manager compiz-plugins
 
+# kubernetes control
+# source kubectl.sh
+
 # install brew
-bash brew.sh
+source brew.sh
 
 # for some reason, this needs to be done twice?
 brew tap git-time-metric/gtm
@@ -90,11 +84,12 @@ brew install gtm
 
 # font
 sudo apt install -y fonts-firacode fonts-powerline font-manager
-bash codefonts.sh
+source codefonts.sh
 
 # tex & .net
-sudo apt install -y texlive-full hugo mono-complete
-bash dotnet.sh
+sudo apt install -y texlive-full
+sudo apt install -y hugo mono-complete
+source dotnet.sh
 
 sudo apt-get -y update
 

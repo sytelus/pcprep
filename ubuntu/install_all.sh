@@ -25,3 +25,5 @@ else
 fi
 bash rl.sh
 bash gitclones.sh
+
+echo "Install all done."
