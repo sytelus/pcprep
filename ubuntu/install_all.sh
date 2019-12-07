@@ -6,6 +6,7 @@ set -o xtrace
 # install VS code, dropbox, chrome: https://code.visualstudio.com/, anaconda.sh
 
 bash cp_dotfiles.sh
+bash gsettings.sh
 
 # if we are in Azure DSVM, don't install all these stuff
 if [ ! -d "/dsvm/" ]; then

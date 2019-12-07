@@ -3,8 +3,6 @@
 set -e
 set -o xtrace
 
-bash gsettings.sh
-
 sudo apt-get -y update
 sudo apt-get -y install git curl wget xclip xz-utils tar apt-transport-https
 
