@@ -88,7 +88,7 @@ source codefonts.sh
 
 # tex & .net
 sudo apt install -y texlive-full
-sudo apt install -y hugo mono-complete
+sudo apt install -y hugo mono-complete dosbox
 source dotnet.sh
 
 sudo apt-get -y update
