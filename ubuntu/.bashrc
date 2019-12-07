@@ -141,3 +141,5 @@ if [ -d "/dsvm/" ]; then
     export LS_COLORS
 fi
 
+# Turn on ../**/*.ext pattern matching
+shopt -q -s extglob

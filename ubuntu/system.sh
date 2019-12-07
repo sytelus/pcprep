@@ -13,7 +13,7 @@ sudo apt-get -y install numix-gtk-theme materia-gtk-theme gtk2-engines-murrine g
 sudo apt-get -y install tlp powertop tlp-rdw inxi nvidia-prime #conky-all #conky-cli
 sudo apt-get -y install gnome-calculator #will get you GTK
 sudo apt-get -y install libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 liblcms2-dev libxtst6
-sudo apt-get -y install swig cmake libopenmpi-dev python3-dev zlib1g-dev
+sudo apt-get -y install swig cmake libopenmpi-dev python3-dev zlib1g-dev fslint fdupes
 
 #fun stuff
 sudo apt-get -y install fortune-mod sl libaa-bin espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig
