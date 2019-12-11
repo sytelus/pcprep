@@ -3,5 +3,6 @@ sudo apt-get update
 sudo apt-get upgrade -y
 sudo apt-get dist-upgrade -y
 sudo apt-get install -y cuda-drivers
+sudo apt-get install -y cuda
 echo --------------------------
 echo !!Please reboot!!
