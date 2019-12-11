@@ -5,4 +5,5 @@ else
 fi
 cp -f .bash_aliases ~/.bash_aliases
 cp -f .inputrc ~/.inputrc
+cp -f .tmux.conf ~/.tmux.conf
 cp -rf .config/ ~/
