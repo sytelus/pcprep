@@ -13,20 +13,20 @@ pip install -q  opencv-python
 
 pip install -q  pydot plotly pyzmq dominate pygame pymunk
 pip install -q  gunicorn dash dash-core-components dash-html-components dash-renderer dash-auth
-pip install -q  nltk gensim annoy ujson tables sharedmem sacred pprofile mlxtend fitter mpld3 
+pip install -q  nltk gensim annoy ujson tables sharedmem sacred pprofile mlxtend fitter mpld3
 pip install -q  jupyter_nbextensions_configurator fasttext pandas-profiling scikit-image tqdm patool skorch fastcluster #imgaug
 pip install -q  sphinx recommonmark sphinx-autobuild sphinx_rtd_theme click-man
 pip install -q jupyterthemes
-pip install -q gpustat azureml-sdk
+pip install -q gpustat azureml-sdk timebudget py-spy autopep8
 conda install -y -c conda-forge jupyter_contrib_nbextensions
 pip -q install qgrid
 jupyter nbextension enable --py --sys-prefix widgetsnbextension
 pip -q install pyyaml pybullet optuna pytablewriter scikit-optimize py-spy filelock tabulate aiohttp psutil
 
-#pip install -q glances[gpu] 
+#pip install -q glances[gpu]
 #conda install -y h5py==2.8.0
 #pip install -q  mkdocs-alabaster mkdocs-cinder mkdocs-cluster mkdocs-cinder mkdocs-material mkdocs-rtd-dropdown mkdocs-windmill mkdocs-bootstrap mkdocs-bootswatch mkdocs-psinder
-#pip install -q  pep8   
+#pip install -q  pep8
 #pip install -q  --upgrade autopep8
 
 # conda install -y -c conda-forge jupyterlab nodejs
