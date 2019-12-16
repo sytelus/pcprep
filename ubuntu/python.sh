@@ -17,7 +17,7 @@ pip install -q  nltk gensim annoy ujson tables sharedmem sacred pprofile mlxtend
 pip install -q  jupyter_nbextensions_configurator fasttext pandas-profiling scikit-image tqdm patool skorch fastcluster
 pip install -q  sphinx recommonmark sphinx-autobuild sphinx_rtd_theme click-man
 pip install -q jupyterthemes
-pip install -q gpustat azureml-sdk overrides
+pip install -q gpustat azureml-sdk overrides timebudget py-spy autopep8
 conda install -y -c conda-forge jupyter_contrib_nbextensions
 pip -q install qgrid
 jupyter nbextension enable --py --sys-prefix widgetsnbextension

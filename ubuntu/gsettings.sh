@@ -1,6 +1,6 @@
 #!/bin/bash
 #fail if any errors
-set -e
+#set -e
 set -o xtrace
 
 # Gtk Theme
