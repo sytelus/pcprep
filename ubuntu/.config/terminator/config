@@ -112,7 +112,7 @@
       type = Terminal
       uuid = f6492e56-7053-4ce3-8780-d71bd7ae0843
     [[[terminal18]]]
-      command = mgitstatus; bash
+      command = mgitstatus -e; bash
       directory = /home/shitals/GitHubSrc
       order = 0
       parent = child17
