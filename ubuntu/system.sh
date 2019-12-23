@@ -8,13 +8,13 @@ sudo apt-get -y install git curl wget xclip xz-utils tar apt-transport-https
 
 sudo apt-get -y install bash-completion gnome-tweak-tool gnome-shell-extensions gnome-tweaks
 sudo apt-get -y install numix-gtk-theme materia-gtk-theme gtk2-engines-murrine gtk2-engines-pixbuf gnome-themes-standard
-sudo apt-get -y install tlp powertop tlp-rdw inxi nvidia-prime #conky-all #conky-cli
-sudo apt-get -y install gnome-calculator #will get you GTK
+sudo apt-get -y install tlp powertop tlp-rdw inxi procinfo nvidia-prime #conky-all #conky-cli
+sudo apt-get -y install gnome-calculator                       #will get you GTK
 sudo apt-get -y install libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 liblcms2-dev libxtst6
 sudo apt-get -y install swig cmake libopenmpi-dev python3-dev zlib1g-dev fslint fdupes
 
 #fun stuff
-sudo apt-get -y install fortune-mod sl libaa-bin espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig
+sudo apt-get -y install fortune-mod sl libaa-bin espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util
 sudo snap install ponysay
 
 # curl -O https://repo.anaconda.com/archive/Anaconda3-2019.07-Linux-x86_64.sh
@@ -64,7 +64,7 @@ curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-
 sudo apt -y install docker.io
 sudo systemctl start docker
 sudo systemctl enable docker
-sudo adduser `id -un` libvirt
+sudo adduser $(id -un) libvirt
 sudo apt-get install -y compiz compizconfig-settings-manager compiz-plugins
 
 # kubernetes control
@@ -89,5 +89,8 @@ sudo apt install -y texlive-full
 sudo apt install -y hugo mono-complete dosbox
 source dotnet.sh
 
-sudo apt-get -y update
+curl -s -o mgitstatus https://raw.githubusercontent.com/fboender/multi-git-status/master/mgitstatus
+chmod 755 mgitstatus
+sudo mv mgitstatus /usr/local/bin/
 
+sudo apt-get -y update

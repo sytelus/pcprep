@@ -70,8 +70,8 @@
       ratio = 0.163781624501
       type = VPaned
     [[[terminal10]]]
-      command = bash -i -c "ipython -i --matplotlib --pprint -c 'import numpy as np;import torch'"
-      directory = /home/shitals/GitHubSrc       
+      command = bash -i -c "ipython -i --matplotlib --pprint -c 'import numpy as np;import torch;from torch import nn;'"
+      directory = /home/shitals/GitHubSrc
       order = 0
       ratio = 0.2
       parent = child9
@@ -80,7 +80,7 @@
       uuid = a429cb9f-b7cf-4064-9883-155690120316
     [[[terminal11]]]
       command = git status; bash
-      directory = /home/shitals/GitHubSrc/fast-autoaugment    
+      directory = /home/shitals/GitHubSrc/fast-autoaugment
       order = 1
       ratio = 0.8
       parent = child9
@@ -89,7 +89,7 @@
       uuid = 6429cb9f-b7cf-4064-9883-155690120317
     [[[terminal13]]]
       command = git status; bash
-      directory = /home/shitals/GitHubSrc/podworld    
+      directory = /home/shitals/GitHubSrc/podworld
       order = 0
       parent = child12
       profile = default
@@ -97,21 +97,22 @@
       uuid = 1919ef4b-f5ea-4775-92ab-009353ee2bf3
     [[[terminal14]]]
       command = fortune|cowsay; bash
-      directory = /home/shitals/GitHubSrc    
+      directory = /home/shitals/GitHubSrc
       order = 1
       parent = child12
       profile = default
       type = Terminal
       uuid = 13170897-e4ad-4ab0-8b60-cf19e4a62109
     [[[terminal16]]]
-      command = nvtop -d 30; bash
-      directory = ""        
+      command = nvidia-smi; bash
+      directory = "/home/shitals/GitHubSrc/pt.darts"
       order = 0
       parent = child15
       profile = default
       type = Terminal
       uuid = f6492e56-7053-4ce3-8780-d71bd7ae0843
     [[[terminal18]]]
+      command = mgitstatus; bash
       directory = /home/shitals/GitHubSrc
       order = 0
       parent = child17
@@ -120,7 +121,7 @@
       uuid = 37d6bff6-b22f-43c3-9613-356e4e4c4c48
     [[[terminal19]]]
       command = git status; bash
-      directory = /home/shitals/GitHubSrc/pcprep        
+      directory = /home/shitals/GitHubSrc/pcprep
       order = 1
       parent = child17
       profile = default
@@ -128,7 +129,7 @@
       uuid = 4f829234-008a-4fea-840d-6407b56a8365
     [[[terminal5]]]
       command = git status; bash
-      directory = /home/shitals/GitHubSrc/darts    
+      directory = /home/shitals/GitHubSrc/darts
       order = 0
       ratio = 0.5
       parent = child4
@@ -137,7 +138,7 @@
       uuid = 92ef2adb-68c8-47e1-b2d2-ca115ec0774c
     [[[terminal6]]]
       command = git status; bash
-      directory = /home/shitals/GitHubSrc/gymexp     
+      directory = /home/shitals/GitHubSrc/gymexp
       order = 1
       parent = child4
       profile = default
@@ -145,7 +146,7 @@
       uuid = 28c90f53-52db-4361-a5ee-dc8641ec0c1e
     [[[terminal7]]]
       command = cal; bash
-      directory = /home/shitals/GitHubSrc    
+      directory = /home/shitals/GitHubSrc
       order = 1
       parent = child3
       profile = default
