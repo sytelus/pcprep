@@ -11,6 +11,7 @@ alias grevertall='git reset --hard && git reset --hard origin/master && git clea
 alias grevertfile='function _grevertf() { git checkout -- $1 } ; _grevertf'
 alias gdiff='function _gdiff(){ git difftool $1 } ; _gdiff'
 alias gstat='git status'
+alias gstatall='mgitstatus -e'
 alias gpush='git push'
 alias gpull='git pull'
 alias gcommit='function _gcommit() { git add -A && git commit -m $1 } ; _gcommit'
