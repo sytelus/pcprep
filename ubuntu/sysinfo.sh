@@ -1,11 +1,11 @@
-echo "System info" > sysinfo.txt
-echo -e "\n *** GPU Matrx ***\n" >> sysinfo.txt
+echo "System info"
+echo -e "\n *** GPU Matrx ***\n"
 nvidia-smi topo --matrix
-echo -e "\n *** CPU Info ***\n" >> sysinfo.txt
-lscpu >> sysinfo.txt
-echo -e "\n *** Mem Info ***\n" >> sysinfo.txt
-lsmem >> sysinfo.txt
-echo -e "\n *** GPU Info ***\n" >> sysinfo.txt
-nvidia-smi -q >> sysinfo.txt
-echo -e "\n *** NVlink Info ***\n" >> sysinfo.txt
-nvidia-smi nvlink --capabilities >> sysinfo.txt
+echo -e "\n *** CPU Info ***\n"
+lscpu
+echo -e "\n *** Mem Info ***\n"
+lsmem
+echo -e "\n *** GPU Info ***\n"
+nvidia-smi -q
+echo -e "\n *** NVlink Info ***\n"
+nvidia-smi nvlink --capabilities
