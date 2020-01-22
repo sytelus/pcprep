@@ -104,7 +104,7 @@
       type = Terminal
       uuid = 13170897-e4ad-4ab0-8b60-cf19e4a62109
     [[[terminal16]]]
-      command = nvidia-smi; bash
+      command = git status; bash
       directory = /home/shitals/GitHubSrc/pt.darts
       order = 0
       parent = child15
@@ -120,8 +120,8 @@
       type = Terminal
       uuid = 37d6bff6-b22f-43c3-9613-356e4e4c4c48
     [[[terminal19]]]
-      command = git status; bash
-      directory = /home/shitals/GitHubSrc/pcprep
+      command = nvidia-smi; bash
+      directory = /home/shitals/GitHubSrc/pt.darts
       order = 1
       parent = child17
       profile = default
