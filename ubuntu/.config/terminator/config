@@ -48,21 +48,21 @@
     [[[child3]]]
       order = 0
       parent = child2
-      ratio = 0.5
       position = 525
+      ratio = 0.5
       type = VPaned
     [[[child4]]]
       order = 0
       parent = child3
-      ratio = 0.2
       position = 264
+      ratio = 0.2
       type = VPaned
     [[[child8]]]
       order = 1
       parent = child2
       position = 851
-      type = HPaned
       ratio = 0.7
+      type = HPaned
     [[[child9]]]
       order = 0
       parent = child8
@@ -70,21 +70,21 @@
       ratio = 0.163781624501
       type = VPaned
     [[[terminal10]]]
-      command = bash -i -c "ipython -i --matplotlib --pprint -c 'import numpy as np;import torch;from torch import nn;'"
+      command = '''bash -i -c "ipython -i --matplotlib --pprint -c 'import numpy as np;import torch;from torch import nn;'"'''
       directory = /home/shitals/GitHubSrc
       order = 0
-      ratio = 0.2
       parent = child9
       profile = default
+      ratio = 0.2
       type = Terminal
       uuid = a429cb9f-b7cf-4064-9883-155690120316
     [[[terminal11]]]
       command = git status; bash
-      directory = /home/shitals/GitHubSrc/fast-autoaugment
+      directory = /home/shitals/GitHubSrc/archai
       order = 1
-      ratio = 0.8
       parent = child9
       profile = default
+      ratio = 0.8
       type = Terminal
       uuid = 6429cb9f-b7cf-4064-9883-155690120317
     [[[terminal13]]]
@@ -105,7 +105,7 @@
       uuid = 13170897-e4ad-4ab0-8b60-cf19e4a62109
     [[[terminal16]]]
       command = nvidia-smi; bash
-      directory = "/home/shitals/GitHubSrc/pt.darts"
+      directory = /home/shitals/GitHubSrc/pt.darts
       order = 0
       parent = child15
       profile = default
@@ -131,9 +131,9 @@
       command = git status; bash
       directory = /home/shitals/GitHubSrc/darts
       order = 0
-      ratio = 0.5
       parent = child4
       profile = default
+      ratio = 0.5
       type = Terminal
       uuid = 92ef2adb-68c8-47e1-b2d2-ca115ec0774c
     [[[terminal6]]]
@@ -152,6 +152,91 @@
       profile = default
       type = Terminal
       uuid = 10c0a6a0-e6bd-4ea5-8e2e-dfddee4abeaa
+  [[sshes]]
+    [[[child0]]]
+      fullscreen = False
+      last_active_term = 55d1228d-aacd-4d35-be3f-6a81caa66a55
+      last_active_window = True
+      maximised = True
+      order = 0
+      parent = ""
+      position = 1987:34
+      size = 1849, 1005
+      title = shitals@shitals-dr-lx: ~/GitHubSrc
+      type = Window
+    [[[child1]]]
+      order = 0
+      parent = child0
+      position = 500
+      ratio = 0.5
+      type = VPaned
+    [[[child2]]]
+      order = 0
+      parent = child1
+      position = 922
+      ratio = 0.5
+      type = HPaned
+    [[[child3]]]
+      order = 0
+      parent = child2
+      position = 248
+      ratio = 0.50101010101
+      type = VPaned
+    [[[child7]]]
+      order = 1
+      parent = child1
+      position = 922
+      ratio = 0.5
+      type = HPaned
+    [[[child8]]]
+      order = 0
+      parent = child7
+      position = 250
+      ratio = 0.501002004008
+      type = VPaned
+    [[[terminal10]]]
+      command = ssh shitals@23.97.137.43
+      order = 1
+      parent = child8
+      profile = default
+      type = Terminal
+      uuid = 0817a764-c666-40de-bd51-033eb2aaa228
+    [[[terminal11]]]
+      command = ssh shitals@51.124.52.93
+      directory = ~/GitHubSrc
+      order = 1
+      parent = child7
+      profile = default
+      type = Terminal
+      uuid = 4d5ce405-451a-4efa-aec1-85c3e132c654
+    [[[terminal4]]]
+      command = ssh shitals@52.233.236.53
+      order = 0
+      parent = child3
+      profile = default
+      type = Terminal
+      uuid = 6429cb9f-b7cf-4064-9883-155690120317
+    [[[terminal5]]]
+      order = 1
+      parent = child3
+      profile = default
+      type = Terminal
+      uuid = 9c4ef77a-87d0-4b94-b968-0163ad47f659
+    [[[terminal6]]]
+      command = ssh shitals@104.45.55.211
+      order = 1
+      parent = child2
+      profile = default
+      type = Terminal
+      uuid = 55d1228d-aacd-4d35-be3f-6a81caa66a55
+    [[[terminal9]]]
+      command = ssh shitals@13.69.49.64
+      directory = ""
+      order = 0
+      parent = child8
+      profile = default
+      type = Terminal
+      uuid = 1482e022-c2ad-4136-b680-5089b900c07a
 [plugins]
 [profiles]
   [[default]]
