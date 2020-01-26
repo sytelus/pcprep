@@ -143,3 +143,6 @@ fi
 
 # Turn on ../**/*.ext pattern matching
 shopt -q -s extglob
+
+eval $(gpg-agent --daemon)
+export GPG_TTY=$(tty)

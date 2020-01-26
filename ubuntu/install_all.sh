@@ -8,6 +8,8 @@ set -o xtrace
 bash cp_dotfiles.sh
 bash gsettings.sh
 
+bash min_system.sh
+
 # if we are in Azure DSVM, don't install all these stuff
 if [ ! -d "/dsvm/" ]; then
     bash system.sh
