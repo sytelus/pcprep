@@ -144,5 +144,26 @@ fi
 # Turn on ../**/*.ext pattern matching
 shopt -q -s extglob
 
-eval $(gpg-agent --daemon)
-export GPG_TTY=$(tty)
+
+
+if [[ ! "$(uname -s)" == "Darwin" ]]; then
+  # Set GPG TTY
+  export GPG_TTY=$(tty)
+
+  # Start the gpg-agent if not already running
+  if ! pgrep -x -u "${USER}" gpg-agent >/dev/null 2>&1; then
+    gpg-agent --daemon --enable-ssh-support --write-env-file "${HOME}/.gpg-agent-info"
+  fi
+
+#   OSCPKCS11=/usr/lib/ssh-keychain.dylib
+#   [[ -e $OSCPKCS11 ]] && export OSCPKCS11
+
+#   # Refresh gpg-agent tty in case user switches into an X session
+#   gpg-connect-agent updatestartuptty /bye >/dev/null
+fi
+
+if [ -f "${HOME}/.gpg-agent-info" ]; then
+  . "${HOME}/.gpg-agent-info"
+  export GPG_AGENT_INFO
+  export SSH_AUTH_SOCK
+fi
