@@ -11,11 +11,10 @@ sudo snap install ponysay
 sudo apt-get -y install gnome-tweak-tool gnome-shell-extensions gnome-tweaks
 sudo apt-get -y install numix-gtk-theme materia-gtk-theme gtk2-engines-murrine gtk2-engines-pixbuf gnome-themes-standard
 sudo apt-get -y install gnome-calculator                       #will get you GTK
-sudo apt-get -y install vlc browser-plugin-vlc
-sudo apt-get -y install p7zip-full p7zip-rar
-sudo apt-get -y install terminator
-sudo apt-get -y install dconf-tools
-sudo apt-get -y install gconf-editor
+sudo apt-get -y install vlc browser-plugin-vlc p7zip-full p7zip-rar
+sudo apt-get -y install gconf-editor spacefm udevil dconf-tools terminator
+# make spacefm default file maanager
+xdg-mime default spacefm.desktop inode/directory
 
 # dev stuff
 sudo apt-get -y install libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 liblcms2-dev libxtst6

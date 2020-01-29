@@ -106,7 +106,7 @@
       type = Terminal
       uuid = 28861c56-a406-452b-bc93-2ba7065a62b0
     [[[terminal18]]]
-      command = ssh shitals@52.233.236.53; bash
+      command = ""
       directory = /home/shitals/logdir
       order = 0
       parent = child17
@@ -114,7 +114,7 @@
       type = Terminal
       uuid = fe22ff87-4860-48ff-9710-7291d25ab74f
     [[[terminal19]]]
-      command = ssh shitals@51.124.52.93; bash
+      command = ssh  -o ConnectTimeout=10 shitals@51.124.52.93; bash
       directory = /home/shitals/logdir
       order = 1
       parent = child17
@@ -122,7 +122,7 @@
       type = Terminal
       uuid = 8566e1cb-2a97-43ee-a9b4-180fb47ba20b
     [[[terminal21]]]
-      command = ssh shitals@23.97.137.43; bash
+      command = ssh  -o ConnectTimeout=10 shitals@23.97.137.43; bash
       directory = /home/shitals/logdir
       order = 0
       parent = child20
@@ -130,7 +130,7 @@
       type = Terminal
       uuid = e172ab13-43a0-410a-b446-a8ba65f3e6cc
     [[[terminal22]]]
-      command = ssh shitals@104.45.55.211; bash
+      command = ssh  -o ConnectTimeout=10 shitals@104.45.55.211; bash
       directory = /home/shitals/logdir
       order = 1
       parent = child20
