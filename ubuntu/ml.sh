@@ -8,8 +8,8 @@ set -o xtrace
 if [ ! -z "$IS_WSL" ]; then
     conda install -y pytorch torchvision cpuonly -c pytorch
 else
-    conda install -y pytorch torchvision cudatoolkit=10.0 -c pytorch
+    conda install -y pytorch torchvision cudatoolkit=10.1 -c pytorch
 fi
 
-pip install -q --pre "tensorflow==1.15.*"
+pip install -q tensorflow
 pip install -q tensorboard keras tensorboardX keras-vis visdom receptivefield optuna
