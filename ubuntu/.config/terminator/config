@@ -83,6 +83,7 @@
       type = Terminal
       uuid = 70fb937e-cfd9-4a9e-b943-0c125f4c2c08
     [[[terminal12]]]
+      command = '''bash -c "$(sed -n '6 p' ~/Dropbox/vms.txt)"; bash'''
       directory = /home/shitals/GitHubSrc/archaiphilly
       order = 1
       parent = child10
@@ -90,7 +91,7 @@
       type = Terminal
       uuid = e8d5492e-e084-40a2-b270-6bde421bde6d
     [[[terminal14]]]
-      command = ""
+      command = '''bash -c "$(sed -n '5 p' ~/Dropbox/vms.txt)"; bash'''
       directory = /home/shitals/GitHubSrc/archaiphilly
       order = 0
       parent = child13
@@ -98,7 +99,7 @@
       type = Terminal
       uuid = 068b769d-009c-4cb6-bbc7-e1d83205ab6b
     [[[terminal15]]]
-      command = ./status.sh; bash
+      command = bash -c "./status.sh"; bash
       directory = /home/shitals/GitHubSrc/archaiphilly
       order = 1
       parent = child13
@@ -106,7 +107,7 @@
       type = Terminal
       uuid = 28861c56-a406-452b-bc93-2ba7065a62b0
     [[[terminal18]]]
-      command = ""
+      command = '''bash -c "$(sed -n '4 p' ~/Dropbox/vms.txt)"; bash'''
       directory = /home/shitals/logdir
       order = 0
       parent = child17
@@ -114,7 +115,7 @@
       type = Terminal
       uuid = fe22ff87-4860-48ff-9710-7291d25ab74f
     [[[terminal19]]]
-      command = ssh  -o ConnectTimeout=10 shitals@51.124.52.93; bash
+      command = '''bash -c "$(sed -n '3 p' ~/Dropbox/vms.txt)"; bash'''
       directory = /home/shitals/logdir
       order = 1
       parent = child17
@@ -122,7 +123,7 @@
       type = Terminal
       uuid = 8566e1cb-2a97-43ee-a9b4-180fb47ba20b
     [[[terminal21]]]
-      command = ssh  -o ConnectTimeout=10 shitals@23.97.137.43; bash
+      command = '''bash -c "$(sed -n '2 p' ~/Dropbox/vms.txt)"; bash'''
       directory = /home/shitals/logdir
       order = 0
       parent = child20
@@ -130,7 +131,7 @@
       type = Terminal
       uuid = e172ab13-43a0-410a-b446-a8ba65f3e6cc
     [[[terminal22]]]
-      command = ssh  -o ConnectTimeout=10 shitals@104.45.55.211; bash
+      command = '''bash -c "$(sed -n '1 p' ~/Dropbox/vms.txt)"; bash'''
       directory = /home/shitals/logdir
       order = 1
       parent = child20
@@ -138,32 +139,32 @@
       type = Terminal
       uuid = 3b260af1-4245-4931-a842-d657ed5bd9a2
     [[[terminal4]]]
-      command = cal; bash
-      directory = /home/shitals/GitHubSrc/archai
+      command = '''bash -i -c "ipython -i --matplotlib --pprint -c 'import numpy as np;import torch;from torch import nn;'"'''
+      directory = /home/shitals/GitHubSrc
       order = 0
       parent = child3
       profile = default
       type = Terminal
       uuid = 13170897-e4ad-4ab0-8b60-cf19e4a62109
     [[[terminal5]]]
-      command = mgitstatus -e; bash
-      directory = /home/shitals/GitHubSrc
+      command = fortune|cowsay; bash
+      directory = /home/shitals/GitHubSrc/pcprep
       order = 1
       parent = child3
       profile = default
       type = Terminal
       uuid = 233ad615-4a1e-4b01-ba55-7c76ea4a748b
     [[[terminal7]]]
-      command = '''bash -i -c "ipython -i --matplotlib --pprint -c 'import numpy as np;import torch;from torch import nn;'"'''
-      directory = /home/shitals/GitHubSrc
+      command = cal; bash
+      directory = /home/shitals/GitHubSrc/archai
       order = 0
       parent = child6
       profile = default
       type = Terminal
       uuid = f52f6cec-0186-4727-bd97-0f1bc29f8981
     [[[terminal8]]]
-      command = fortune|cowsay; bash
-      directory = /home/shitals/GitHubSrc/pcprep
+      command = mgitstatus -e; bash
+      directory = /home/shitals/GitHubSrc
       order = 1
       parent = child6
       profile = default
