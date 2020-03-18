@@ -33,8 +33,8 @@ print('PyTorch device count', cuda.device_count())
 print('PyTorch device', cuda.get_device_name(cuda.current_device()))
 
 # confirm Keras sees the GPU
-from keras import backend
-print('keras GPUs:', backend.tensorflow_backend._get_available_gpus())
+# from tensorflow.keras import backend
+# print('keras GPUs:', backend.tensorflow_backend._get_available_gpus())
 
 import os
 os.system('nvidia-smi')
