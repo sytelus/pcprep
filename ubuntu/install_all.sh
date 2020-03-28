@@ -6,6 +6,9 @@ set -o xtrace
 # install VS code, dropbox, chrome: https://code.visualstudio.com/, anaconda.sh
 
 bash cp_dotfiles.sh
+bash gsettings.sh
+
+bash min_system.sh
 
 # if we are in Azure DSVM, don't install all these stuff
 if [ ! -d "/dsvm/" ]; then
@@ -20,9 +23,10 @@ if [ ! -d "/dsvm/" ]; then
     bash ml.sh
 else
     # the default is anaconda 2ith Python 2.7
-    echo Please relogin so dot files takes effect and rerun this script.
+    echo Please re-login so dot files takes effect and rerun this script.
     exit 0
 fi
+bash apex.sh
 bash rl.sh
 bash gitclones.sh
 

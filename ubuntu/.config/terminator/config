@@ -6,7 +6,6 @@
   [[default]]
     [[[child0]]]
       fullscreen = False
-      last_active_term = 6429cb9f-b7cf-4064-9883-155690120317
       last_active_window = True
       maximised = True
       order = 0
@@ -16,141 +15,161 @@
       title = shitals@shitals-dr-lx: ~/GitHubSrc
       type = Window
     [[[child1]]]
+      active_page = 0
+      labels = None, None, None
+      last_active_term = 13170897-e4ad-4ab0-8b60-cf19e4a62109, 70fb937e-cfd9-4a9e-b943-0c125f4c2c08, 3b260af1-4245-4931-a842-d657ed5bd9a2
       order = 0
       parent = child0
-      position = 756
-      ratio = 0.756
-      type = VPaned
-    [[[child12]]]
-      order = 1
-      parent = child8
-      position = 365
-      ratio = 0.486018641811
-      type = VPaned
-    [[[child15]]]
-      order = 1
-      parent = child1
-      position = 434
-      ratio = 0.23535791757
+      type = Notebook
+    [[[child10]]]
+      order = 0
+      parent = child9
+      position = 923
+      ratio = 0.50108577633
       type = HPaned
-    [[[child17]]]
+    [[[child13]]]
       order = 1
-      parent = child15
-      position = 875
-      ratio = 0.621007806955
+      parent = child9
+      position = 921
+      ratio = 0.5
+      type = HPaned
+    [[[child16]]]
+      order = 2
+      parent = child1
+      position = 481
+      ratio = 0.500520291363
+      type = VPaned
+    [[[child17]]]
+      order = 0
+      parent = child16
+      position = 923
+      ratio = 0.50108577633
       type = HPaned
     [[[child2]]]
       order = 0
       parent = child1
-      position = 510
-      ratio = 0.276572668113
+      position = 919
+      ratio = 0.49891422367
+      type = HPaned
+    [[[child20]]]
+      order = 1
+      parent = child16
+      position = 921
+      ratio = 0.5
       type = HPaned
     [[[child3]]]
       order = 0
       parent = child2
-      ratio = 0.5
-      position = 525
+      position = 478
+      ratio = 0.497398543184
       type = VPaned
-    [[[child4]]]
-      order = 0
-      parent = child3
-      ratio = 0.2
-      position = 264
-      type = VPaned
-    [[[child8]]]
+    [[[child6]]]
       order = 1
       parent = child2
-      position = 851
-      type = HPaned
-      ratio = 0.7
-    [[[child9]]]
-      order = 0
-      parent = child8
-      position = 123
-      ratio = 0.163781624501
+      position = 478
+      ratio = 0.497398543184
       type = VPaned
-    [[[terminal10]]]
-      command = bash -i -c "ipython -i --matplotlib --pprint -c 'import numpy as np;import torch'"
-      directory = /home/shitals/GitHubSrc       
-      order = 0
-      ratio = 0.2
-      parent = child9
-      profile = default
-      type = Terminal
-      uuid = a429cb9f-b7cf-4064-9883-155690120316
+    [[[child9]]]
+      order = 1
+      parent = child1
+      position = 481
+      ratio = 0.500520291363
+      type = VPaned
     [[[terminal11]]]
-      command = git status; bash
-      directory = /home/shitals/GitHubSrc/fast-autoaugment    
-      order = 1
-      ratio = 0.8
-      parent = child9
-      profile = default
-      type = Terminal
-      uuid = 6429cb9f-b7cf-4064-9883-155690120317
-    [[[terminal13]]]
-      command = git status; bash
-      directory = /home/shitals/GitHubSrc/podworld    
+      directory = /home/shitals/GitHubSrc/archaiphilly
       order = 0
-      parent = child12
+      parent = child10
       profile = default
       type = Terminal
-      uuid = 1919ef4b-f5ea-4775-92ab-009353ee2bf3
-    [[[terminal14]]]
-      command = fortune|cowsay; bash
-      directory = /home/shitals/GitHubSrc    
+      uuid = 70fb937e-cfd9-4a9e-b943-0c125f4c2c08
+    [[[terminal12]]]
+      command = '''bash -c "$(sed -n '6 p' ~/Dropbox/vms.txt)"; bash'''
+      directory = /home/shitals/GitHubSrc/archaiphilly
       order = 1
-      parent = child12
+      parent = child10
+      profile = default
+      type = Terminal
+      uuid = e8d5492e-e084-40a2-b270-6bde421bde6d
+    [[[terminal14]]]
+      command = '''bash -c "$(sed -n '5 p' ~/Dropbox/vms.txt)"; bash'''
+      directory = /home/shitals/GitHubSrc/archaiphilly
+      order = 0
+      parent = child13
+      profile = default
+      type = Terminal
+      uuid = 068b769d-009c-4cb6-bbc7-e1d83205ab6b
+    [[[terminal15]]]
+      command = bash -c "./status.sh"; bash
+      directory = /home/shitals/GitHubSrc/archaiphilly
+      order = 1
+      parent = child13
+      profile = default
+      type = Terminal
+      uuid = 28861c56-a406-452b-bc93-2ba7065a62b0
+    [[[terminal18]]]
+      command = '''bash -c "$(sed -n '4 p' ~/Dropbox/vms.txt)"; bash'''
+      directory = /home/shitals/logdir
+      order = 0
+      parent = child17
+      profile = default
+      type = Terminal
+      uuid = fe22ff87-4860-48ff-9710-7291d25ab74f
+    [[[terminal19]]]
+      command = '''bash -c "$(sed -n '3 p' ~/Dropbox/vms.txt)"; bash'''
+      directory = /home/shitals/logdir
+      order = 1
+      parent = child17
+      profile = default
+      type = Terminal
+      uuid = 8566e1cb-2a97-43ee-a9b4-180fb47ba20b
+    [[[terminal21]]]
+      command = '''bash -c "$(sed -n '2 p' ~/Dropbox/vms.txt)"; bash'''
+      directory = /home/shitals/logdir
+      order = 0
+      parent = child20
+      profile = default
+      type = Terminal
+      uuid = e172ab13-43a0-410a-b446-a8ba65f3e6cc
+    [[[terminal22]]]
+      command = '''bash -c "$(sed -n '1 p' ~/Dropbox/vms.txt)"; bash'''
+      directory = /home/shitals/logdir
+      order = 1
+      parent = child20
+      profile = default
+      type = Terminal
+      uuid = 3b260af1-4245-4931-a842-d657ed5bd9a2
+    [[[terminal4]]]
+      command = '''bash -i -c "ipython -i --matplotlib --pprint -c 'import numpy as np;import torch;from torch import nn;'"'''
+      directory = /home/shitals/GitHubSrc
+      order = 0
+      parent = child3
       profile = default
       type = Terminal
       uuid = 13170897-e4ad-4ab0-8b60-cf19e4a62109
-    [[[terminal16]]]
-      command = nvtop -d 30; bash
-      directory = ""        
-      order = 0
-      parent = child15
-      profile = default
-      type = Terminal
-      uuid = f6492e56-7053-4ce3-8780-d71bd7ae0843
-    [[[terminal18]]]
-      directory = /home/shitals/GitHubSrc
-      order = 0
-      parent = child17
-      profile = default
-      type = Terminal
-      uuid = 37d6bff6-b22f-43c3-9613-356e4e4c4c48
-    [[[terminal19]]]
-      command = git status; bash
-      directory = /home/shitals/GitHubSrc/pcprep        
-      order = 1
-      parent = child17
-      profile = default
-      type = Terminal
-      uuid = 4f829234-008a-4fea-840d-6407b56a8365
     [[[terminal5]]]
-      command = git status; bash
-      directory = /home/shitals/GitHubSrc/darts    
-      order = 0
-      ratio = 0.5
-      parent = child4
-      profile = default
-      type = Terminal
-      uuid = 92ef2adb-68c8-47e1-b2d2-ca115ec0774c
-    [[[terminal6]]]
-      command = git status; bash
-      directory = /home/shitals/GitHubSrc/gymexp     
-      order = 1
-      parent = child4
-      profile = default
-      type = Terminal
-      uuid = 28c90f53-52db-4361-a5ee-dc8641ec0c1e
-    [[[terminal7]]]
-      command = cal; bash
-      directory = /home/shitals/GitHubSrc    
+      command = fortune|cowsay; bash
+      directory = /home/shitals/GitHubSrc/pcprep
       order = 1
       parent = child3
       profile = default
       type = Terminal
-      uuid = 10c0a6a0-e6bd-4ea5-8e2e-dfddee4abeaa
+      uuid = 233ad615-4a1e-4b01-ba55-7c76ea4a748b
+    [[[terminal7]]]
+      command = cal; bash
+      directory = /home/shitals/GitHubSrc/archai
+      order = 0
+      parent = child6
+      profile = default
+      type = Terminal
+      uuid = f52f6cec-0186-4727-bd97-0f1bc29f8981
+    [[[terminal8]]]
+      command = mgitstatus -e; bash
+      directory = /home/shitals/GitHubSrc
+      order = 1
+      parent = child6
+      profile = default
+      type = Terminal
+      uuid = 6a2045d0-b6fd-4d67-bbf3-5cd6295a3d0a
 [plugins]
 [profiles]
   [[default]]
