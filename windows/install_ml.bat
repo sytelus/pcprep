@@ -8,6 +8,6 @@ REM Install CUDA 10.1 https://developer.nvidia.com/cuda-downloads?target_os=Wind
 REM Install cuDNN 7.6 https://developer.nvidia.com/rdp/cudnn-download
 REM	Extract zip file to C:\Program Files\cuDNN7, add path to C:\Program Files\cuDNN7\cuda\bin
 
-call conda install -y pytorch torchvision cudatoolkit=10.0 -c pytorch
-pip install -q --pre "tensorflow==1.15.*"
+conda install -y pytorch torchvision cudatoolkit=10.1 -c pytorch
+pip install -q -tensorflow
 pip install -q tensorboard keras tensorboardX keras-vis visdom receptivefield optuna

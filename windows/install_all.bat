@@ -7,7 +7,7 @@ REM Optional: https://www.techpowerup.com/download/techpowerup-throttlestop/
 call install_choco.bat
 call gitconfig.bat
 
-regedit /s processor_performance_boost_mode
+regedit /s processor_performance_boost_mode.reg
 
 call install_anaconda.bat
 call install_python.bat
@@ -16,4 +16,5 @@ call install_rl.bat
 call gitclones.bat
 
 REM install code face fonts
-powershell -Command "&{ Start-Process powershell -ArgumentList '-File codeface.ps' -Verb RunAs}"
+powershell -Command "&{ Start-Process powershell -NoExit -ArgumentList '-File codeface.ps' -Verb RunAs}"
+PAUSE

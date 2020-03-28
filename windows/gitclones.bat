@@ -19,12 +19,11 @@ popd
 EXIT /B %ERRORLEVEL% 
 
 :install_from_git
-if exist "\GitHubSrc\%~2" (
+if not exist "\GitHubSrc\%~2" (
     git clone https://github.com/%~1/%~2.git
-
-    if "%~3" EQ "1" (
-        pushd "%~2"
-        pip install -e .
-        popd
-    )
+)
+if "%~3" EQ "1" (
+    pushd "%~2"
+    pip install -e .
+    popd
 )

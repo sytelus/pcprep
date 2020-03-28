@@ -17,6 +17,7 @@ $objFolder = $objShell.Namespace($FONTS)
 # local path
 
 $localSysPath = "$Env:USERPROFILE\AppData\Local\Microsoft\Windows\Fonts"
+New-Item -Path $localSysPath -ItemType Directory
 $localSysFonts = Get-ChildItem -Path $localSysPath -Recurse -File -Name | ForEach-Object -Process {[System.IO.Path]::GetFileNameWithoutExtension($_)}
 
 "Copying fonts..."

@@ -1,1 +1,2 @@
-powershell -Command "&{ Start-Process powershell -ArgumentList '-File install_choco.ps' -Verb RunAs}"
+powershell -NoProfile -ExecutionPolicy Bypass  -Command "&{ Start-Process powershell -NoExit -ArgumentList '-File install_choco.ps' -Verb RunAs}"
+pause
