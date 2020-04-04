@@ -8,14 +8,13 @@ sudo apt-get -y install fortune-mod sl libaa-bin espeak figlet sysvbanner cowsay
 sudo snap install ponysay
 
 # dev stuff
+sudo apt-get -y install libopencv-dev libopenmpi-dev zlib1g-dev
 sudo apt-get -y install libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 liblcms2-dev libxtst6
-sudo apt-get -y install swig cmake libopenmpi-dev python3-dev zlib1g-dev
-sudo apt-get -y install libopencv-dev
-sudo apt-get -y install build-essential
+sudo apt-get -y install swig
 sudo apt-get -y install libgtk2.0-dev pkg-config libavcodec-dev libavformat-dev libswscale-dev
-sudo apt-get -y install python-dev python-numpy libtbb2 libtbb-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-22-dev
-sudo apt-get -y install g++ gcc-arm-linux-gnueabi g++-arm-linux-gnueabi
-sudo apt-get -y install python-wstool
+sudo apt-get -y install libtbb2 libtbb-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-22-dev
+sudo apt-get -y install gcc-arm-linux-gnueabi g++-arm-linux-gnueabi
+sudo apt-get -y install python3-dev python-dev python-numpy python-wstool
 sudo apt-get -y install gcc-arm-linux-gnueabi g++-arm-linux-gnueabi
 sudo apt-get -y install libusb-1.0-0-dev
 
