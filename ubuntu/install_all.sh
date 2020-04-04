@@ -17,7 +17,7 @@ if [ ! -d "/dsvm/" ]; then
     bash anaconda.sh
     bash python.sh
     # install cuda only if we are not in WSL
-    if [ -z "$IS_WSL" ]; then
+    if [ -z "$WSL_DISTRO_NAME" ]; then
         bash cuda.sh
     fi
     bash ml.sh
@@ -26,8 +26,12 @@ else
     echo Please re-login so dot files takes effect and rerun this script.
     exit 0
 fi
-bash apex.sh
+
 bash rl.sh
-bash gitclones.sh
+
+if [ -z "$WSL_DISTRO_NAME" ]; then
+    bash apex.sh
+    bash gitclones.sh
+fi
 
 echo "Install all done."
