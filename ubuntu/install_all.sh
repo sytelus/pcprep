@@ -5,6 +5,9 @@ set -o xtrace
 
 # install VS code, dropbox, chrome: https://code.visualstudio.com/, anaconda.sh
 
+# for WSL get GitHubSrc from host
+#ln -s /mnt/d/GitHubSrc/ GitHubSrc
+
 bash cp_dotfiles.sh
 bash gsettings.sh
 
