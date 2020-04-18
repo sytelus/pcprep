@@ -3,7 +3,7 @@
 set -e
 set -o xtrace
 
-if [ -z "$WSL_DISTRO_NAME" ]; then
+if [[ -z "$WSL_DISTRO_NAME" ]]; then
     pip install -q mpi4py
 
     conda install -y -c conda-forge jupyter_contrib_nbextensions

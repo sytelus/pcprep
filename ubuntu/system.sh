@@ -39,7 +39,7 @@ sudo systemctl enable docker
 sudo apt-get -y install libvirt-daemon-system libvirt-clients bridge-utils virt-manager
 sudo adduser $(id -un) libvirt
 
-if [ -z "$WSL_DISTRO_NAME" ]; then
+if [[ -z "$WSL_DISTRO_NAME" ]]; then
     # UX stuff
     sudo apt-get -y install gnome-tweak-tool gnome-shell-extensions gnome-tweaks
     sudo apt-get -y install numix-gtk-theme materia-gtk-theme gtk2-engines-murrine gtk2-engines-pixbuf gnome-themes-standard

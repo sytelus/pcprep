@@ -20,7 +20,7 @@ if [ ! -d "/dsvm/" ]; then
     bash anaconda.sh
     bash python.sh
     # install cuda only if we are not in WSL
-    if [ -z "$WSL_DISTRO_NAME" ]; then
+    if [[ -z "$WSL_DISTRO_NAME" ]]; then
         bash cuda.sh
     fi
     bash ml.sh
@@ -32,7 +32,7 @@ fi
 
 bash rl.sh
 
-if [ -z "$WSL_DISTRO_NAME" ]; then
+if [[ -z "$WSL_DISTRO_NAME" ]]; then
     bash apex.sh
     bash gitclones.sh
 fi
