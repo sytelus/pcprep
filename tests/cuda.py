@@ -11,8 +11,14 @@ from tensorflow.python.client import device_lib
 print('Tensorflow devices:')
 print(device_lib.list_local_devices())
 
-import tensorflow.compat.v1 as tf
-tf.compat.v1.disable_eager_execution()
+try: # TF 2.x
+    import tensorflow.compat.v1 as tf
+    tf.disable_eager_execution()
+except Exception as ex:
+    # TF 1.x
+    print(ex)
+    import tensoflow as tf
+
 a = tf.constant(5.0)
 b = tf.constant(6.0)
 c = a * b
