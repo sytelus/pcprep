@@ -1,3 +1,6 @@
+call conda install -y x264=='1!152.20180717' ffmpeg=4.0.2 -c conda-forge
+pip install -q pyqt5==5.12.0 pyqtwebengine==5.12.0
+
 D:
 mkdir \GitHubSrc
 pushd \GitHubSrc
@@ -19,7 +22,7 @@ pip install -q gym[classic_control]
 pip install -q gym[atari]
 
 popd
-EXIT /B %ERRORLEVEL% 
+EXIT /B %ERRORLEVEL%
 
 :install_from_git
 (
