@@ -6,9 +6,9 @@ set -o xtrace
 #------------- First install CUDA 10.0 using cuda.sh ------------------------
 
 if [ ! -z "$IS_WSL" ]; then
-    conda install -y pytorch torchvision cpuonly -c pytorch
+    conda install -y pytorch torchvision torchaudio cpuonly -c pytorch
 else
-    conda install -y pytorch torchvision cudatoolkit=10.1 -c pytorch
+    conda install -y pytorch torchvision torchaudio cudatoolkit=10.1 -c pytorch
 fi
 
 pip install -q tensorflow

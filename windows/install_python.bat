@@ -1,6 +1,4 @@
 pip install -q mpi4py
-call conda install -y x264=='1!152.20180717' ffmpeg=4.0.2 -c conda-forge
-pip install -q pyqt5==5.12.0 pyqtwebengine==5.12.0
 pip install -q setuptools wheel twine
 pip install -q gputil setproctitle
 call conda install -y opencv graphviz python-graphviz
