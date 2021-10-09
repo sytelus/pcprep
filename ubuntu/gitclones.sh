@@ -11,14 +11,14 @@ function install_from_git {
 		git clone https://github.com/$1/$2.git
 		cd "$2"
 		pip install -e .
-		cd ..	
+		cd ..
 	fi
 }
 
-if [ ! -d "/dsvm/" ]; then
-	# tensorflow 1.14 incompatibility
-	install_from_git openai spinningup
-fi
+# if [ ! -d "/dsvm/" ]; then
+# 	# tensorflow 1.14 incompatibility
+# 	install_from_git openai spinningup
+# fi
 
 install_from_git microsoft tensorwatch
 install_from_git sytelus podworld
@@ -36,15 +36,15 @@ install_from_git hill-a stable-baselines
 
 # TODO: Move this to above structure
 set +e
-git clone https://github.com/dragen1860/DARTS-PyTorch.git
-git clone https://github.com/khanrc/pt.darts.git
-git clone https://github.com/kakaobrain/fast-autoaugment.git
-git clone https://github.com/microsoft/petridishnn.git
-git clone https://github.com/debadeepta/archaiphilly.git
-git clone https://github.com/vfdev-5/cifar10-faster.git
-git clone https://github.com/apple/ml-cifar-10-faster.git
-git clone https://github.com/davidcpage/cifar10-fast.git
-git clone https://github.com/sytelus/cifar_testbed.git
-git clone https://github.com/sytelus/archai.git
+# git clone https://github.com/dragen1860/DARTS-PyTorch.git
+# git clone https://github.com/khanrc/pt.darts.git
+# git clone https://github.com/kakaobrain/fast-autoaugment.git
+# git clone https://github.com/microsoft/petridishnn.git
+# git clone https://github.com/debadeepta/archaiphilly.git
+# git clone https://github.com/vfdev-5/cifar10-faster.git
+# git clone https://github.com/apple/ml-cifar-10-faster.git
+# git clone https://github.com/davidcpage/cifar10-fast.git
+# git clone https://github.com/sytelus/cifar_testbed.git
+# git clone https://github.com/sytelus/archai.git
 
 popd
