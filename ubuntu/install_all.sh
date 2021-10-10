@@ -16,13 +16,14 @@ bash gitconfig.sh
 
 if [ ! -d "/dsvm/" ]; then
     bash anaconda.sh
-    bash python.sh
     bash ml.sh
 fi
 
 # if we are in Azure DSVM, don't install all these stuff
 if [ ! -d "/dsvm/" ] && ["$HOSTNAME" != "GCRSANDBOX"*]; then
     bash system.sh
+    bash python.sh
+
     # install cuda only if we are not in WSL
     if [[ -z "$WSL_DISTRO_NAME" ]]; then
         bash cuda.sh
