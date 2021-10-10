@@ -12,29 +12,32 @@ bash cp_dotfiles.sh
 bash gsettings.sh
 
 bash min_system.sh
+bash gitconfig.sh
 
-# if we are in Azure DSVM, don't install all these stuff
 if [ ! -d "/dsvm/" ]; then
-    bash system.sh
-    bash gitconfig.sh
     bash anaconda.sh
     bash python.sh
+    bash ml.sh
+fi
+
+# if we are in Azure DSVM, don't install all these stuff
+if [ ! -d "/dsvm/" ] && ["$HOSTNAME" != "GCRSANDBOX"*]; then
+    bash system.sh
     # install cuda only if we are not in WSL
     if [[ -z "$WSL_DISTRO_NAME" ]]; then
         bash cuda.sh
     fi
-    bash ml.sh
+    bash rl.sh
+
+    if [[ -z "$WSL_DISTRO_NAME" ]]; then
+        bash apex.sh
+        bash gitclones.sh
+    fi
 else
     # the default is anaconda 2ith Python 2.7
     echo Please re-login so dot files takes effect and rerun this script.
     exit 0
 fi
 
-bash rl.sh
-
-if [[ -z "$WSL_DISTRO_NAME" ]]; then
-    bash apex.sh
-    bash gitclones.sh
-fi
 
 echo "Install all done."

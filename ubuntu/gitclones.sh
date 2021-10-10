@@ -25,14 +25,14 @@ install_from_git sytelus podworld
 install_from_git sytelus regim
 install_from_git sytelus archai
 install_from_git sytelus cifar_testbed
-install_from_git hill-a stable-baselines
+#install_from_git hill-a stable-baselines
 
-[ ! -d 'AirSim' ] && git clone https://github.com/microsoft/AirSim.git
-[ ! -d 'shitalshah.com-v5' ] && git clone https://github.com/sytelus/shitalshah.com-v5.git
-[ ! -d 'gymexp' ] && git clone https://github.com/sytelus/gymexp.git
-[ ! -d 'pcprep' ] && git clone https://github.com/sytelus/pcprep.git
-[ ! -d 'rl-experiments' ] && git clone https://github.com/sytelus/rl-experiments.git
-[ ! -d 'rl-baselines-zoo' ] && git clone https://github.com/sytelus/rl-baselines-zoo.git
+# [ ! -d 'AirSim' ] && git clone https://github.com/microsoft/AirSim.git
+# [ ! -d 'shitalshah.com-v5' ] && git clone https://github.com/sytelus/shitalshah.com-v5.git
+# [ ! -d 'gymexp' ] && git clone https://github.com/sytelus/gymexp.git
+# [ ! -d 'pcprep' ] && git clone https://github.com/sytelus/pcprep.git
+# [ ! -d 'rl-experiments' ] && git clone https://github.com/sytelus/rl-experiments.git
+# [ ! -d 'rl-baselines-zoo' ] && git clone https://github.com/sytelus/rl-baselines-zoo.git
 
 # TODO: Move this to above structure
 set +e
