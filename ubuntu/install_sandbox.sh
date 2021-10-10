@@ -12,7 +12,7 @@ bash cp_dotfiles.sh
 bash gsettings.sh
 
 bash min_system.sh
-bash gitconfig.sh
+#bash gitconfig.sh
 
 bash anaconda.sh
 bash ml.sh
