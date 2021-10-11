@@ -148,13 +148,13 @@ fi
 shopt -q -s extglob
 
 
-if [[ ! -z "$WSL_DISTRO_NAME" ]]; then
-    if [[ ! grep -Fxq "nameserver 10.50.10.50" /etc/resolv.conf ]]; then
-        sudo mv /etc/resolv.conf /etc/resolv.conf.bak
-        sudo bash -c "cat /etc/resolv.conf.bak > /etc/resolv.conf"
-        sudo bash -c "echo nameserver 10.50.10.50 >> /etc/resolv.conf"
-    fi
-fi
+# if [[ ! -z "$WSL_DISTRO_NAME" ]]; then
+#     if [[ ! grep -Fxq "nameserver 10.50.10.50" /etc/resolv.conf ]]; then
+#         sudo mv /etc/resolv.conf /etc/resolv.conf.bak
+#         sudo bash -c "cat /etc/resolv.conf.bak > /etc/resolv.conf"
+#         sudo bash -c "echo nameserver 10.50.10.50 >> /etc/resolv.conf"
+#     fi
+# fi
 
 
 if [[ ! "$(uname -s)" == "Darwin" ]]; then
