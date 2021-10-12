@@ -1,4 +1,4 @@
-docker run --gpus all -d --name archai \
+docker run --gpus all --name archai \
     -u $(id -u):$(id -g) \
     -e HOME=$HOME -e USER=$USER \
     -v $HOME:$HOME \
