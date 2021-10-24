@@ -137,12 +137,12 @@ if [[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ]; then
     # export LS_COLORS
 fi
 
-# A100 machines in GCR
-if type -P nvidia-smi; then
-    if [[ $(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l) -ge 4 ]];then
-        export NCCL_P2P_LEVEL=NVL
-    fi
-fi
+# A100 machines in GCR (now done through docker run command)
+# if type -P nvidia-smi; then
+#     if [[ $(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l) -ge 4 ]];then
+#         export NCCL_P2P_LEVEL=NVL
+#     fi
+# fi
 
 # Turn on ../**/*.ext pattern matching
 shopt -q -s extglob
