@@ -5,6 +5,7 @@ docker run --gpus all --name archai \
     -v $HOME:$HOME \
     -v /dataroot:$HOME/dataroot \
     -w $HOME \
-    --ipc=host \
+    --shm-size=10g \
+    --ulimit memlock=-1 \
     --net=host \
     -it sytelus/archai
