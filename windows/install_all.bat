@@ -16,5 +16,5 @@ call install_rl.bat
 call gitclones.bat
 
 REM install code face fonts
-powershell -Command "&{ Start-Process powershell -NoExit -ArgumentList '-File codeface.ps' -Verb RunAs}"
+powershell -Command "&{ Start-Process powershell -ArgumentList '-File codeface.ps1' -Verb RunAs}"
 PAUSE

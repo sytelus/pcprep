@@ -8,6 +8,7 @@ sudo apt-get -y install fortune-mod sl libaa-bin espeak figlet sysvbanner cowsay
 sudo snap install ponysay
 
 # dev stuff
+sudo apt-get -y fslint fdupes locate
 sudo apt-get -y install libopencv-dev libopenmpi-dev zlib1g-dev
 sudo apt-get -y install libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 liblcms2-dev libxtst6
 sudo apt-get -y install swig
