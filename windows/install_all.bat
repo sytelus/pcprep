@@ -4,9 +4,13 @@ PAUSE Manual installs: Git, Chrome, Dropbox, VSCode, VS2019, Teams, OneNote, Bey
 PAUSE Manual installs: GitHub Desktop, Camtasia
 REM Optional: https://www.techpowerup.com/download/techpowerup-throttlestop/
 
+call install_gsudo.bat
 call install_choco.bat
 call gitconfig.bat
+call utilities.bat
 
+regedit /s aliases.reg
+regedit /s LongPathEnabled.reg
 regedit /s processor_performance_boost_mode.reg
 
 call install_anaconda.bat

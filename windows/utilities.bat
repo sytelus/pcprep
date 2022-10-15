@@ -14,14 +14,10 @@ choco install -y  foxitreader
 choco install -y  gimp
 choco install -y  curl
 choco install -y  wget
-choco install -y  itunes
 choco install -y  virtualbox
 choco install -y  golang
 choco install -y  irfanview
-choco install -y  spotify
 choco install -y  audacity
-choco install -y  azcopy
-choco install -y  steam
 choco install -y  tortoisesvn
 choco install -y  evernote
 choco install -y  rufus
