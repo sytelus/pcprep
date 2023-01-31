@@ -1,9 +1,6 @@
-# this should also work
-# curl https://get.docker.com | sh \
-#   && sudo systemctl --now enable docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 
-# docker pre-req should be installed by min_system.sh
-sudo apt-get install docker-ce docker-ce-cli containerd.io
 # setup so docker command doesn't need sudo
 sudo groupadd docker
 sudo usermod -aG docker $USER
