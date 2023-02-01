@@ -1,0 +1,33 @@
+azstorage:
+  type: block
+  endpoint: YOUR_ACCOUNT_NAME.blob.core.windows.net
+  account-name: YOUR_ACCOUNT_NAME
+  account-key: YOUR_ACCOUNT_KEY
+  mode: key
+  container: YOUR_CONTAINER_NAME
+
+
+# allow-other: true
+
+# logging:
+#   type: syslog
+#   level: log_debug
+
+# components:
+#   - libfuse
+#   - file_cache
+#   - attr_cache
+#   - azstorage
+
+# libfuse:
+#   attribute-expiration-sec: 120
+#   entry-expiration-sec: 120
+#   negative-entry-expiration-sec: 240
+
+# file_cache:
+#   path: /tmp/blobfuse
+#   timeout-sec: 120
+# #   max-size-mb: 4096
+
+# attr_cache:
+#   timeout-sec: 7200

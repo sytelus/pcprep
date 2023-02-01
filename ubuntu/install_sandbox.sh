@@ -9,12 +9,20 @@ set -o xtrace
 # copy dot files, rundocker command
 bash cp_dotfiles.sh
 
+# install blobfuse so you can map Azure blob storage
+sudo apt-get install blobfuse2
+
 # below two is only needed if docker is not already installed
 #bash min_system.sh
 #bash docker_install.sh
 
 # installs NVidia docker runtime
-bash nv_container_tk.sh
+# check:
+#   dpkg-query --show --showformat='${db:Status-Status}\n' nvidia-docker2
+# if not installed then run below
+# bash nv_container_tk.sh
+
+mkdir -p ~/data # docker will mount this folder as ~/dataroot
 
 # pull docker that we will use
 sudo docker pull sytelus/dev
