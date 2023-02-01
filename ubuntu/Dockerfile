@@ -20,7 +20,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes --no-install-rec
       fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util ponysay \
       fslint fdupes locate \
       apt-transport-https ca-certificates curl gnupg lsb-release \
-      bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
+      bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion
 
 RUN apt-get clean
 
