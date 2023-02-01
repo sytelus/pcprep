@@ -8,7 +8,7 @@ set -o xtrace
 if [ ! -z "$IS_WSL" ]; then
     conda install -y pytorch torchvision torchaudio cpuonly -c pytorch
 else
-    conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch -c nvidia
+    conda install -y pytorch torchvision torchaudio pytorch-cuda=11.6 -c pytorch -c nvidia
 fi
 
 pip install -q tensorflow

@@ -10,6 +10,12 @@ set -o xtrace
 bash cp_dotfiles.sh
 
 # install blobfuse so you can map Azure blob storage
+# see instructions at https://learn.microsoft.com/en-us/azure/storage/blobs/blobfuse2-how-to-deploy#how-to-install-blobfuse2
+distribution=$(. /etc/os-release;echo $ID/$VERSION_ID)
+wget https://packages.microsoft.com/config/$distribution/packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb
+sudo apt-get update
+sudo apt-get install libfuse3-dev fuse3
 sudo apt-get install blobfuse2
 
 # below two is only needed if docker is not already installed
@@ -21,8 +27,6 @@ sudo apt-get install blobfuse2
 #   dpkg-query --show --showformat='${db:Status-Status}\n' nvidia-docker2
 # if not installed then run below
 # bash nv_container_tk.sh
-
-mkdir -p ~/data # docker will mount this folder as ~/dataroot
 
 # pull docker that we will use
 sudo docker pull sytelus/dev

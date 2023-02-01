@@ -10,7 +10,7 @@ set -o xtrace
 # git config --global --add difftool.prompt false
 # git config --global core.autocrlf true
 git config --global user.name "Shital Shah"
-git config --global user.email "shitals@microsoft.com"
+git config --global user.email "sytelus@gmail.com"
 # git config --global core.editor "'C:/Program Files (x86)/Notepad++/notepad++.exe' -multiInst -notabbar -nosession -noPlugin"
 
 
