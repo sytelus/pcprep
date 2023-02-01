@@ -12,17 +12,16 @@ LABEL description="Docker for AI Research and Development" \
 
 
 # From min_system.sh
-RUN apt-get -y update
-RUN apt-get -y install git curl wget xclip xz-utils tar apt-transport-https trash-cli bash-completion
-RUN apt-get -y install tlp powertop tlp-rdw inxi procinfo nvidia-prime htop #conky-all #conky-cli
-RUN apt-get -y install build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev
-RUN apt-get -y install fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util ponysay
-RUN apt-get -y fslint fdupes locate
-# needed for docker
-RUN apt-get -y install apt-transport-https ca-certificates curl gnupg lsb-release
+RUN apt-get -y update --fix-missing
+RUN DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes --no-install-recommends \
+      git curl wget xclip xz-utils tar apt-transport-https trash-cli bash-completion \
+      tlp powertop tlp-rdw inxi procinfo nvidia-prime htop #conky-all #conky-cli \
+      build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev \
+      fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util ponysay \
+      fslint fdupes locate \
+      apt-transport-https ca-certificates curl gnupg lsb-release \
+      bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
 
-# some more stuff
-RUN apt-get -y install bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion
 RUN apt-get clean
 
 RUN wget --quiet https://repo.anaconda.com/anaconda/Anaconda3-latest-Linux-x86_64.sh -O ~/anaconda.sh  && \
