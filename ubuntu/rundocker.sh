@@ -10,7 +10,7 @@ docker run --gpus all --name archai \
     -e HOME=$HOME -e USER=$USER \
     -e NCCL_P2P_LEVEL=NVL \
     -v $HOME:$HOME \
-    -v /data:$HOME/dataroot \
+    -v /az_blob:$HOME/dataroot \
     -w $HOME \
     --shm-size=10g \
     --ulimit memlock=-1 \

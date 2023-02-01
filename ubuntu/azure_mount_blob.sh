@@ -5,6 +5,7 @@ set -o errtrace
 
 
 mkdir -p ~/az_blob # mount point for Azure blob storage
+mkdir -p /tmp/blobfuse # cache location for Azure blob storage
 
 # Authorize access to your storage account and mount our blobstore
 # Example: https://github.com/Azure/azure-storage-fuse/blob/main/sampleFileCacheConfig.yaml
