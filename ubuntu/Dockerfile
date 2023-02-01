@@ -35,6 +35,11 @@ RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_6
 
 ENV PATH /opt/conda/bin:$PATH
 
+# start new shell with conda base env
+# ref: https://pythonspeed.com/articles/activate-conda-dockerfile/
+RUN echo "conda activate base" >> ~/.bashrc
+SHELL ["/bin/bash", "--login", "-c"]
+
 RUN conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch-nightly -c nvidia
 RUN conda install -y -c conda-forge tensorflow tensorboard keras gpustat scikit-learn-intelex
 
