@@ -24,7 +24,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes --no-install-rec
 
 RUN apt-get clean
 
-RUN wget --quiet https://repo.anaconda.com/anaconda/Anaconda3-latest-Linux-x86_64.sh -O ~/anaconda.sh  && \
+RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_64.sh -O ~/anaconda.sh  && \
         /bin/bash ~/anaconda.sh -b -p /opt/conda && \
         rm ~/anaconda.sh && \
         ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
