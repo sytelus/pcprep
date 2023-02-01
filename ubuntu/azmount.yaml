@@ -9,10 +9,32 @@ azstorage:
   # don't change below
   type: block
   mode: key
+  virtual-directory: true # support virtual directories without existence of a special marker blob
 
 allow-other: true # allow other users to access the mounted directory
 # read-only: true # mount in read only mode - used for Streaming and FUSE
-nonempty: true # allow mounting on non-empty directory - used for FUSE
+
+# DO NOT USE nonempty. It's no loner supported and you will have silent error.
+# nonempty: true # allow mounting on non-empty directory - used for FUSE
 
 file_cache:
   path: /tmp/blobfuse
+  cleanup-on-start: true
+  allow-non-empty-temp: true
+
+# attr_cache:
+#   timeout-sec: 7200
+#   no-cache-on-list: true
+#   no-symlinks: false
+
+# components:
+#   - libfuse
+#   - file_cache
+#   - attr_cache
+#   - azstorage
+
+# # if you are getting silent error, enable below
+# # log file is in $HOME/.blobfuse2/blobfuse2.lo
+# logging:
+#   type: base
+#   level: log_debug

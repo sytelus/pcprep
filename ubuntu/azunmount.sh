@@ -1,0 +1,1 @@
+sudo blobfuze2 umount all
