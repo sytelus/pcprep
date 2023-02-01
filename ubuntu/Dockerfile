@@ -10,6 +10,8 @@ LABEL description="Docker for AI Research and Development" \
       tooltypeversion="1.0.0" \
       createtime="2/1/2023"
 
+# for informational purposes
+ENV DOCKER_TAG='sytelus/dev'
 
 # From min_system.sh
 RUN apt-get -y update --fix-missing
@@ -21,26 +23,28 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes --no-install-rec
       fslint fdupes locate \
       apt-transport-https ca-certificates curl gnupg lsb-release \
       bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
-      nvtop
+      nvtop, virt-what, sudo
 
 RUN apt-get clean
 
+# -b option is not used as path gets added to .bashrc when you do conda init
 RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_64.sh -O ~/anaconda.sh  && \
-        /bin/bash ~/anaconda.sh -b -p /opt/conda && \
-        rm ~/anaconda.sh && \
-        ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
-
-# Users might wan t to run:
-# echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc
-
-ENV PATH /opt/conda/bin:$PATH
+        /bin/bash ~/anaconda.sh -p /opt/conda && \
+        rm ~/anaconda.sh
 
 # start new shell with conda base env
 # ref: https://pythonspeed.com/articles/activate-conda-dockerfile/
 RUN echo "conda activate base" >> ~/.bashrc
 SHELL ["/bin/bash", "--login", "-c"]
 
+# install torch and tf
 RUN conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch-nightly -c nvidia
 RUN conda install -y -c conda-forge tensorflow tensorboard keras gpustat scikit-learn-intelex
+
+# DO NOT run conda commands after this
 RUN conda init bash
 
+# run entry commands
+COPY docker_entry.sh /docker_entry.sh
+RUN chmod +x /docker_entry.sh
+ENTRYPOINT ["bash", "/docker_entry.sh"]
