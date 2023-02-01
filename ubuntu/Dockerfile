@@ -42,4 +42,5 @@ SHELL ["/bin/bash", "--login", "-c"]
 
 RUN conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch-nightly -c nvidia
 RUN conda install -y -c conda-forge tensorflow tensorboard keras gpustat scikit-learn-intelex
+RUN conda init bash
 
