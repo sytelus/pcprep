@@ -20,7 +20,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes --no-install-rec
       fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util ponysay \
       fslint fdupes locate \
       apt-transport-https ca-certificates curl gnupg lsb-release \
-      bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion
+      bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
+      nvtop
 
 RUN apt-get clean
 
@@ -34,5 +35,8 @@ RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_6
 
 ENV PATH /opt/conda/bin:$PATH
 
+RUN conda activate base
+
 RUN conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch-nightly -c nvidia
-RUN pip install -q tensorflow tensorboard keras
+RUN conda install -y -c conda-forge tensorflow tensorboard keras gpustat
+
