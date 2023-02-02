@@ -51,6 +51,6 @@ RUN passwd -x -1 docker_admin && passwd -d docker_admin
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # run entry commands
-COPY docker_entry.sh /docker_entry.sh
-RUN chmod +x /docker_entry.sh
-ENTRYPOINT ["bash", "/docker_entry.sh"]
+# COPY docker_entry.sh /docker_entry.sh
+# RUN chmod +x /docker_entry.sh
+# ENTRYPOINT ["bash", "/docker_entry.sh"]
