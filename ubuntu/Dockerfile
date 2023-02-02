@@ -30,7 +30,8 @@ RUN apt-get clean
 # -b option is batch mode to silence licence terms prompt. It also won't modify .batchrc.
 RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_64.sh -O ~/anaconda.sh  && \
         /bin/bash ~/anaconda.sh -b -p /opt/conda && \
-        rm ~/anaconda.sh
+        rm ~/anaconda.sh && \
+        ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 
 # start new shell with conda base env
 # ref: https://pythonspeed.com/articles/activate-conda-dockerfile/
