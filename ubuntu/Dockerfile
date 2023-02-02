@@ -27,9 +27,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes --no-install-rec
 
 RUN apt-get clean
 
-# -b option is not used as path gets added to .bashrc when you do conda init
+# -b option is batch mode to silence licence terms prompt. It also won't modify .batchrc.
 RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_64.sh -O ~/anaconda.sh  && \
-        /bin/bash ~/anaconda.sh -p /opt/conda && \
+        /bin/bash ~/anaconda.sh -b -p /opt/conda && \
         rm ~/anaconda.sh
 
 # start new shell with conda base env
