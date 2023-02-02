@@ -1,3 +1,3 @@
 #!/bin/bash
 
-exec su -l docker_admin -c "bash sudo adduser $USER sudo"
+su docker_admin -c "bash sudo adduser $USER sudo"
