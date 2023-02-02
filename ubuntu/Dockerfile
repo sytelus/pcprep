@@ -45,6 +45,10 @@ RUN conda install -y -c conda-forge tensorflow tensorboard keras gpustat scikit-
 # DO NOT run conda commands after this
 RUN conda init bash
 
+RUN adduser --disabled-password --gecos '' docker_admin
+RUN adduser docker_admin sudo
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
 # run entry commands
 COPY docker_entry.sh /docker_entry.sh
 RUN chmod +x /docker_entry.sh
