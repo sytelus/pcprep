@@ -45,6 +45,8 @@ RUN conda install -y -c conda-forge tensorflow tensorboard keras gpustat scikit-
 # DO NOT run conda commands after this
 RUN conda init bash
 
+# add user for doing sudo
+# su - docker_admin -c "sudo adduser $USER sudo"
 RUN useradd -m docker_admin
 RUN usermod -aG sudo docker_admin
 RUN passwd -x -1 docker_admin && passwd -d docker_admin
