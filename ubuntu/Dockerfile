@@ -23,7 +23,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes --no-install-rec
       fslint fdupes locate \
       apt-transport-https ca-certificates curl gnupg lsb-release \
       bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
-      nvtop, virt-what, sudo
+      nvtop virt-what sudo
 
 RUN apt-get clean
 
