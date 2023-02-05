@@ -33,9 +33,6 @@ sudo docker pull sytelus/dev
 # test the docker by printing out GPUs
 sudo docker run --rm --gpus all sytelus/dev nvidia-smi
 
-# create root folder for data. This will be mapped in rundocker.sh
-sudo mkdir -p /dataroot
-
 echo
 echo
 echo "###################################################################"
