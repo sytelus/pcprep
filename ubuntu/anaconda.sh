@@ -4,7 +4,7 @@ set -e
 set -o xtrace
 
 if [ ! -d ~/anaconda3/ ]; then
-    wget https://repo.anaconda.com/archive/Anaconda3-2021.04-Linux-x86_64.sh -O ~/anaconda.sh
+    wget https://repo.anaconda.com/archive/Anaconda3-2023.03-Linux-x86_64.sh -O ~/anaconda.sh
     bash ~/anaconda.sh
 
     # needed to avoid opencv hdf5 conflicts
