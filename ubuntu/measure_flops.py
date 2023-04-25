@@ -1,5 +1,8 @@
 import torch
 
+torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
+torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
+
 # Check if an NVIDIA GPU is available
 if not torch.cuda.is_available():
     raise RuntimeError("NVIDIA GPU not available. Please install an NVIDIA GPU to proceed.")
@@ -20,8 +23,10 @@ for dtype in (torch.float32, torch.float16): #, torch.int32, torch.int16, torch.
         b = torch.rand(n, n, device=device, dtype=dtype)
 
     # Warm up the GPU
-    for _ in range(5):
+    torch.backends.cudnn.benchmark = True
+    for _ in range(20):
         _ = torch.matmul(a, b)
+    torch.backends.cudnn.benchmark = False
 
     # Create CUDA events for precise timing
     start_event = torch.cuda.Event(enable_timing=True)
