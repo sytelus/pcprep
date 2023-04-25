@@ -6,15 +6,21 @@ pip install -q  opencv-python
 
 pip install -q  pydot plotly pyzmq dominate pygame pymunk
 pip install -q  gunicorn dash dash-core-components dash-html-components dash-renderer dash-auth
-pip install -q  nltk gensim annoy ujson tables sharedmem sacred pprofile mlxtend fitter mpld3
-pip install -q  jupyter_nbextensions_configurator fasttext pandas-profiling scikit-image tqdm patool skorch fastcluster
 pip install -q  sphinx recommonmark sphinx-autobuild sphinx_rtd_theme click-man
 pip install -q jupyterthemes
-pip install -q gpustat azureml-sdk overrides timebudget py-spy autopep8
+
 call conda install -y -c conda-forge jupyter_contrib_nbextensions
 pip -q install qgrid
 jupyter nbextension enable --py --sys-prefix widgetsnbextension
 pip -q install pyyaml pybullet optuna pytablewriter scikit-optimize py-spy filelock tabulate aiohttp psutil
+
+REM below takes too long
+REM pip install -q gpustat azureml-sdk overrides timebudget py-spy autopep8
+
+REM below are erroring out
+REM pip install -q  nltk gensim annoy ujson tables sharedmem sacred pprofile mlxtend fitter mpld3
+REM pip install -q  jupyter_nbextensions_configurator fasttext pandas-profiling scikit-image tqdm patool skorch fastcluster
+
 
 REM msgpack msgpack-rpc-python
 REM conda install -y h5py==2.8.0

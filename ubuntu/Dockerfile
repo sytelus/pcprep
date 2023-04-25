@@ -1,5 +1,5 @@
 # from https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch/tags
-FROM nvcr.io/nvidia/pytorch:22.12-py3
+FROM nvcr.io/nvidia/pytorch:23.03-py3
 
 # Labels for the docker
 LABEL description="Docker for AI Research and Development" \
