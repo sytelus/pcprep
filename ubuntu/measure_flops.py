@@ -3,6 +3,29 @@ import torch
 torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
 torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
 
+def get_gpu_info():
+    num_gpus = torch.cuda.device_count()
+    if num_gpus == 0:
+        print("No GPU devices found.")
+        return
+
+    print(f"Number of GPUs: {num_gpus}")
+    print(f"CUDA Version: {torch.version.cuda}")
+
+    for i in range(1):
+        device = torch.device(f"cuda:{i}")
+        gpu_name = torch.cuda.get_device_name(device)
+        total_memory = torch.cuda.get_device_properties(device).total_memory / 1e9  # Convert to GB
+        allocated_memory = torch.cuda.memory_allocated(device) / 1e9  # Convert to GB
+        reserved_memory = torch.cuda.memory_reserved(device) / 1e9  # Convert to GB
+        free_memory = total_memory - max(allocated_memory, reserved_memory)
+
+        print(f"\nGPU {i}: {gpu_name}")
+        print(f"  Total Memory: {total_memory:.2f} GB")
+        print(f"  Free Memory: {free_memory:.2f} GB")
+
+get_gpu_info()
+
 # Check if an NVIDIA GPU is available
 if not torch.cuda.is_available():
     raise RuntimeError("NVIDIA GPU not available. Please install an NVIDIA GPU to proceed.")
