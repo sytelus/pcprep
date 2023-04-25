@@ -23,17 +23,17 @@ for dtype in (torch.float32, torch.float16): #, torch.int32, torch.int16, torch.
         b = torch.rand(n, n, device=device, dtype=dtype)
 
     # Warm up the GPU
-    torch.backends.cudnn.benchmark = True
-    for _ in range(20):
+    #torch.backends.cudnn.benchmark = True
+    for _ in range(15):
         _ = torch.matmul(a, b)
-    torch.backends.cudnn.benchmark = False
+    #torch.backends.cudnn.benchmark = False
 
     # Create CUDA events for precise timing
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
 
     # Time the matrix multiplication operations
-    num_iterations = 10
+    num_iterations = 30
     start_event.record()
     for _ in range(num_iterations):
         c = torch.matmul(a, b)
