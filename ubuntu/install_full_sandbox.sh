@@ -9,7 +9,7 @@ bash gitconfig.sh
 
 sudo apt-get clean
 
-wget https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_64.sh -O ~/anaconda.sh
+wget https://repo.anaconda.com/archive/Anaconda3-2023.03-1-Linux-x86_64.sh -O ~/anaconda.sh
 sudo /bin/bash ~/anaconda.sh -b -p /opt/conda
 rm ~/anaconda.sh
 sudo ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
