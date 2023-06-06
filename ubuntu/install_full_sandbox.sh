@@ -3,16 +3,9 @@
 # this commands are same as in Dockerfile
 
 # install core packages
-sudo apt-get install --assume-yes --no-install-recommends \
-      git curl wget xclip xz-utils tar apt-transport-https trash-cli bash-completion \
-      tlp powertop tlp-rdw inxi procinfo nvidia-prime htop #conky-all #conky-cli \
-      build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev \
-      fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util ponysay \
-      fslint fdupes locate \
-      apt-transport-https ca-certificates curl gnupg lsb-release \
-      bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
-      nvtop virt-what sudo zlib1g g++ freeglut3-dev build-essential libx11-dev \
-      libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 libfreeimage-dev
+bash cp_dotfiles.sh
+bash min_system.sh
+bash gitconfig.sh
 
 sudo apt-get clean
 
