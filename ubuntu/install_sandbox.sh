@@ -11,9 +11,12 @@ bash cp_dotfiles.sh
 
 # install blobfuse so you can map Azure blob storage
 # see instructions at https://learn.microsoft.com/en-us/azure/storage/blobs/blobfuse2-how-to-deploy#how-to-install-blobfuse2
-distribution=$(. /etc/os-release;echo $ID/$VERSION_ID)
-wget https://packages.microsoft.com/config/$distribution/packages-microsoft-prod.deb
-sudo dpkg -i packages-microsoft-prod.deb
+
+# This already looks like upto date
+# distribution=$(. /etc/os-release;echo $ID/$VERSION_ID)
+# wget https://packages.microsoft.com/config/$distribution/packages-microsoft-prod.deb
+# sudo dpkg -i packages-microsoft-prod.deb
+
 sudo apt-get update
 sudo apt-get install libfuse3-dev fuse3
 sudo apt-get install blobfuse2

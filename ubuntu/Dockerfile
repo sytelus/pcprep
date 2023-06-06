@@ -1,5 +1,5 @@
 # from https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch/tags
-FROM nvcr.io/nvidia/pytorch:22.12-py3
+FROM nvcr.io/nvidia/pytorch:23.03-py3
 
 # Labels for the docker
 LABEL description="Docker for AI Research and Development" \
@@ -41,6 +41,7 @@ SHELL ["/bin/bash", "--login", "-c"]
 # install torch and tf
 RUN conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch-nightly -c nvidia
 RUN conda install -y -c conda-forge tensorflow tensorboard keras gpustat scikit-learn-intelex py3nvml glances
+RUN conda install -y -c conda-forge transformers datasets tokenizers tiktoken wandb tqdm
 
 # DO NOT run conda commands after this
 RUN conda init bash
