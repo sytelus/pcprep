@@ -1,72 +1,75 @@
+echo Please execute commands to install CUDA manually
+exit 0
+
 #!/bin/bash
 #fail if any errors
 set -e
 set -o xtrace
 
-if [ -d "/usr/local/cuda-10.1" ]; then
-    echo *********** cuda 10.1 already detected so not installed
+if [ -d "/usr/local/cuda-$cuda_major.$cuda_minor" ]; then
+    echo *********** cuda $cuda_major.$cuda_minor already detected so not installed
     exit 0
 fi
 
-# # ----------------------------- CUDA 10.0 -----------------------
-# # #CUDA 10.0
-# wget -P ~/Downloads/ https://developer.nvidia.com/compute/cuda/10.0/Prod/local_installers/cuda_10.0.130_410.48_linux
-# sudo sh ~/Downloads/cuda_10.0.130_410.48_linux
-
-# FILE=~/.bashrc
-
-# LINE='export PATH=/usr/local/cuda-10.0/bin:/usr/local/cuda-10.0/NsightCompute-1.0${PATH:+:${PATH}}'
-# grep -q "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-# LINE='export LD_LIBRARY_PATH=/usr/local/cuda-10.0/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}'
-# grep -q "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-
-# # #cuDNN
-# echo ----------------------------------------------------
-# echo Open browser and download cuDNN from following link. Kep file in ~/Downloads.
-# echo https://developer.nvidia.com/compute/machine-learning/cudnn/secure/7.6.4.38/Production/10.0_20190923/Ubuntu18_04-x64/libcudnn7_7.6.4.38-1%2Bcuda10.0_amd64.deb
-# read -p "Press enter when done"
-# # wget -P ~/Downloads/ https://developer.nvidia.com/compute/machine-learning/cudnn/secure/7.6.4.38/Production/10.0_20190923/Ubuntu18_04-x64/libcudnn7_7.6.4.38-1%2Bcuda10.0_amd64.deb
-# sudo dpkg -i ~/Downloads/libcudnn7_7.6.4.38-1+cuda10.0_amd64.deb
-# # ---------------------------------------------------------------
+# TO Remove existing CUDA
+#sudo apt-get --purge remove "*cublas*" "cuda*" "nsight*"
+#sudo rm -rf /usr/local/cuda*
 
 
-echo "login to https://developer.nvidia.com/"
-read -p "Press enter to continue"
+# ubuntu2004
+distro=$(. /etc/os-release;echo $ID$VERSION_ID | tr -d '.')
+arch='x86_64'
+cuda_major='11'
+cuda_minor='8'
+cuda_patch='0'
 
+sudo apt-key del 7fa2af80
 
-# remove existing CUDA:
-# sudo /usr/local/cuda/bin/cuda-uninstaller
+# do not use network setup, use local setup for specific cuda version
+wget https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/cuda-$distro.pin
+sudo mv cuda-$distro.pin /etc/apt/preferences.d/cuda-repository-pin-600
+wget https://developer.download.nvidia.com/compute/cuda/$cuda_major.$cuda_minor.$cuda_patch/local_installers/cuda-repo-$distro-$cuda_major-$cuda_minor-local_$cuda_major.$cuda_minor.$cuda_patch-520.61.05-1_amd64.deb
+sudo dpkg -i cuda-repo-$distro-$cuda_major-$cuda_minor-local_$cuda_major.$cuda_minor.$cuda_patch-520.61.05-1_amd64.deb
+sudo cp /var/cuda-repo-$distro-$cuda_major-$cuda_minor-local/cuda-*-keyring.gpg /usr/share/keyrings/
+sudo apt-get update
+sudo apt-get -y install cuda
+# must be separate
+sudo apt-get -y install nvidia-gds
 
+#sudo reboot
 
-################# Option 1
-wget http://developer.download.nvidia.com/compute/cuda/10.1/Prod/local_installers/cuda_10.1.243_418.87.00_linux.run
-sudo sh cuda_10.1.243_418.87.00_linux.run
+Add below in .bashrc (it installs 12.0 even if we say 11.8)
+export PATH=/usr/local/cuda-12.0/bin${PATH:+:${PATH}}
+export LD_LIBRARY_PATH=/usr/local/cuda-12.0/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+source ~/.bashrc
 
-wget -P ~/Downloads/ https://developer.nvidia.com/compute/machine-learning/cudnn/secure/7.6.5.32/Production/10.1_20191031/Ubuntu18_04-x64/libcudnn7_7.6.5.32-1%2Bcuda10.1_amd64.deb
-sudo dpkg -i ~/Downloads/libcudnn7_7.6.5.32-1+cuda10.1_amd64.deb
+# NCCL installation
+# see https://docs.nvidia.com/deeplearning/nccl/install-guide/index.html
+download from https://developer.nvidia.com/downloads/remure2165ubuntu20048664nccl-local-repo-ubuntu2004-2165-cuda11810-1amd64deb
+sudo apt install libnccl2=2.16.5-1+cuda11.8 libnccl-dev=2.16.5-1+cuda11.8
 
-################# Option 2 (from tensorflow website)
-# Add NVIDIA package repositories
-# wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-repo-ubuntu1804_10.1.243-1_amd64.deb
-# sudo dpkg -i cuda-repo-ubuntu1804_10.1.243-1_amd64.deb
-# sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
-# sudo apt-get update
-# wget http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/nvidia-machine-learning-repo-ubuntu1804_1.0.0-1_amd64.deb
-# sudo apt install ./nvidia-machine-learning-repo-ubuntu1804_1.0.0-1_amd64.deb
-# sudo apt-get update
+# cuDNN install
+download from https://developer.nvidia.com/downloads/c118-cudnn-local-repo-ubuntu2004-8708410-1amd64deb
+sudo dpkg -i cudnn-local-repo-ubuntu2004-8.7.0.84_1.0-1_amd64.deb
+sudo cp /var/cudnn-local-repo-*/cudnn-local-*-keyring.gpg /usr/share/keyrings/
+sudo apt-get update
+sudo apt-get install libcudnn8=8.7.0.84-1+cuda$cuda_major.$cuda_minor
+sudo apt-get install libcudnn8-dev=8.7.0.84-1+cuda$cuda_major.$cuda_minor
+sudo apt-get install libcudnn8-samples=8.7.0.84-1+cuda$cuda_major.$cuda_minor
 
-# # Install NVIDIA driver
-# #sudo apt-get install --no-install-recommends nvidia-driver-418
-# # Reboot. Check that GPUs are visible using the command: nvidia-smi
+# validation
+# driver version
+cat /proc/driver/nvidia/version
 
-# # Install development and runtime libraries (~4GB)
-# sudo apt-get install --no-install-recommends \
-#     cuda-10-1 \
-#     libcudnn7=7.6.4.38-1+cuda10.1  \
-#     libcudnn7-dev=7.6.4.38-1+cuda10.1
+# cuda validation
+cd ~/GitHubSrc
+git clone https://github.com/nvidia/cuda-samples
+cd cuda-samples/Samples/1_Utilities/deviceQuery
+make
+./deviceQuery
 
-
-# Install TensorRT. Requires that libcudnn7 is installed above.
-sudo apt-get install -y --no-install-recommends libnvinfer6=6.0.1-1+cuda10.1 \
-    libnvinfer-dev=6.0.1-1+cuda10.1 \
-    libnvinfer-plugin6=6.0.1-1+cuda10.1
+# cuDNN validation (doesn't work due to FreeImage.h)
+cp -r /usr/src/cudnn_samples_v8/ $HOME
+cd  $HOME/cudnn_samples_v8/mnistCUDNN
+make clean && make
+./mnistCUDNN
