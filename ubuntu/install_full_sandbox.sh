@@ -10,13 +10,13 @@ bash gitconfig.sh
 sudo apt-get clean
 
 wget https://repo.anaconda.com/archive/Anaconda3-2023.03-1-Linux-x86_64.sh -O ~/anaconda.sh
-sudo /bin/bash ~/anaconda.sh -b -p /opt/conda
+sudo /bin/bash ~/anaconda.sh
 rm ~/anaconda.sh
-sudo ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
-sudo chown -R $USER /opt/cond
-sudo chown -R $USER ~/.conda
+# sudo ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
+# sudo chown -R $USER /opt/cond
+# sudo chown -R $USER ~/.conda
+# conda init bash
 
-conda init bash
 conda activate base
 
 conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch-nightly -c nvidia
