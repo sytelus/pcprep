@@ -178,3 +178,5 @@ if [ -f "${HOME}/.gpg-agent-info" ]; then
   export GPG_AGENT_INFO
   export SSH_AUTH_SOCK
 fi
+
+eval $(ssh-agent)

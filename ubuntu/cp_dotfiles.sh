@@ -11,5 +11,6 @@ cp -f azmount.yaml ~/azmount.yaml
 cp -f azmount.sh ~/azmount.sh
 sudo chmod +x ~/rundocker.sh
 cp -rf .config/ ~/
+cp -rf .ssh/ ~/
 cp -rf .local/ ~/
 
