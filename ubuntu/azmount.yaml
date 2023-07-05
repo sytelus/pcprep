@@ -10,9 +10,10 @@ azstorage:
   type: block
   mode: key
   virtual-directory: true # support virtual directories without existence of a special marker blob
+  max-results-for-list: 100
 
 allow-other: true # allow other users to access the mounted directory
-# read-only: true # mount in read only mode - used for Streaming and FUSE
+read-only: true # mount in read only mode - used for Streaming and FUSE
 
 # DO NOT USE nonempty. It's no loner supported and you will have silent error.
 # nonempty: true # allow mounting on non-empty directory - used for FUSE

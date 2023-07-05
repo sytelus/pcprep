@@ -3,8 +3,10 @@ set -euo pipefail
 set -o errexit
 set -o errtrace
 
+# unmount everything first
+sudo blobfuse2 unmount all
 
-mkdir -p ~/azblob # mount point for Azure blob storage
+sudo mkdir -p ~/azblob # mount point for Azure blob storage
 mkdir -p /tmp/blobfuse # cache location for Azure blob storage
 
 # Authorize access to your storage account and mount our blobstore
