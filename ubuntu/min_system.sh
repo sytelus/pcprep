@@ -16,7 +16,7 @@ sudo apt-get install --assume-yes --no-install-recommends \
       libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 libfreeimage-dev
 
 # update stdc, without this pytest discovery fails
-sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-sudo apt-get update
-sudo apt-get install gcc-4.9
-sudo apt-get install --only-upgrade libstdc++6
+sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+sudo apt-get -y update
+sudo apt-get install -y gcc-4.9
+sudo apt-get install -y --only-upgrade libstdc++6
