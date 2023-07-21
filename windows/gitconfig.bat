@@ -5,7 +5,9 @@ REM git config --global difftool.bc.path "c:/Program Files/Beyond Compare 4/bcom
 REM git config --global --add difftool.prompt false
 REM git config --global core.autocrlf true
 git config --global user.name "Shital Shah"
-git config --global user.email "shitals@microsoft.com"
+git config --global user.email "sytelus@gmail.com"
+git config --global url.ssh://git@github.com/.insteadOf https://github.com/
+
 REM git config --global core.editor "'C:/Program Files (x86)/Notepad++/notepad++.exe' -multiInst -notabbar -nosession -noPlugin"
 git config --global merge.tool vscode
 git config --global mergetool.vscode.cmd "code --wait $MERGED"

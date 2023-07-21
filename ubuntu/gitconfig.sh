@@ -12,6 +12,7 @@ set -o xtrace
 git config --global user.name "Shital Shah"
 git config --global user.email "sytelus@gmail.com"
 # git config --global core.editor "'C:/Program Files (x86)/Notepad++/notepad++.exe' -multiInst -notabbar -nosession -noPlugin"
+git config --global url.ssh://git@github.com/.insteadOf https://github.com/
 
 
 if [ ! -d "/dsvm/" ] && ["$HOSTNAME" != "GCRSANDBOX"*]; then
@@ -20,7 +21,5 @@ if [ ! -d "/dsvm/" ] && ["$HOSTNAME" != "GCRSANDBOX"*]; then
     git config --global diff.tool vscode
     git config --global difftool.vscode.cmd "code --wait --diff $LOCAL $REMOTE"
     git config --global core.editor "code --new-window -wait"
-
-    git config --global url."git@github.com:".insteadOf "https://github.com/"
 fi
 
