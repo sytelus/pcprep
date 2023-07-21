@@ -6,19 +6,21 @@ fi
 cp -f .bash_aliases ~/.bash_aliases
 cp -f .inputrc ~/.inputrc
 cp -f .tmux.conf ~/.tmux.conf
-cp -f rundocker.sh ~/rundocker.sh
 
-cp -f azmount.yaml ~/azmount.yaml
-cp -f azmount.sh ~/azmount.sh
+sudo chmod +x *.sh
 
-cp -f mount_cifs.sh ~/mount_cifs.sh
-cp -f start_tmux.sh ~/start_tmux.sh
-cp -f sysinfo.sh ~/sysinfo.sh
-cp -f treesize.sh ~/treesize.sh
+sudo cp -f rundocker.sh /usr/local/bin/rundocker.sh
 
-cp -f measure_flops.py ~/measure_flops.py
+sudo cp -f azmount.yaml /usr/local/bin/azmount.yaml
+sudo cp -f azmount.sh /usr/local/bin/azmount.sh
+
+sudo cp -f mount_cifs.sh /usr/local/bin/mount_cifs.sh
+sudo cp -f start_tmux.sh /usr/local/bin/start_tmux.sh
+sudo cp -f sysinfo.sh /usr/local/bin/sysinfo.sh
+sudo cp -f treesize.sh /usr/local/bin/treesize.sh
+
+sudo cp -f measure_flops.py /usr/local/bin/measure_flops.py
+
 cp -rf .config/ ~/
 cp -rf .ssh/ ~/
 cp -rf .local/ ~/
-
-sudo chmod +x ~/*.sh
