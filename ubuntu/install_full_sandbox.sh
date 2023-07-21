@@ -10,7 +10,7 @@ bash gitconfig.sh
 sudo apt-get clean
 
 wget https://repo.anaconda.com/archive/Anaconda3-2023.03-1-Linux-x86_64.sh -O ~/anaconda.sh
-sudo /bin/bash ~/anaconda.sh
+/bin/bash ~/anaconda.sh
 rm ~/anaconda.sh
 # sudo ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 # sudo chown -R $USER /opt/cond

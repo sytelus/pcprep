@@ -6,7 +6,7 @@ set -o xtrace
 # install core packages
 sudo apt-get install --assume-yes --no-install-recommends \
       git curl wget xclip xz-utils tar apt-transport-https trash-cli bash-completion \
-      tlp powertop tlp-rdw inxi procinfo nvidia-prime htop #conky-all #conky-cli \
+      tlp powertop tlp-rdw inxi procinfo nvidia-prime htop \
       build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev \
       fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util ponysay \
       fslint fdupes locate keychain \
