@@ -174,3 +174,5 @@ ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 # export TRANSFORMERS_CACHE=/scratch/data/models
 # export HF_DATASETS_CACHE=/scratch/data/datasets
 # export TIKTOKEN_CACHE_DIR=/scratch/data/tiktoken_cache
+# export WANDB_CACHE_DIR=/scratch/data/wandb_cache
+# export WANDB_API_KEY=<YOUR_KEY>
