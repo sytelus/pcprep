@@ -155,7 +155,13 @@ if [ -f "${HOME}/.gpg-agent-info" ]; then
   export SSH_AUTH_SOCK
 fi
 
-eval $(ssh-agent)
+# run ssh-add once per reboot
+if [ ! -S ~/.ssh/ssh_auth_sock ]; then
+  eval `ssh-agent`
+  ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+fi
+export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
+ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 
 # # Use local CUDA version instead of one in /usr/bin
 # export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
@@ -164,5 +170,7 @@ eval $(ssh-agent)
 # HuggingFace cache and other locations
 # export DATA_ROOT=/scratch/data
 # export PYTHONHASHSEED=0
-# export XDG_CACHE_HOME=/scratch/data
+# export XDG_CACHE_HOME=/scratch/data/misc
 # export TRANSFORMERS_CACHE=/scratch/data/models
+# export HF_DATASETS_CACHE=/scratch/data/datasets
+# export TIKTOKEN_CACHE_DIR=/scratch/data/tiktoken_cache
