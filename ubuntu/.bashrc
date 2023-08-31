@@ -163,7 +163,9 @@ fi
 export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
 ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 
-# # Use local CUDA version instead of one in /usr/bin
+# Use local CUDA version instead of one in /usr/bin
+# If below is not done then nvcc will be found in /usr/bin which is older
+# Flash Attention won't install because it will detect wrong nvcc
 # export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
 # export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 

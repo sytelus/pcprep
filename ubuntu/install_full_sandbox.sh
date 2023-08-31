@@ -29,7 +29,7 @@ conda activate base
 # update to latest version
 conda update -n base -c defaults conda
 
-conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch-nightly -c nvidia
+conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 conda install -y -c conda-forge tensorflow
 conda install -y -c conda-forge tensorboard keras gpustat scikit-learn-intelex py3nvml glances
 
