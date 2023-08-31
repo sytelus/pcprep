@@ -9,7 +9,7 @@ bash gitconfig.sh
 
 sudo apt-get clean
 
-wget https://repo.anaconda.com/archive/Anaconda3-2023.03-1-Linux-x86_64.sh -O ~/anaconda.sh
+wget https://repo.anaconda.com/archive/Anaconda3-2023.07-2-Linux-x86_64.sh -O ~/anaconda.sh
 # batch install: agree to licence and install to ~/anaconda3
 /bin/bash ~/anaconda.sh -b -p $HOME/anaconda3
 rm ~/anaconda.sh
