@@ -21,6 +21,5 @@ sudo apt-get -y update
 sudo apt-get install -y gcc-4.9
 sudo apt-get install -y --only-upgrade libstdc++6
 
-# install micro editor
-curl https://getmic.ro | bash
-sudo mv micro /usr/bin
+# install micro editor and make it default editor
+sudo bash -c "cd /usr/bin; wget -O- https://getmic.ro | GETMICRO_REGISTER=y sh"
