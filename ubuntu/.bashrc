@@ -119,11 +119,21 @@ if ! shopt -oq posix; then
   fi
 fi
 
-# A100 machines in GCR (now done through docker run command)
-# if type -P nvidia-smi; then
-#     if [[ $(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l) -ge 4 ]];then
-#         export NCCL_P2P_LEVEL=NVL
-#     fi
+# #enable arrow up/down for partial search
+# bind '"\e[A": history-search-backward'
+# bind '"\e[B": history-search-forward'
+
+# #cycle through tab completion
+# [[ $- = *i* ]] && bind '"TAB": menu-complete'
+# [[ $- = *i* ]] && bind '"\e[Z":menu-complete-backward'
+
+# display one column with tab completion matches
+
+# if not already running tmux and in SSH session then start tmux
+# if [[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ]; then
+#     tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux
+
+#     # LS_COLORS='rs=0:di=1;35:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.lz>    # export LS_COLORS
 # fi
 
 # Turn on ../**/*.ext pattern matching
@@ -176,3 +186,4 @@ ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 # export TIKTOKEN_CACHE_DIR=/scratch/data/tiktoken_cache
 # export WANDB_CACHE_DIR=/scratch/data/wandb_cache
 # export WANDB_API_KEY=<YOUR_KEY>
+# sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR
