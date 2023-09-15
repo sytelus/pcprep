@@ -173,7 +173,9 @@ fi
 export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
 ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 
-# # Use local CUDA version instead of one in /usr/bin
+# Use local CUDA version instead of one in /usr/bin
+# If below is not done then nvcc will be found in /usr/bin which is older
+# Flash Attention won't install because it will detect wrong nvcc
 # export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
 # export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
@@ -186,4 +188,6 @@ ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 # export TIKTOKEN_CACHE_DIR=/scratch/data/tiktoken_cache
 # export WANDB_CACHE_DIR=/scratch/data/wandb_cache
 # export WANDB_API_KEY=<YOUR_KEY>
+# export OUT_DIR=/scratch/data/out_dir
 # sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR
+
