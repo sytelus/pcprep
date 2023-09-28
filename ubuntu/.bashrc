@@ -181,13 +181,22 @@ ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 
 # HuggingFace cache and other locations
 # export DATA_ROOT=/scratch/data
-# export PYTHONHASHSEED=0
-# export XDG_CACHE_HOME=/scratch/data/misc
-# export TRANSFORMERS_CACHE=/scratch/data/models
-# export HF_DATASETS_CACHE=/scratch/data/datasets
-# export TIKTOKEN_CACHE_DIR=/scratch/data/tiktoken_cache
-# export WANDB_CACHE_DIR=/scratch/data/wandb_cache
+# export XDG_CACHE_HOME=$DATA_ROOT/misc
+# export TRANSFORMERS_CACHE=$DATA_ROOT/models
+# export HF_DATASETS_CACHE=$DATA_ROOT/datasets
+# export TIKTOKEN_CACHE_DIR=$DATA_ROOT/tiktoken_cache
+# export WANDB_CACHE_DIR=$DATA_ROOT/wandb_cache
+# export OUT_DIR=$DATA_ROOT/out_dir
 # export WANDB_API_KEY=<YOUR_KEY>
-# export OUT_DIR=/scratch/data/out_dir
+
+echo NUMEXPR_MAX_THREADS=$NUMEXPR_MAX_THREADS
+echo DATA_ROOT=$DATA_ROOT
+echo OUT_DIR=$OUT_DIR
+
+
+# max threads, leaving out 2 or 1 cores
+export NUMEXPR_MAX_THREADS=$([ $(nproc) -le 1 ] && echo 1 || echo $(( $(nproc) <= 2 ? 1 : $(nproc) - 2 )))
+export PYTHONHASHSEED=0
+
 # sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR
 
