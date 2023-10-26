@@ -1,3 +1,9 @@
+# Below is better way
+
+# conda install cuda -c nvidia/label/cuda-11.8.0
+# conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia/label/cuda-11.8.0
+
+
 # CUDA 12.2
 # wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
 # # ************** Do not delete any key even if message says so *********
