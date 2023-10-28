@@ -119,11 +119,21 @@ if ! shopt -oq posix; then
   fi
 fi
 
-# A100 machines in GCR (now done through docker run command)
-# if type -P nvidia-smi; then
-#     if [[ $(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l) -ge 4 ]];then
-#         export NCCL_P2P_LEVEL=NVL
-#     fi
+# #enable arrow up/down for partial search
+# bind '"\e[A": history-search-backward'
+# bind '"\e[B": history-search-forward'
+
+# #cycle through tab completion
+# [[ $- = *i* ]] && bind '"TAB": menu-complete'
+# [[ $- = *i* ]] && bind '"\e[Z":menu-complete-backward'
+
+# display one column with tab completion matches
+
+# if not already running tmux and in SSH session then start tmux
+# if [[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ]; then
+#     tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux
+
+#     # LS_COLORS='rs=0:di=1;35:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.lz>    # export LS_COLORS
 # fi
 
 # Turn on ../**/*.ext pattern matching
@@ -163,17 +173,32 @@ fi
 export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
 ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 
-# # Use local CUDA version instead of one in /usr/bin
-# export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
-# export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+# Use local CUDA version instead of one in /usr/bin
+# If below is not done then nvcc will be found in /usr/bin which is older
+# Flash Attention won't install because it will detect wrong nvcc
+export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+# below is sometime needed to find libstdc++.so.6 used by TensorFlow, matplotlib etc
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 
 # HuggingFace cache and other locations
 # export DATA_ROOT=/scratch/data
-# export PYTHONHASHSEED=0
-# export XDG_CACHE_HOME=/scratch/data/misc
-# export TRANSFORMERS_CACHE=/scratch/data/models
-# export HF_DATASETS_CACHE=/scratch/data/datasets
-# export TIKTOKEN_CACHE_DIR=/scratch/data/tiktoken_cache
-# export WANDB_CACHE_DIR=/scratch/data/wandb_cache
+# export XDG_CACHE_HOME=$DATA_ROOT/misc
+# export TRANSFORMERS_CACHE=$DATA_ROOT/models
+# export HF_DATASETS_CACHE=$DATA_ROOT/datasets
+# export TIKTOKEN_CACHE_DIR=$DATA_ROOT/tiktoken_cache
+# export WANDB_CACHE_DIR=$DATA_ROOT/wandb_cache
+# export OUT_DIR=$DATA_ROOT/out_dir
 # export WANDB_API_KEY=<YOUR_KEY>
-# export OUT_DIR=/scratch/data/out_dir
+
+echo NUMEXPR_MAX_THREADS=$NUMEXPR_MAX_THREADS
+echo DATA_ROOT=$DATA_ROOT
+echo OUT_DIR=$OUT_DIR
+
+
+# max threads, leaving out 2 or 1 cores
+export NUMEXPR_MAX_THREADS=$([ $(nproc) -le 1 ] && echo 1 || echo $(( $(nproc) <= 2 ? 1 : $(nproc) - 2 )))
+export PYTHONHASHSEED=0
+
+# sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR
+
