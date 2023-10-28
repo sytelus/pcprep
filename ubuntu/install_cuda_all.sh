@@ -29,6 +29,7 @@ set -o xtrace
 
 # install drivers
 # driver compatible versions: https://docs.nvidia.com/deploy/cuda-compatibility/#use-the-right-compat-package
+# below also installs nvidia-smi
 sudo apt-get install -y nvidia-kernel-open-530
 sudo apt-get install -y cuda-drivers-530
 
@@ -37,7 +38,8 @@ bash install_cudatoollkit.sh
 bash install_cudnn.sh
 
 #Above might still install 12.2. Use below to install 12.1
-sudo apt-get -y install cuda-toolkit-12-1
+# CUDA_HOME is needed  because it makes sure flash attn will find right version here
+sudo apt-get -y install cuda-toolkit-12-1 # this installs in /usr/local/cuda-12.1/
 export CUDA_HOME=/usr/local/cuda-12.1/ # goes in .bashrc
 
 

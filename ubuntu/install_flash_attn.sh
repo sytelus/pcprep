@@ -22,3 +22,5 @@ for subrepo in "${SUBREPOS[@]}"; do
     cd ..
 done
 
+popd
+
