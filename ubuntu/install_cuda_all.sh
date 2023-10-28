@@ -27,6 +27,10 @@ set -o xtrace
 # CUDA 12.1 must be installed using local deb for ease of later removal.
 # DO NOT use network deb as it installs 12.2 which is not supported by PyTorch
 
+# install drivers
+sudo apt-get install -y nvidia-kernel-open-545 # this will force reboot
+sudo apt-get install -y cuda-drivers-545
+
 bash install_cudatoollkit.sh
 
 bash install_cudnn.sh
