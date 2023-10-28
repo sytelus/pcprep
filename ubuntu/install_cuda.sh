@@ -1,7 +1,7 @@
 # Below is better way
 
-# conda install cuda -c nvidia/label/cuda-11.8.0
-# conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia/label/cuda-11.8.0
+# conda install cuda -c nvidia/label/cuda-12.1.0
+# conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia/label/cuda-12.1.0
 
 
 # CUDA 12.2
