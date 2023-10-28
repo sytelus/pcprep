@@ -3,7 +3,7 @@
 set -e
 set -o xtrace
 
-# Below is better way
+# Below is probably better way but it didn't work to compile flash attention
 
 # conda install cuda -c nvidia/label/cuda-12.1.0
 # conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia/label/cuda-12.1.0
@@ -32,7 +32,7 @@ bash install_cudatoollkit.sh
 bash install_cudnn.sh
 
 #Above might still install 12.2. Use below to install 12.1
-sudo apt-get install cuda-toolkit-12-1
+sudo apt-get -y install cuda-toolkit-12-1
 export CUDA_HOME=/usr/local/cuda-12.1/ # goes in .bashrc
 
 

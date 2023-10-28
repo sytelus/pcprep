@@ -1,3 +1,8 @@
+#!/bin/bash
+#fail if any errors
+set -e
+set -o xtrace
+
 # This installs anaconda and other libs on top of install_sandbox.sh
 
 # this commands are same as in Dockerfile
@@ -33,13 +38,5 @@ source ~/.bashrc
 
 conda activate base
 
-# install CUDA
-conda install cuda -c nvidia/label/cuda-12.1.0
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia/label/cuda-12.1.0
-
-
-conda install -y -c conda-forge tensorflow
-conda install -y -c conda-forge tensorboard keras
-conda install -y -c conda-forge gpustat scikit-learn-intelex py3nvml glances
-pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece
+bash install_dl_frameworks.sh
 
