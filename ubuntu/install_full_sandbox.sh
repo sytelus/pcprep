@@ -21,6 +21,10 @@ rm ~/anaconda.sh
 ~/anaconda3/bin/conda init bash
 conda config --set auto_activate_base true
 
+conda update -n base conda
+conda install -n base conda-libmamba-solver
+conda config --set solver libmamba
+
 # get conda changes in effect
 source ~/.bashrc
 
