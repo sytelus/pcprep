@@ -1,3 +1,8 @@
+#!/bin/bash
+#fail if any errors
+set -e
+set -o xtrace
+
 # Below is better way
 
 # conda install cuda -c nvidia/label/cuda-12.1.0
@@ -24,19 +29,10 @@
 
 bash install_cudatoollkit.sh
 
-# cuDNN install
-sudo apt-get install -y zlib1g
-wget https://developer.nvidia.com/downloads/compute/cudnn/secure/8.9.5/local_installers/12.x/cudnn-local-repo-ubuntu2004-8.9.5.30_1.0-1_amd64.deb/
-sudo dpkg -i cudnn-local-repo-ubuntu2004-8.9.5.29_1.0-1_amd64.deb
-sudo cp /var/cudnn-local-repo-*/cudnn-local-*-keyring.gpg /usr/share/keyrings/
-sudo apt-get -y update
-sudo apt-get install libcudnn8=8.9.5.29-1+cuda12.1
-sudo apt-get install libcudnn8-dev=8.9.5.29-1+cuda12.1
-sudo apt-get install libcudnn8-samples=8.9.5.29-1+cuda12.1
-rm cudnn-local-repo-ubuntu2004-8.9.5.29_1.0-1_amd64.deb
+bash install_cudnn.sh
 
 #Above might still install 12.2. Use below to install 12.1
-sudo apt-get install cuda-toolkit-11-8
+sudo apt-get install cuda-toolkit-12-1
 export CUDA_HOME=/usr/local/cuda-12.1/ # goes in .bashrc
 
 
