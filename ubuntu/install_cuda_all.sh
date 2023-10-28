@@ -27,6 +27,8 @@ set -o xtrace
 # CUDA 12.1 must be installed using local deb for ease of later removal.
 # DO NOT use network deb as it installs 12.2 which is not supported by PyTorch
 
+# CUDA 12.1.0+ releases require separate driver install
+
 bash install_cudatoollkit.sh
 
 bash install_cudnn.sh
