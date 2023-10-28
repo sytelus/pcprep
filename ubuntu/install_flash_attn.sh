@@ -1,3 +1,7 @@
+#!/bin/bash
+#fail if any errors
+# set -e  # some commands may error out
+set -o xtrace
 
 pip install -q packaging ninja
 
@@ -17,9 +21,9 @@ SUBREPOS=("csrc/fused_softmax" "csrc/rotary" "csrc/xentropy" "csrc/fused_dense_l
 
 # Install subrepositories using `pip`
 for subrepo in "${SUBREPOS[@]}"; do
-    cd "$subrepo"
+    pushd "$subrepo"
     pip install -e .
-    cd ..
+    popd
 done
 
 popd
