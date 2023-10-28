@@ -1,6 +1,7 @@
 
 pip install -q packaging ninja
 
+rm -rf ~/GitHubSrc/flash-attention/
 mkdir -p ~/GitHubSrc
 pushd ~/GitHubSrc
 # Clone the main repository and checkout specific version
