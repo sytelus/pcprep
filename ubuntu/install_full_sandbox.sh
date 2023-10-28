@@ -21,7 +21,10 @@ rm ~/anaconda.sh
 ~/anaconda3/bin/conda init bash
 conda config --set auto_activate_base true
 
-conda update -n base conda
+# update to latest version
+conda update -n base -c defaults conda
+
+# use much faster mamba solver
 conda install -n base conda-libmamba-solver
 conda config --set solver libmamba
 
@@ -30,11 +33,13 @@ source ~/.bashrc
 
 conda activate base
 
-# update to latest version
-conda update -n base -c defaults conda
+# install CUDA
+conda install cuda -c nvidia/label/cuda-12.1.0
+conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia/label/cuda-12.1.0
 
-conda install -y pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+
 conda install -y -c conda-forge tensorflow
-conda install -y -c conda-forge tensorboard keras gpustat scikit-learn-intelex py3nvml glances
+conda install -y -c conda-forge tensorboard keras
+conda install -y -c conda-forge gpustat scikit-learn-intelex py3nvml glances
 pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece
 
