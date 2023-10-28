@@ -28,8 +28,9 @@ set -o xtrace
 # DO NOT use network deb as it installs 12.2 which is not supported by PyTorch
 
 # install drivers
-sudo apt-get install -y nvidia-kernel-open-545
-sudo apt-get install -y cuda-drivers-545
+# driver compatible versions: https://docs.nvidia.com/deploy/cuda-compatibility/#use-the-right-compat-package
+sudo apt-get install -y nvidia-kernel-open-530
+sudo apt-get install -y cuda-drivers-530
 
 bash install_cudatoollkit.sh
 
