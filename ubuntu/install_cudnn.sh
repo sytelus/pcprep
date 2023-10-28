@@ -11,4 +11,4 @@ sudo apt-get -y update
 sudo apt-get -y install libcudnn8=8.9.5.30_1+cuda12.1
 sudo apt-get -y install libcudnn8-dev=8.9.5.30_1+cuda12.1
 sudo apt-get -y install libcudnn8-samples=8.9.5.30_1+cuda12.1
-rm ~/cudnn-local-repo-ubuntu2004-8.9.5.30_1.0-1_amd64.deb
+# rm ~/cudnn-local-repo-ubuntu2004-8.9.5.30_1.0-1_amd64.deb
