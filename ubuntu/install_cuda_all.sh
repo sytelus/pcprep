@@ -28,17 +28,23 @@ set -o xtrace
 # DO NOT use network deb as it installs 12.2 which is not supported by PyTorch
 
 # install drivers
-sudo apt-get install -y nvidia-kernel-open-545 # this will force reboot
-sudo apt-get install -y cuda-drivers-545
+# driver compatible versions: https://docs.nvidia.com/deploy/cuda-compatibility/#use-the-right-compat-package
+# below also installs nvidia-smi
+sudo apt-get install -y nvidia-kernel-open-530
+sudo apt-get install -y cuda-drivers-530
 
 bash install_cudatoollkit.sh
 
 bash install_cudnn.sh
 
 #Above might still install 12.2. Use below to install 12.1
-sudo apt-get -y install cuda-toolkit-12-1
+# CUDA_HOME is needed  because it makes sure flash attn will find right version here
+sudo apt-get -y install cuda-toolkit-12-1 # this installs in /usr/local/cuda-12.1/
 export CUDA_HOME=/usr/local/cuda-12.1/ # goes in .bashrc
-
+# below will be needed if compiling triton
+# see https://github.com/Dao-AILab/flash-attention/issues/234#issuecomment-1585748519
+# condat install cuda-nvcc cudatoolkit-dev
+# C_INCLUDE_PATH=$CONDA_HOME/envs/<env_name>/include
 
 # Use local CUDA version instead of one in /usr/bin
 # If below is not done then nvcc will be found in /usr/bin which is older
