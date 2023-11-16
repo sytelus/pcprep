@@ -191,6 +191,10 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 # export OUT_DIR=$DATA_ROOT/out_dir
 # export WANDB_API_KEY=<YOUR_KEY>
 
+# Use one of below if getting libcudart.so error
+# export CUDA_HOME=/usr/local/cuda-12.1
+# export CUDA_HOME=$CONDA_PREFIX
+
 echo NUMEXPR_MAX_THREADS=$NUMEXPR_MAX_THREADS
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR

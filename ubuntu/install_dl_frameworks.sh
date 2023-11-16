@@ -7,4 +7,5 @@ conda install -y pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c 
 conda install -y -c conda-forge tensorflow
 conda install -y -c conda-forge tensorboard keras
 conda install -y -c conda-forge gpustat scikit-learn-intelex py3nvml glances
+# pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece
 pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece

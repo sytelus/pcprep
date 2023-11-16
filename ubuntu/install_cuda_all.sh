@@ -3,9 +3,13 @@
 set -e
 set -o xtrace
 
-# Below is probably better way but it didn't work to compile flash attention
+# possible errors:
+# libcudart.so.11.0 not found -> If this happens when running code with flash attention it means flash-attn is compiled with different cudnn. Solution is to recompile flash-attn.
+# libstdc++.so.6 not found -> This likely means cudnn in path does not match other things. Put in bashrc: export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 
+# Below is probably better way but it didn't work to compile flash attention
 # conda install cuda -c nvidia/label/cuda-12.1.0
+# export CUDA_HOME=$CONDA_PREFIX # put in .bashrc
 # conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia/label/cuda-12.1.0
 
 
