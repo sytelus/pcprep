@@ -30,6 +30,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Set the shell to bash so all next commands can use bash features
 SHELL ["/bin/bash", "-c"]
 
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,video,utility
+
 # update cuda repository keys
 # https://developer.nvidia.com/blog/updating-the-cuda-linux-gpg-repository-key/
 RUN if [ -n "$CUDA_VERSION" ] ; then \
@@ -51,7 +54,7 @@ RUN if [ -n "$CUDA_VERSION" ] ; then \
 RUN apt-get -y update --fix-missing && \
     apt-get install --assume-yes --no-install-recommends --no-install-suggests \
         libgomp1 curl wget sudo build-essential software-properties-common \
-        dirmngr apt-utils gpg-agent openssh-client less \
+        dirmngr apt-utils gpg-agent openssh-client less grep sed \
          tar apt-transport-https ca-certificates gnupg \
         # For PILLOW:
         zlib1g-dev libtiff-dev libfreetype6-dev liblcms2-dev tcl libjpeg8-dev \
@@ -62,10 +65,12 @@ RUN apt-get -y update --fix-missing && \
         tlp powertop tlp-rdw inxi procinfo nvidia-prime \
         libopencv-dev g++ libopenmpi-dev zlib1g-dev lsb-release \
         bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 \
-        fslint fdupes locate \
+        fdupes locate \
+        # For DeepSpeed
+        libaio-dev libaio1 \
         # fun stuff
         fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet \
-        pi xcowsay aview bb rig weather-util ponysay \
+        pi xcowsay aview bb rig weather-util  \
         && \
     apt-get autoclean && \
     apt-get clean && \
@@ -100,10 +105,9 @@ RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2023.07-2-Linux-x86
 # Initialize conda for all users
 RUN ln -s $ANACONDA_HOME/etc/profile.d/conda.sh /etc/profile.d/conda.sh \
     && echo ". $ANACONDA_HOME/etc/profile.d/conda.sh" >> /etc/skel/.bashrc \
-    && echo "conda activate base" >> /etc/skel/.bashrc
-
-# Ensure that non-interactive shells load /etc/profile
-ENV BASH_ENV=/etc/profile
+    && echo "conda activate base" >> /etc/skel/.bashrc \
+    && echo ". /opt/conda/etc/profile.d/conda.sh" >> "$HOME"/.bashrc \
+    && echo "conda activate base" >> "$HOME"/.bashrc
 
 # update to latest version
 RUN conda update -y -n base -c defaults conda
@@ -115,7 +119,9 @@ RUN conda config --set solver libmamba
 # use base as default env
 RUN conda config --set auto_activate_base true
 
-RUN pip install --upgrade pip
+RUN pip install --upgrade pip setuptools wheel
+
+RUN pip install ninja
 
 # Install cmake
 RUN pip install cmake==3.27.7
@@ -139,7 +145,7 @@ RUN conda install -y -n base -c conda-forge transformers datasets tokenizers sen
 RUN conda install -y -n base -c conda-forge tensorflow tensorboard keras
 
 # Install other popular libraries
-RUN pip install -y tiktoken wandb tqdm einops mlflow natsort \
+RUN pip install -q tiktoken wandb tqdm einops mlflow natsort \
     nbsphinx omegaconf pebble pre-commit pygtrie pytest \
     sphinx sphinx-book-theme matplotlib rich
 
@@ -151,9 +157,16 @@ RUN pip uninstall -y transformer-engine \
     && pip install . \
     && cd .. && rm -rf TransformerEngine
 
+# Install Triton, needed for some ops in DeepSpeed
+RUN pip install -q triton
+
 # DeepSpeed and OpenMPI
 ENV DEEPSPEED_VERSION="0.12.3"
-RUN DS_BUILD_UTILS=1 DS_BUILD_OPS=1 DS_BUILD_FUSED_LAMB=1 DS_BUILD_FUSED_ADAM=1 DS_BUILD_TRANSFORMER=1 DS_BUILD_TRANSFORMER_INFERENCE=1 pip install deepspeed==$DEEPSPEED_VERSION --global-option="build_ext" --global-option="-j8" && \
+RUN DS_BUILD_UTILS=1 DS_BUILD_OPS=1 DS_BUILD_FUSED_LAMB=1 DS_BUILD_FUSED_ADAM=1 \
+    DS_BUILD_TRANSFORMER=1 DS_BUILD_TRANSFORMER_INFERENCE=1 \
+    DS_BUILD_CUTLASS_OPS=0 DS_BUILD_RAGGED_DEVICE_OPS=0 DS_BUILD_EVOFORMER_ATTN=0 \
+    DS_BUILD_SPARSE_ATTN=0 \
+    pip install deepspeed==$DEEPSPEED_VERSION --global-option="build_ext" --global-option="-j8" && \
     CC=mpicc MPICC=mpicc pip install mpi4py --no-binary mpi4py
 
 # Flash-Attention and CUDA extensions for cross-entropy, fused dense, layer norm, etc
@@ -174,7 +187,7 @@ ENV XFORMERS_VERSION="0.0.22.post7"
 RUN pip install --no-dependencies xformers --index-url $TORCH_INDEX_URL
 
 # Additional packages that prevents pip uninstalling when running on the cluster
-RUN pip install -y accelerate azureml-mlflow datasets einops evaluate mlflow natsort omegaconf \
+RUN pip install -q accelerate azureml-mlflow datasets einops evaluate mlflow natsort omegaconf \
     pebble pre-commit pygtrie pytest tokenizers transformers typing-extensions wandb
 
 # add user for doing sudo
