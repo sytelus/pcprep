@@ -148,6 +148,8 @@ shopt -q -s extglob
 #     fi
 # fi
 
+# Allow aliases such as ll in sudo
+alias sudo='sudo '
 
 if [[ ! "$(uname -s)" == "Darwin" ]]; then
   # Set GPG TTY
