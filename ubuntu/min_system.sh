@@ -9,7 +9,7 @@ sudo apt-get install --assume-yes --no-install-recommends \
       tlp powertop tlp-rdw inxi procinfo nvidia-prime htop aptitude \
       build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev \
       fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util \
-      fdupes locate keychain pass \
+      fdupes locate keychain pass micro zlib1g \
       apt-transport-https ca-certificates curl gnupg lsb-release gpustat \
       bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
       nvtop virt-what sudo zlib1g g++ freeglut3-dev build-essential libx11-dev \
