@@ -4,7 +4,7 @@
 # this command makes available dev environment on new VMs
 # additional drives can be mapped using: -v ~/azblob/dataroot:$HOME/dataroot
 
-docker run --gpus all --name archai \
+docker run --gpus all --name sydev \
     --rm \
     -u $(id -u):$(id -g) \
     -e HOME=$HOME -e USER=$USER \
