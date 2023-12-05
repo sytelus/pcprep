@@ -18,7 +18,7 @@ sudo apt-get install --assume-yes --no-install-recommends \
 # update stdc, without this pytest discovery fails
 sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 sudo apt-get -y update
-sudo apt-get install -y gcc-4.9
+#sudo apt-get install -y gcc-4.9
 sudo apt-get install -y --only-upgrade libstdc++6
 
 # install micro editor and make it default editor

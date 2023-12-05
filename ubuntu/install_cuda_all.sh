@@ -34,8 +34,11 @@ set -o xtrace
 # install drivers
 # driver compatible versions: https://docs.nvidia.com/deploy/cuda-compatibility/#use-the-right-compat-package
 # below also installs nvidia-smi
-sudo apt-get install -y nvidia-kernel-open-530
-sudo apt-get install -y cuda-drivers-530
+# 12.1 -> 525
+# 12.2 -> 525
+# 12.3 -> 535
+sudo apt-get install -y nvidia-kernel-open-525
+sudo apt-get install -y cuda-drivers-525
 
 bash install_cudatoollkit.sh
 
