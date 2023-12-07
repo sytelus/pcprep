@@ -181,7 +181,10 @@ ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
 export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 # below is sometime needed to find libstdc++.so.6 used by TensorFlow, matplotlib etc
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
+#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
+# Use one of below if getting libcudart.so error
+#export CUDA_HOME=/usr/local/cuda-12.1
+#export CUDA_HOME=$CONDA_PREFIX
 
 # HuggingFace cache and other locations
 # export DATA_ROOT=/scratch/data
@@ -193,18 +196,13 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 # export OUT_DIR=$DATA_ROOT/out_dir
 # export WANDB_API_KEY=<YOUR_KEY>
 
-# Use one of below if getting libcudart.so error
-# export CUDA_HOME=/usr/local/cuda-12.1
-# export CUDA_HOME=$CONDA_PREFIX
+# max threads, leaving out 2 or 1 cores
+export NUMEXPR_MAX_THREADS=$([ $(nproc) -le 1 ] && echo 1 || echo $(( $(nproc) <= 2 ? 1 : $(nproc) - 2 )))
+export PYTHONHASHSEED=0
 
 echo NUMEXPR_MAX_THREADS=$NUMEXPR_MAX_THREADS
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
-
-
-# max threads, leaving out 2 or 1 cores
-export NUMEXPR_MAX_THREADS=$([ $(nproc) -le 1 ] && echo 1 || echo $(( $(nproc) <= 2 ? 1 : $(nproc) - 2 )))
-export PYTHONHASHSEED=0
 
 # sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR
 
