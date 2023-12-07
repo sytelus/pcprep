@@ -41,7 +41,7 @@ set -o xtrace
 # sudo apt-get install -y nvidia-kernel-open-525
 # sudo apt-get install -y cuda-drivers-525
 
-bash install_libcudnn.sh
+bash install_gpg_key.sh
 bash install_cudatoolkit.sh
 bash install_cudnn.sh
 
