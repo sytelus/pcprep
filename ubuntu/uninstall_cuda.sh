@@ -16,8 +16,13 @@ sudo apt-get -y autoclean
 
 # remove cuda directories
 sudo rm -rf /usr/local/cuda*
+
+# below causes error:
+# The repository 'file:/var/XYZ  Release' no longer has a Release file.
 sudo rm -rf /etc/apt/sources.list.d/cuda*
 sudo rm -rf /etc/apt/sources.list.d/cudnn*
+sudo rm -rf /etc/apt/sources.list.d/nccl-*
+
 sudo rm -rf /var/cudnn-local-repo*
 sudo rm -rf /var/cuda-repo*
 sudo rm -rf /var/nccl-repo*
