@@ -4,10 +4,15 @@ set -o xtrace
 # driver version
 cat /proc/driver/nvidia/version
 
+whereis cudnn.h
+whereis cuda
+whereis cudnn_version.h
+whereis nvcc
+whereis nvidia-smi
+
 cat $(whereis cudnn.h) | grep CUDNN_MAJOR -A 2
 cat $(whereis cuda)/include/cudnn.h | grep CUDNN_MAJOR -A 2
-which nvcc
-which nvidia-smi
+cat $(whereis cudnn_version.h) | grep CUDNN_MAJOR -A 2
 
 nvcc --version
 
