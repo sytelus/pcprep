@@ -41,15 +41,8 @@ set -o xtrace
 # sudo apt-get install -y nvidia-kernel-open-525
 # sudo apt-get install -y cuda-drivers-525
 
-# https://developer.nvidia.com/blog/updating-the-cuda-linux-gpg-repository-key/
-sudo apt-key del 7fa2af80
-wget -P ~/ https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb
-sudo dpkg -i ~/cuda-keyring_1.0-1_all.deb
-sudo apt-get -y update
-sudo apt-get -y install libcudnn8
-
+bash install_libcudnn.sh
 bash install_cudatoolkit.sh
-
 bash install_cudnn.sh
 
 #Above might still install 12.2. Use below to install 12.1
