@@ -31,14 +31,22 @@ set -o xtrace
 # CUDA 12.1 must be installed using local deb for ease of later removal.
 # DO NOT use network deb as it installs 12.2 which is not supported by PyTorch
 
+# New: don't install drivers, they get installed by cuda toolkit
 # install drivers
 # driver compatible versions: https://docs.nvidia.com/deploy/cuda-compatibility/#use-the-right-compat-package
 # below also installs nvidia-smi
 # 12.1 -> 525
 # 12.2 -> 525
 # 12.3 -> 535
-sudo apt-get install -y nvidia-kernel-open-525
-sudo apt-get install -y cuda-drivers-525
+# sudo apt-get install -y nvidia-kernel-open-525
+# sudo apt-get install -y cuda-drivers-525
+
+# https://developer.nvidia.com/blog/updating-the-cuda-linux-gpg-repository-key/
+sudo apt-key del 7fa2af80
+wget -P ~/ https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb
+sudo dpkg -i ~/cuda-keyring_1.0-1_all.deb
+sudo apt-get -y update
+sudo apt-get -y install libcudnn8
 
 bash install_cudatoolkit.sh
 

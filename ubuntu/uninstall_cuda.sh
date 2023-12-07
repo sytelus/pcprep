@@ -18,8 +18,14 @@ sudo apt-get -y autoclean
 sudo rm -rf /usr/local/cuda*
 sudo rm -rf /etc/apt/sources.list.d/cuda*
 sudo rm -rf /etc/apt/sources.list.d/cudnn*
+sudo rm -rf /var/cudnn-local-repo*
+sudo rm -rf /var/cuda-repo*
+sudo rm -rf /var/nccl-repo*
 
 sudo dpkg -r cuda
 sudo dpkg -r $(dpkg -l | grep '^ii  cudnn' | awk '{print $2}')
+
+# https://developer.nvidia.com/blog/updating-the-cuda-linux-gpg-repository-key/
+sudo apt-key del 7fa2af80
 
 sudo apt -y update
