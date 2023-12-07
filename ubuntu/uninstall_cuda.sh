@@ -1,3 +1,5 @@
+set -o xtrace
+
 # works for 11.8 and higher installed using deb file
 
 # To uninstall previous CUDA versions
@@ -14,6 +16,9 @@ sudo apt-get -y autoclean
 
 # remove cuda directories
 sudo rm -rf /usr/local/cuda*
+sudo rm -rf /etc/apt/sources.list.d/cuda*
 
 sudo dpkg -r cuda
 sudo dpkg -r $(dpkg -l | grep '^ii  cudnn' | awk '{print $2}')
+
+sudo apt -y update
