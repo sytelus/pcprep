@@ -45,10 +45,11 @@ bash install_gpg_key.sh
 bash install_cudatoolkit.sh
 bash install_cudnn.sh
 
-#Above might still install 12.2. Use below to install 12.1
+# Above might still install 12.3. Use below to install 12.1
 # CUDA_HOME is needed  because it makes sure flash attn will find right version here
 sudo apt-get -y install cuda-toolkit-12-1 # this installs in /usr/local/cuda-12.1/
 export CUDA_HOME=/usr/local/cuda-12.1/ # goes in .bashrc
+
 # below will be needed if compiling triton
 # see https://github.com/Dao-AILab/flash-attention/issues/234#issuecomment-1585748519
 # condat install cuda-nvcc cudatoolkit-dev
