@@ -3,6 +3,8 @@
 set -e
 set -o xtrace
 
+# WARNING: Do not update below to new version. There is no 12.1 cuda package after cudnn 8.9.3.28
+# To see available packages run:
 # sudo apt-cache madison libcudnn8
 
 sudo apt-get install -y zlib1g
