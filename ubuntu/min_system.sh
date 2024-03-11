@@ -12,8 +12,10 @@ sudo apt-get install --assume-yes --no-install-recommends \
       fdupes locate keychain pass micro zlib1g \
       apt-transport-https ca-certificates curl gnupg lsb-release gpustat \
       bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
-      nvtop virt-what sudo zlib1g g++ freeglut3-dev build-essential libx11-dev \
+      virt-what sudo zlib1g g++ freeglut3-dev build-essential libx11-dev \
       libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 libfreeimage-dev
+
+# removed nvtop
 
 # update stdc, without this pytest discovery fails
 sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
