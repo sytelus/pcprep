@@ -29,9 +29,9 @@ conda config --set auto_activate_base true
 # update to latest version
 conda update -n base -c defaults conda
 
-# use much faster mamba solver
-conda install -n base conda-libmamba-solver
-conda config --set solver libmamba
+# (already setup in new conda) use much faster mamba solver
+# conda install -n base conda-libmamba-solver
+# conda config --set solver libmamba
 
 # get conda changes in effect
 source ~/.bashrc
