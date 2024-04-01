@@ -42,6 +42,7 @@ conda activate base
 curl -sSL https://install.python-poetry.org | python3 -
 
 # perms to install az extensions
+az config set extension.use_dynamic_install=yes_without_prompt
 sudo chmod 777 /opt/az/extensions/
 
 bash install_dl_frameworks.sh

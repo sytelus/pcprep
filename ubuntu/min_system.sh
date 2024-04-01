@@ -13,7 +13,8 @@ sudo apt-get install --assume-yes --no-install-recommends \
       apt-transport-https ca-certificates curl gnupg lsb-release  \
       bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
       virt-what sudo zlib1g g++ freeglut3-dev build-essential libx11-dev \
-      libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 libfreeimage-dev
+      libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 \
+      libfreeimage-dev vmtouch neofetch
 
 # removed nvtop, gpustat
 
@@ -25,3 +26,7 @@ sudo apt-get install -y --only-upgrade libstdc++6
 
 # install micro editor and make it default editor
 sudo bash -c "cd /usr/bin; wget -O- https://getmic.ro | GETMICRO_REGISTER=y sh"
+
+curl https://justine.lol/rusage/rusage.com >rusage
+sudo chmod +x rusage
+sudo mv rusage /usr/local/bin
