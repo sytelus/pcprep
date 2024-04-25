@@ -2,6 +2,7 @@
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
+
 # If not running interactively, don't do anything
 case $- in
     *i*) ;;
@@ -205,6 +206,8 @@ echo NUMEXPR_MAX_THREADS=$NUMEXPR_MAX_THREADS
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
+# sudo chmod 777 /scratch
 # sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR
+# chmod 600 ~/.ssh/*
 
 #start-tmux
