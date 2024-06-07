@@ -152,8 +152,9 @@ shopt -q -s extglob
 # Allow aliases such as ll in sudo
 alias sudo='sudo '
 
+# if not MacOS
 if [[ ! "$(uname -s)" == "Darwin" ]]; then
-  # Set GPG TTY
+  # Set GPG TTY, this is the terminal where user will be prompted for passphrase
   export GPG_TTY=$(tty)
 
   # Start the gpg-agent if not already running
@@ -174,7 +175,11 @@ if [ ! -S ~/.ssh/ssh_auth_sock ]; then
   ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
 fi
 export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
-ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
+for key in ~/.ssh/*; do
+  if [[ -f "$key" && "$key" != *.pub ]]; then
+    ssh-add -l > /dev/null || ssh-add "$key"
+  fi
+done
 
 # Use local CUDA version instead of one in /usr/bin
 # If below is not done then nvcc will be found in /usr/bin which is older
@@ -197,6 +202,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 # export WANDB_CACHE_DIR=$DATA_ROOT/wandb_cache
 # export OUT_DIR=$DATA_ROOT/out_dir
 # export WANDB_API_KEY=<YOUR_KEY>
+# export OLLAMA_MODELS=$DATA_ROOT/ollama/models
 
 # max threads, leaving out 2 or 1 cores
 export NUMEXPR_MAX_THREADS=$([ $(nproc) -le 1 ] && echo 1 || echo $(( $(nproc) <= 2 ? 1 : $(nproc) - 2 )))
@@ -207,7 +213,9 @@ echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
 # sudo chmod 777 /scratch
-# sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR
+# sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR $OLLAMA_MODELS
 # chmod 600 ~/.ssh/*
+
+
 
 #start-tmux
