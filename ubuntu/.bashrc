@@ -188,6 +188,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 # export WANDB_CACHE_DIR=$DATA_ROOT/wandb_cache
 # export OUT_DIR=$DATA_ROOT/out_dir
 # export WANDB_API_KEY=<YOUR_KEY>
+# export OLLAMA_MODELS=$DATA_ROOT/ollama/models
 
 # max threads, leaving out 2 or 1 cores
 export NUMEXPR_MAX_THREADS=$([ $(nproc) -le 1 ] && echo 1 || echo $(( $(nproc) <= 2 ? 1 : $(nproc) - 2 )))
@@ -198,7 +199,9 @@ echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
 # sudo chmod 777 /scratch
-# sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR
+# sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR $OLLAMA_MODELS
 # chmod 600 ~/.ssh/*
+
+
 
 #start-tmux
