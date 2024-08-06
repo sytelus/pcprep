@@ -120,40 +120,15 @@ if ! shopt -oq posix; then
   fi
 fi
 
-# #enable arrow up/down for partial search
-# bind '"\e[A": history-search-backward'
-# bind '"\e[B": history-search-forward'
-
-# #cycle through tab completion
-# [[ $- = *i* ]] && bind '"TAB": menu-complete'
-# [[ $- = *i* ]] && bind '"\e[Z":menu-complete-backward'
-
-# display one column with tab completion matches
-
-# if not already running tmux and in SSH session then start tmux
-# if [[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ]; then
-#     tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux
-
-#     # LS_COLORS='rs=0:di=1;35:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.lz>    # export LS_COLORS
-# fi
-
 # Turn on ../**/*.ext pattern matching
 shopt -q -s extglob
-
-
-# if [[ ! -z "$WSL_DISTRO_NAME" ]]; then
-#     if [[ ! grep -Fxq "nameserver 10.50.10.50" /etc/resolv.conf ]]; then
-#         sudo mv /etc/resolv.conf /etc/resolv.conf.bak
-#         sudo bash -c "cat /etc/resolv.conf.bak > /etc/resolv.conf"
-#         sudo bash -c "echo nameserver 10.50.10.50 >> /etc/resolv.conf"
-#     fi
-# fi
 
 # Allow aliases such as ll in sudo
 alias sudo='sudo '
 
+# if not OSX
 if [[ ! "$(uname -s)" == "Darwin" ]]; then
-  # Set GPG TTY
+  # Set GPG TTY, this is the terminal where user will be prompted for passphrase
   export GPG_TTY=$(tty)
 
   # Start the gpg-agent if not already running
@@ -169,12 +144,28 @@ if [ -f "${HOME}/.gpg-agent-info" ]; then
 fi
 
 # run ssh-add once per reboot
-if [ ! -S ~/.ssh/ssh_auth_sock ]; then
-  eval `ssh-agent`
-  ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+# Check if ssh-agent is already running
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    # Check for a previous agent
+    if [ -f ~/.ssh/agent.env ]; then
+        . ~/.ssh/agent.env > /dev/null
+    fi
+
+    # If agent doesn't respond, start a new one
+    if ! kill -0 $SSH_AGENT_PID > /dev/null 2>&1; then
+        eval $(ssh-agent | tee ~/.ssh/agent.env)
+        chmod 600 ~/.ssh/agent.env
+        ssh-add -l
+    fi
 fi
 export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
-ssh-add -l > /dev/null || ssh-add ~/.ssh/sb_github_rsa
+# Add keys if not already added
+for key in ~/.ssh/*; do
+    if [[ -f "$key" && "$key" != *.pub && "$key" != *.env && "$key" != config* ]]; then
+        ssh-add -l | grep -q $(ssh-keygen -lf "$key" | awk '{print $2}') || ssh-add "$key"
+        echo "Added key $key"
+    fi
+done
 
 # Use local CUDA version instead of one in /usr/bin
 # If below is not done then nvcc will be found in /usr/bin which is older

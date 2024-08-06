@@ -11,27 +11,20 @@ set -o xtrace
 bash cp_dotfiles.sh
 bash min_system.sh
 bash gitconfig.sh
+bash install_fzf.sh
 
-sudo apt-get clean
 
-wget https://repo.anaconda.com/archive/Anaconda3-2023.07-2-Linux-x86_64.sh -O ~/anaconda.sh
-# batch install: agree to licence and install to ~/anaconda3
-/bin/bash ~/anaconda.sh -b -p $HOME/anaconda3
-#rm ~/anaconda.sh
-# sudo ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
-# sudo chown -R $USER /opt/cond
-# sudo chown -R $USER ~/.conda
+# install mini conda with Python 3.11 (3.12 has breaking changes with imp module)
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-py311_24.5.0-0-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+rm -rf ~/miniconda3/miniconda.sh
 
 # modify .bashrc
-~/anaconda3/bin/conda init bash
-conda config --set auto_activate_base true
+~/miniconda3/bin/conda init bash
 
 # update to latest version
-conda update -n base -c defaults conda
-
-# (already setup in new conda) use much faster mamba solver
-# conda install -n base conda-libmamba-solver
-# conda config --set solver libmamba
+# conda update -n base -c defaults conda
 
 # get conda changes in effect
 source ~/.bashrc
@@ -40,10 +33,6 @@ conda activate base
 
 # install Poetry
 curl -sSL https://install.python-poetry.org | python3 -
-
-# perms to install az extensions
-az config set extension.use_dynamic_install=yes_without_prompt
-sudo chmod 777 /opt/az/extensions/
 
 bash install_dl_frameworks.sh
 
