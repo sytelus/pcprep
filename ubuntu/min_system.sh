@@ -3,15 +3,6 @@
 set -e
 set -o xtrace
 
-# create local bin where we can store our apps as sudo is not supported
-mkdir -p ~/.local/bin
-statement='export PATH="$HOME/.local/bin:$PATH"'
-bashrc="$HOME/.bashrc"
-if ! grep -qF "$statement" "$bashrc"; then
-    echo "" >> "$bashrc"
-    echo "$statement" >> "$bashrc"
-    . "$bashrc"
-fi
 
 
 # Attempt to run a harmless command with sudo

@@ -43,6 +43,10 @@ alias freespace="df -h | grep -vE '^Filesystem|tmpfs|cdrom' | sort -k4hr"
 alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux)'
 alias disks='df -hT 2>/dev/null | sort -k 3 --human-numeric-sort --reverse'
 # drained nodes in slurm with reason
-alias sdrained='scontrol show --json node | jq -r \'.nodes[] | select(any(.state[]; . == "DRAIN")) | [.hostname, .reason] | join("\t")\''
+alias sdrained='scontrol show --json node | jq -r '"'"'.nodes[] | select(any(.state[]; . == "DRAIN")) | [.hostname, .reason] | join("\t")'"'"''
 # all nodes in slurm with reason
-alias sreason='scontrol show --json node | jq -r \'.nodes[] | select(.reason != "") | [.hostname, (.state | join(",")), .reason] | join("\t")\''
+alias sreason='scontrol show --json node | jq -r '"'"'.nodes[] | select(.reason != "") | [.hostname, (.state | join(",")), .reason] | join("\t")'"'"''
+alias salljobs='squeue -o "%.7i %.9P %.8j %.8u %.2t %.10M %.6D %R"'
+alias sjobs='squeue -o "%.7i %.9P %.8j %.8u %.2t %.10M %.6D %R" -u $USER'
+alias skill='job_id=$(squeue -u $USER -h -o %A | head -n1) && [ -n "$job_id" ] && scancel $job_id && echo "Cancelled job $job_id" || echo "No job found or cancellation failed"'
+alias skillall='read -p "Are you sure you want to cancel all Slurm jobs? (y/N) " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] && scancel -u $USER && echo "All Slurm jobs for user $USER have been cancelled" || echo "Operation cancelled or no jobs found for user $USER"'

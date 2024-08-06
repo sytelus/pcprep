@@ -6,6 +6,7 @@ set -o xtrace
 USER_BASHRC="$HOME/.bashrc"
 DEFAULT_BASHRC="/etc/skel/.bashrc"
 
+
 check_bashrc_modification() {
     # Check if user's .bashrc exists
     if [ ! -f "$USER_BASHRC" ]; then
@@ -42,16 +43,27 @@ cp -vn .tmux.conf ~/.tmux.conf
 
 # copy some useful utils as .sh files
 chmod +x *.sh
-cp -vn rundocker.sh /usr/local/bin/rundocker.sh
-cp -vn azmount.yaml /usr/local/bin/azmount.yaml
-cp -vn azmount.sh /usr/local/bin/azmount.sh
-cp -vn mount_cifs.sh /usr/local/bin/mount_cifs.sh
-cp -vn start_tmux.sh /usr/local/bin/start_tmux.sh
-cp -vn sysinfo.sh /usr/local/bin/sysinfo.sh
-cp -vn treesize.sh /usr/local/bin/treesize.sh
+cp -vn rundocker.sh ~/.local/bin/rundocker.sh
+cp -vn azmount.yaml ~/.local/bin/azmount.yaml
+cp -vn azmount.sh ~/.local/bin/azmount.sh
+cp -vn mount_cifs.sh ~/.local/bin/mount_cifs.sh
+cp -vn start_tmux.sh ~/.local/bin/start_tmux.sh
+cp -vn sysinfo.sh ~/.local/bin/sysinfo.sh
+cp -vn treesize.sh ~/.local/bin/treesize.sh
 cp -vn measure_flops.py ~/.local/bin/measure_flops.py
 
 # skip files that already exists
 cp -vrn .config/ ~/
 cp -vrn .ssh/ ~/
 cp -vrn .local/ ~/
+
+
+# create local bin where we can store our apps as sudo is not supported
+mkdir -p ~/.local/bin
+statement='export PATH="$HOME/.local/bin:$PATH"'
+bashrc="$HOME/.bashrc"
+if ! grep -qF "$statement" "$bashrc"; then
+    echo "" >> "$bashrc"
+    echo "$statement" >> "$bashrc"
+    . "$bashrc"
+fi
