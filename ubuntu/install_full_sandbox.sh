@@ -26,8 +26,8 @@ rm -rf ~/miniconda3/miniconda.sh
 # update to latest version
 # conda update -n base -c defaults conda
 
-# get conda changes in effect
-source ~/.bashrc
+# Source the conda.sh script directly so we don't have reopen the terminal
+. $HOME/miniconda3/etc/profile.d/conda.sh
 
 conda activate base
 
