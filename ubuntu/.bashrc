@@ -170,14 +170,20 @@ done
 # Use local CUDA version instead of one in /usr/bin
 # If below is not done then nvcc will be found in /usr/bin which is older
 # Flash Attention won't install because it will detect wrong nvcc
-export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
-export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+# Set CUDA paths if directories exist
+[ -d "/usr/local/cuda/bin" ] && export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
+[ -d "/usr/local/cuda/lib64" ] && export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 # below is sometime needed to find libstdc++.so.6 used by TensorFlow, matplotlib etc
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
+# Set Conda paths if Conda is active and directory exists
+[ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ] && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 # Use one of below if getting libcudart.so error or want to compile flash-attn
 # below is needed because cuda install ends up with 12.3 instead of 12.1 anyway
 #export CUDA_HOME=/usr/local/cuda-12.1
 # export CUDA_HOME=$CONDA_PREFIX
+
+# set larger history size than default 1000/2000 values
+HISTSIZE=10000
+HISTFILESIZE=20000
 
 # HuggingFace cache and other locations
 # export DATA_ROOT=/scratch/data
