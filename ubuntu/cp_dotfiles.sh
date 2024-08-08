@@ -41,16 +41,6 @@ cp -vn .bash_aliases ~/.bash_aliases
 cp -vn .inputrc ~/.inputrc
 cp -vn .tmux.conf ~/.tmux.conf
 
-# copy some useful utils as .sh files
-chmod +x *.sh
-cp -vn rundocker.sh ~/.local/bin/rundocker.sh
-cp -vn azmount.yaml ~/.local/bin/azmount.yaml
-cp -vn azmount.sh ~/.local/bin/azmount.sh
-cp -vn mount_cifs.sh ~/.local/bin/mount_cifs.sh
-cp -vn start_tmux.sh ~/.local/bin/start_tmux.sh
-cp -vn sysinfo.sh ~/.local/bin/sysinfo.sh
-cp -vn treesize.sh ~/.local/bin/treesize.sh
-cp -vn measure_flops.py ~/.local/bin/measure_flops.py
 
 # skip files that already exists
 cp -vrn .config/ ~/
@@ -67,3 +57,14 @@ if ! grep -qF "$statement" "$bashrc"; then
     echo "$statement" >> "$bashrc"
     . "$bashrc"
 fi
+
+# copy some useful utils as .sh files
+chmod +x *.sh
+cp -vn rundocker.sh ~/.local/bin/rundocker.sh
+cp -vn azmount.yaml ~/.local/bin/azmount.yaml
+cp -vn azmount.sh ~/.local/bin/azmount.sh
+cp -vn mount_cifs.sh ~/.local/bin/mount_cifs.sh
+cp -vn start_tmux.sh ~/.local/bin/start_tmux.sh
+cp -vn sysinfo.sh ~/.local/bin/sysinfo.sh
+cp -vn treesize.sh ~/.local/bin/treesize.sh
+cp -vn measure_flops.py ~/.local/bin/measure_flops.py
