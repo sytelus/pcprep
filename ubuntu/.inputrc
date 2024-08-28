@@ -8,11 +8,11 @@ set show-all-if-unmodified On
 set visible-stats On
 set completion-display-width 1
 set menu-complete-display-prefix on
-TAB: menu-complete
-"\e[Z": menu-complete-backward
+# TAB: menu-complete
+# "\e[Z": menu-complete-backward
 
 # partial search bound to page up/down
-"\e[5~": history-search-backward
-"\e[6~": history-search-forward
+# "\e[5~": history-search-backward
+# "\e[6~": history-search-forward
 
 # ctrl-X ctrl-R to reload this file

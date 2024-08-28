@@ -126,46 +126,87 @@ shopt -q -s extglob
 # Allow aliases such as ll in sudo
 alias sudo='sudo '
 
+is_wsl() {
+    case "$(uname -r)" in
+    *microsoft* ) true ;; # WSL 2
+    *Microsoft* ) true ;; # WSL 1
+    * ) false;;
+    esac
+}
+
 # if not OSX
-if [[ ! "$(uname -s)" == "Darwin" ]]; then
+if [[ ! "$(uname -s)" == "Darwin" ]] && ! is_wsl; then
   # Set GPG TTY, this is the terminal where user will be prompted for passphrase
   export GPG_TTY=$(tty)
 
   # Start the gpg-agent if not already running
   if ! pgrep -x -u "${USER}" gpg-agent >/dev/null 2>&1; then
-    gpg-agent --daemon --enable-ssh-support --write-env-file "${HOME}/.gpg-agent-info"
+    gpg-agent --daemon --enable-ssh-support "${HOME}/.gpg-agent-info"
   fi
-fi
 
-if [ -f "${HOME}/.gpg-agent-info" ]; then
-  . "${HOME}/.gpg-agent-info"
-  export GPG_AGENT_INFO
-  export SSH_AUTH_SOCK
+  if [ -f "${HOME}/.gpg-agent-info" ]; then
+    . "${HOME}/.gpg-agent-info"
+    export GPG_AGENT_INFO
+    export SSH_AUTH_SOCK
+  fi
 fi
 
 # run ssh-add once per reboot
 # Check if ssh-agent is already running
-if [ -z "$SSH_AUTH_SOCK" ]; then
-    # Check for a previous agent
-    if [ -f ~/.ssh/agent.env ]; then
-        . ~/.ssh/agent.env > /dev/null
+ssh_agent_setup() {
+    SSH_ENV="$HOME/.ssh/agent.env"
+    CUSTOM_SSH_AUTH_SOCK="$HOME/.ssh/ssh_auth_sock"
+
+    start_agent() {
+        echo "Initializing new SSH agent..."
+        ssh-agent -a "$CUSTOM_SSH_AUTH_SOCK" | sed 's/^echo/#echo/' > "${SSH_ENV}"
+        chmod 600 "${SSH_ENV}"
+        . "${SSH_ENV}" > /dev/null
+    }
+
+    if [ -S "$SSH_AUTH_SOCK" ]; then
+        # SSH agent is already running
+        case "$SSH_AUTH_SOCK" in
+            "$CUSTOM_SSH_AUTH_SOCK")
+                # Our custom socket is already in use
+                ;;
+            *)
+                # Different socket in use, link our custom socket to it
+                ln -sf "$SSH_AUTH_SOCK" "$CUSTOM_SSH_AUTH_SOCK"
+                export SSH_AUTH_SOCK="$CUSTOM_SSH_AUTH_SOCK"
+                ;;
+        esac
+    elif [ -f "${SSH_ENV}" ]; then
+        . "${SSH_ENV}" > /dev/null
+        if ! ps -ef | grep ${SSH_AGENT_PID} | grep ssh-agent$ > /dev/null; then
+            start_agent
+        fi
+    else
+        start_agent
     fi
 
-    # If agent doesn't respond, start a new one
-    if ! kill -0 $SSH_AGENT_PID > /dev/null 2>&1; then
-        eval $(ssh-agent | tee ~/.ssh/agent.env)
-        chmod 600 ~/.ssh/agent.env
-        ssh-add -l
-    fi
-fi
-export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
-# Add keys if not already added
-for key in ~/.ssh/*; do
-    if [[ -f "$key" && "$key" != *.pub && "$key" != *.env && "$key" != config* ]]; then
-        ssh-add -l | grep -q $(ssh-keygen -lf "$key" | awk '{print $2}') || ssh-add "$key"
-        echo "Added key $key"
-    fi
-done
+    # Add keys if not already added
+    for key in ~/.ssh/*; do
+        # Skip non-files, public keys, and specific files we don't want to add
+        if [[ -f "$key" && "$key" != *.pub && "$key" != *config && "$key" != *known_hosts && "$key" != *.env ]]; then
+            if ssh-keygen -lf "$key" &>/dev/null; then
+                if ssh-add -l 2>/dev/null | grep -q "$(ssh-keygen -lf "$key" | awk '{print $2}')" 2>/dev/null; then
+                    echo "Key $key already added"
+                else
+                    ssh-add "$key" 2>/dev/null && echo "Added key $key" || echo "Failed to add key $key"
+                fi
+            else
+                echo "Skipping $key - not a valid key file"
+            fi
+        fi
+    done
+}
+
+ssh_agent_setup
+
+# Ensure the custom socket is always used
+export SSH_AUTH_SOCK="$HOME/.ssh/ssh_auth_sock"
+
 
 # Use local CUDA version instead of one in /usr/bin
 # If below is not done then nvcc will be found in /usr/bin which is older

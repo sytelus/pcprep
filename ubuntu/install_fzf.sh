@@ -20,15 +20,22 @@ if [ -f ~/.fzf.bash ]; then
 fi
 
 # Enhanced history search with fzf
-function fzf_history() {
+# Check if fzf is available
+if command -v fzf >/dev/null 2>&1; then
+  # Define the fzf_history function
+  fzf_history() {
     local output
-    output=$(history | fzf --tac --tiebreak=index --no-sort --query "$READLINE_LINE" --exact --prompt="History > ")
-    READLINE_LINE=$(echo "$output" | sed 's/^ *[0-9]* *//')
+    output=$(history | fzf --tac --no-sort --query "$READLINE_LINE" --select-1 --exit-0)
+    READLINE_LINE=${output#*[0-9]*  }
     READLINE_POINT=${#READLINE_LINE}
-}
+  }
 
-# Bind Ctrl+R to fzf history search
-bind -x '"\C-r": fzf_history'
+  # Bind the function to Ctrl+R
+  bind -x '"\C-r": fzf_history'
+# else
+#   # Fallback to default reverse-search-history if fzf is not available
+#   bind '"\C-r": reverse-search-history'
+fi
 EOF
 else
     echo "fzf configuration already exists in .bashrc."
