@@ -36,3 +36,15 @@ curl -sSL https://install.python-poetry.org | python3 -
 
 bash install_dl_frameworks.sh
 
+if [[ -n "$WSL_DISTRO_NAME" ]]; then
+    # share .ssh keys
+    mkdir -p ~/.ssh
+    cp -r /mnt/c/Users/$USER/.ssh ~/.ssh
+    bash ssh_perms.sh
+
+    # make sure we don't check-in with CRLFs
+    git config --global core.autocrlf input
+    # setup git credentials sharing
+    cmd.exe /c "git config --global credential.helper wincred"
+    git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager-core.exe"
+fi
