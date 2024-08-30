@@ -15,7 +15,7 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
     git config --global core.autocrlf input
     # setup git credentials sharing
     cmd.exe /c "git config --global credential.helper wincred"
-    git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager-core.exe"
+    git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe"
 fi
 
 # This installs anaconda and other libs on top of install_sandbox.sh

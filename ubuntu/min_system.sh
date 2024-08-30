@@ -18,7 +18,7 @@ if sudo -n true 2>/dev/null; then
             bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
             virt-what sudo zlib1g g++ freeglut3-dev build-essential libx11-dev \
             libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 \
-            libfreeimage-dev vmtouch neofetch
+            libfreeimage-dev vmtouch neofetch powerstat powertop
 
       # removed nvtop, gpustat
 
