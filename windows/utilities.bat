@@ -14,19 +14,19 @@ choco install -y  foxitreader
 choco install -y  gimp
 choco install -y  curl
 choco install -y  wget
-choco install -y  virtualbox
+REM choco install -y  virtualbox
 choco install -y  golang
 choco install -y  irfanview
-choco install -y  audacity
-choco install -y  tortoisesvn
-choco install -y  evernote
+REM choco install -y  audacity
+REM choco install -y  tortoisesvn
+REM choco install -y  evernote
 choco install -y  rufus
-choco install -y  rapidee
+REM choco install -y  rapidee
 choco install -y  nodejs.install
 choco install -y  cmake.install
 choco install -y  inkscape
 choco install -y  putty.install
-choco install -y  freecad
+REM choco install -y  freecad
 choco install -y notepadplusplus
-choco install -y conemu
+REM choco install -y conemu
 choco install -y firacode cascadiacode

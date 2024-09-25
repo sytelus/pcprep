@@ -12,12 +12,12 @@ set -o xtrace
 #!/bin/bash
 
 # Prompt the user for their name and email
-# read -p "Enter your name: " user_name
-# read -p "Enter your email: " user_email
+read -p "Enter your name: " user_name
+read -p "Enter your email: " user_email
 
 # Set global Git configurations using the user's input
-# git config --global user.name "$user_name"
-# git config --global user.email "$user_email"
+git config --global user.name "$user_name"
+git config --global user.email "$user_email"
 # git config --global url.ssh://git@github.com/.insteadOf https://github.com/
 
 git config --global merge.tool vscode

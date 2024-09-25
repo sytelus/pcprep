@@ -6,7 +6,8 @@ For group policy error/reinstall, try:
 # in admin prompt
 wsl --uninstall
 wsl --update
-wsl --install
+wsl --install ubuntu
+wsl --list # see available distributions
 ```
 
 ## Move WSL vhd file

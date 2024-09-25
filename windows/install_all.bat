@@ -22,3 +22,6 @@ call gitclones.bat
 REM install code face fonts
 powershell -Command "&{ Start-Process powershell -ArgumentList '-File codeface.ps1' -Verb RunAs}"
 PAUSE
+
+REM Install licensed software from D:\Dropbox\windows
+REM Beyond Compare, Tree Size Professional, Camtasia
