@@ -1,3 +1,5 @@
+REM this is probably right way to do it but don't use it yet
+
 @echo off
 setlocal enabledelayedexpansion
 
