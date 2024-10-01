@@ -16,6 +16,7 @@ check_nvidia_gpu() {
 # PyTorch and GPU utils install
 if check_nvidia_gpu; then
     echo "NVIDIA GPU detected. Installing PyTorch with CUDA support..."
+    # conda remove -y torch torchvision torchaudio cudatoolkit
     conda install -y pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
     conda install -y -c conda-forge gpustat scikit-learn-intelex py3nvml glances
 else
