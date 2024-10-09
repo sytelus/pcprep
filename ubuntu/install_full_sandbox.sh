@@ -16,6 +16,16 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
     # setup git credentials sharing
     cmd.exe /c "git config --global credential.helper wincred"
     git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe"
+else
+    # Check if nvcc is installed
+    if ! command -v nvcc &> /dev/null; then
+        read -p "CUDA not found. Do you want to install CUDA 12.4? (y/N): " install_cuda
+        if [[ $install_cuda =~ ^[Yy]$ ]]; then
+            bash install_cuda12.4.sh
+        else
+            echo "Skipping CUDA installation."
+        fi
+    fi
 fi
 
 # This installs anaconda and other libs on top of install_sandbox.sh
