@@ -41,17 +41,6 @@ bash install_fzf.sh
 
 bash install_miniconda.sh
 
-# modify .bashrc
-~/miniconda3/bin/conda init bash
-
-# update to latest version
-# conda update -n base -c defaults conda
-
-# Make sure we have fast solver
-# conda config --show solver
-# conda install -n base conda-libmamba-solver
-# conda config --set solver libmamba
-
 
 # Source the conda.sh script directly so we don't have reopen the terminal
 . $HOME/miniconda3/etc/profile.d/conda.sh

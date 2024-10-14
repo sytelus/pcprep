@@ -25,7 +25,7 @@ if sudo -n true 2>/dev/null; then
       # update stdc, without this pytest discovery fails
       sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
       sudo apt-get -y update
-      #sudo apt-get install -y gcc-4.9
+      sudo apt install -y gcc
       sudo apt-get install -y --only-upgrade libstdc++6
 
       # perms to install az extensions
