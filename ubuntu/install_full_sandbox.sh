@@ -51,6 +51,12 @@ rm -rf ~/miniconda3/miniconda.sh
 # update to latest version
 # conda update -n base -c defaults conda
 
+# Make sure we have fast solver
+# conda config --show solver
+# conda install -n base conda-libmamba-solver
+# conda config --set solver libmamba
+
+
 # Source the conda.sh script directly so we don't have reopen the terminal
 . $HOME/miniconda3/etc/profile.d/conda.sh
 

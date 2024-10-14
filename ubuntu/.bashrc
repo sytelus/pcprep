@@ -227,15 +227,17 @@ HISTSIZE=10000
 HISTFILESIZE=20000
 
 # HuggingFace cache and other locations
-# export DATA_ROOT=/scratch/data
-# export XDG_CACHE_HOME=$DATA_ROOT/misc
-# export TRANSFORMERS_CACHE=$DATA_ROOT/models
-# export HF_DATASETS_CACHE=$DATA_ROOT/datasets
-# export TIKTOKEN_CACHE_DIR=$DATA_ROOT/tiktoken_cache
-# export WANDB_CACHE_DIR=$DATA_ROOT/wandb_cache
-# export OUT_DIR=$DATA_ROOT/out_dir
-# export WANDB_API_KEY=<YOUR_KEY>
-# export OLLAMA_MODELS=$DATA_ROOT/ollama/models
+export DATA_ROOT=~/data
+export CACHE_ROOT=~/caches
+export MODELS_ROOT=~/models
+export OUT_DIR=~/out_dir
+export XDG_CACHE_HOME=$CACHE_ROOT/misc
+export TRANSFORMERS_CACHE=$CACHE_ROOT/models
+export HF_DATASETS_CACHE=$CACHE_ROOT/datasets
+export TIKTOKEN_CACHE_DIR=$CACHE_ROOT/tiktoken_cache
+export WANDB_CACHE_DIR=$CACHE_ROOT/wandb_cache
+export WANDB_API_KEY=<YOUR_KEY>
+export OLLAMA_MODELS=$MODELS_ROOT/ollama
 
 # max threads, leaving out 2 or 1 cores
 export NUMEXPR_MAX_THREADS=$([ $(nproc) -le 1 ] && echo 1 || echo $(( $(nproc) <= 2 ? 1 : $(nproc) - 2 )))
