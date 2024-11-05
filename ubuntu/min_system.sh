@@ -3,14 +3,30 @@
 set -e
 set -o xtrace
 
-
+# Detect architecture
+ARCH=$(uname -m)
+case $ARCH in
+    x86_64)
+        ARCH_DEB="amd64"
+        ;;
+    aarch64|arm64)
+        ARCH_DEB="arm64"
+        ;;
+    armv7l)
+        ARCH_DEB="armhf"
+        ;;
+    *)
+        echo "Unsupported architecture: $ARCH"
+        exit 1
+        ;;
+esac
 
 # Attempt to run a harmless command with sudo
 if sudo -n true 2>/dev/null; then
       # install core packages
       sudo apt-get install --assume-yes --no-install-recommends \
             git curl wget xclip xz-utils tar apt-transport-https trash-cli bash-completion \
-            tlp powertop tlp-rdw inxi procinfo nvidia-prime htop aptitude \
+            tlp powertop tlp-rdw inxi procinfo htop aptitude \
             build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev \
             fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util \
             fdupes locate keychain pass micro zlib1g \
@@ -20,7 +36,10 @@ if sudo -n true 2>/dev/null; then
             libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 \
             libfreeimage-dev vmtouch neofetch powerstat powertop
 
-      # removed nvtop, gpustat
+      # Install nvidia-prime only on x86_64 architecture
+      if [ "$ARCH" = "x86_64" ]; then
+          sudo apt-get install --assume-yes nvidia-prime
+      fi
 
       # update stdc, without this pytest discovery fails
       sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
@@ -36,6 +55,7 @@ if sudo -n true 2>/dev/null; then
 
       # perms to install az extensions
       az config set extension.use_dynamic_install=yes_without_prompt
+      sudo mkdir -p /opt/az/extensions/
       sudo chmod 777 /opt/az/extensions/
 
       # GitHub CLI
@@ -43,18 +63,22 @@ if sudo -n true 2>/dev/null; then
       && sudo mkdir -p -m 755 /etc/apt/keyrings \
       && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
       && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-      && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+      && echo "deb [arch=$ARCH_DEB signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
       && sudo apt update \
       && sudo apt install gh -y
 else
     echo "Sudo access is not available."
 fi
 
-
 # Install micro editor
-cd "$HOME/.local/bin" || exit
+pushd "$HOME/.local/bin"
 curl https://getmic.ro | MICRO_DESTDIR="$HOME/.local" sh
+popd
 
-# Install rusage
-curl -o "$HOME/.local/bin/rusage" https://justine.lol/rusage/rusage.com
-chmod +x "$HOME/.local/bin/rusage"
+# Install rusage (only available for x86_64)
+if [ "$ARCH" = "x86_64" ]; then
+    curl -o "$HOME/.local/bin/rusage" https://justine.lol/rusage/rusage.com
+    chmod +x "$HOME/.local/bin/rusage"
+else
+    echo "Skipping rusage installation - not available for $ARCH architecture"
+fi
