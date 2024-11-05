@@ -28,6 +28,12 @@ if sudo -n true 2>/dev/null; then
       sudo apt install -y gcc
       sudo apt-get install -y --only-upgrade libstdc++6
 
+      # Check if Azure CLI is installed
+      if ! command -v az &> /dev/null; then
+          echo "Azure CLI not found. Installing..."
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      fi
+
       # perms to install az extensions
       az config set extension.use_dynamic_install=yes_without_prompt
       sudo chmod 777 /opt/az/extensions/
