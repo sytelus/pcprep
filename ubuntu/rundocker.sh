@@ -6,6 +6,11 @@
 
 #     -e NCCL_P2P_LEVEL=NVL \
 
+# NVIDIA_DRIVER_CAPABILITIES: Specifies the driver capabilities.
+# NVIDIA_VISIBLE_DEVICES: Specifies the visible devices.
+# __NV_PRIME_RENDER_OFFLOAD: Specifies the prime render offload.
+# __GLX_VENDOR_LIBRARY_NAME: Specifies the GLX vendor library name.
+
 docker run --gpus all --name dev_container \
     --rm \
     -u $(id -u):$(id -g) \
@@ -15,4 +20,8 @@ docker run --gpus all --name dev_container \
     --ipc=host \
     --ulimit memlock=-1 \
     --net=host \
+    -e NVIDIA_DRIVER_CAPABILITIES=all \
+    -e NVIDIA_VISIBLE_DEVICES=all \
+    -e __NV_PRIME_RENDER_OFFLOAD=1 \
+    -e __GLX_VENDOR_LIBRARY_NAME=nvidia \
     -it $1 /bin/bash
