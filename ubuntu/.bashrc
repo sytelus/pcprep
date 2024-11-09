@@ -58,11 +58,22 @@ if [ -n "$force_color_prompt" ]; then
 fi
 
 PROMPT_DIRTRIM=1
-if [ "$color_prompt" = yes ]; then
-    #PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;34m\]\w\[\033[00m\]\$ '
+# First, set the environment variable if we detect Docker
+if [ -f /.dockerenv ]; then
+    export IS_IN_DOCKER=true
 else
-    #PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+    export IS_IN_DOCKER=false
+fi
+
+# Then use it to set the prompt
+if [ "$color_prompt" = yes ]; then
+    if [ "$IS_IN_DOCKER" = true ]; then
+        # Show chroot without color and make prompt end green in Docker
+        PS1='${debian_chroot:+($debian_chroot)}\[\033[01;34m\]\w\[\033[32m\]\$ \[\033[00m\]'
+    else
+        PS1='${debian_chroot:+($debian_chroot)}\[\033[01;34m\]\w\[\033[00m\]\$ '
+    fi
+else
     PS1='${debian_chroot:+($debian_chroot)}\w$ '
 fi
 unset color_prompt force_color_prompt
