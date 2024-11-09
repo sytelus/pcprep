@@ -266,3 +266,7 @@ echo OUT_DIR=$OUT_DIR
 
 
 #start-tmux
+
+if [ "$IS_IN_DOCKER" = false ]; then
+    echo modify .bashrc to put Conda init here
+fi
