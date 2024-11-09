@@ -168,28 +168,61 @@ ssh_agent_setup() {
     SSH_ENV="$HOME/.ssh/agent.env"
     CUSTOM_SSH_AUTH_SOCK="$HOME/.ssh/ssh_auth_sock"
 
+    # First check if any SSH agent is running - use ps instead of pgrep
+    EXISTING_AGENT_PID=$(ps -ef | grep "ssh-agent" | grep -v grep | awk '{print $2}')
+
+    if [ -n "$EXISTING_AGENT_PID" ]; then
+        # Check if process is actually running
+        if kill -0 "$EXISTING_AGENT_PID" 2>/dev/null; then
+            # Try to find existing socket using netstat or just check common locations
+            if command -v netstat >/dev/null 2>&1; then
+                EXISTING_SOCKET=$(netstat -xl 2>/dev/null | grep "agent" | grep -o '/tmp/ssh-[^[:space:]]*' || true)
+            else
+                # Check common socket locations
+                for sock in /tmp/ssh-*/agent.*; do
+                    if [ -S "$sock" ]; then
+                        EXISTING_SOCKET="$sock"
+                        break
+                    fi
+                done
+            fi
+
+            if [ -n "$EXISTING_SOCKET" ]; then
+                echo "Reusing existing SSH agent (PID: $EXISTING_AGENT_PID)"
+                export SSH_AGENT_PID="$EXISTING_AGENT_PID"
+                export SSH_AUTH_SOCK="$EXISTING_SOCKET"
+
+                # Create symbolic link to our custom socket location if needed
+                if [ "$EXISTING_SOCKET" != "$CUSTOM_SSH_AUTH_SOCK" ]; then
+                    rm -f "$CUSTOM_SSH_AUTH_SOCK"
+                    ln -sf "$EXISTING_SOCKET" "$CUSTOM_SSH_AUTH_SOCK"
+                fi
+
+                # Update the agent environment file
+                ssh-agent -s | sed 's/^echo/#echo/' > "${SSH_ENV}"
+                chmod 600 "${SSH_ENV}"
+                return
+            fi
+        fi
+    fi
+
     start_agent() {
         echo "Initializing new SSH agent..."
+        # Remove existing socket if it exists
+        [ -S "$CUSTOM_SSH_AUTH_SOCK" ] && rm -f "$CUSTOM_SSH_AUTH_SOCK"
+
         ssh-agent -a "$CUSTOM_SSH_AUTH_SOCK" | sed 's/^echo/#echo/' > "${SSH_ENV}"
         chmod 600 "${SSH_ENV}"
         . "${SSH_ENV}" > /dev/null
     }
 
-    if [ -S "$SSH_AUTH_SOCK" ]; then
-        # SSH agent is already running
-        case "$SSH_AUTH_SOCK" in
-            "$CUSTOM_SSH_AUTH_SOCK")
-                # Our custom socket is already in use
-                ;;
-            *)
-                # Different socket in use, link our custom socket to it
-                ln -sf "$SSH_AUTH_SOCK" "$CUSTOM_SSH_AUTH_SOCK"
-                export SSH_AUTH_SOCK="$CUSTOM_SSH_AUTH_SOCK"
-                ;;
-        esac
+    # Only start new agent if we couldn't find an existing one
+    if [ ! -S "$CUSTOM_SSH_AUTH_SOCK" ]; then
+        start_agent
     elif [ -f "${SSH_ENV}" ]; then
         . "${SSH_ENV}" > /dev/null
-        if ! pgrep -f "ssh-agent" -u "$(id -u)" >/dev/null; then
+        # Verify the agent is still running
+        if ! kill -0 $SSH_AGENT_PID 2>/dev/null; then
             start_agent
         fi
     else
