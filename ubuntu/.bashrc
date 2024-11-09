@@ -277,10 +277,14 @@ HISTSIZE=10000
 HISTFILESIZE=20000
 
 # HuggingFace cache and other locations
+# Typically you want to create links to these directories in your home folder
+# OR use
+# mkdir -m 777 -p $DATA_ROOT $CACHE_ROOT $MODELS_ROOT $OUT_DIR
 export DATA_ROOT=~/data
 export CACHE_ROOT=~/caches
 export MODELS_ROOT=~/models
 export OUT_DIR=~/out_dir
+
 export XDG_CACHE_HOME=$CACHE_ROOT/misc
 export TRANSFORMERS_CACHE=$CACHE_ROOT/models
 export HF_DATASETS_CACHE=$CACHE_ROOT/datasets
@@ -292,8 +296,7 @@ export OLLAMA_MODELS=$MODELS_ROOT/ollama
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
-# sudo chmod 777 /scratch
-# sudo mkdir -m 777 -p $DATA_ROOT $XDG_CACHE_HOME $TRANSFORMERS_CACHE $HF_DATASETS_CACHE $TIKTOKEN_CACHE_DIR $WANDB_CACHE_DIR $OLLAMA_MODELS
+
 # chmod 600 ~/.ssh/*
 
 
