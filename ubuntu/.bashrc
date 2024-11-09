@@ -189,7 +189,7 @@ ssh_agent_setup() {
         esac
     elif [ -f "${SSH_ENV}" ]; then
         . "${SSH_ENV}" > /dev/null
-        if ! ps -ef | grep ${SSH_AGENT_PID} | grep ssh-agent$ > /dev/null; then
+        if ! pgrep -f "ssh-agent" -u "$(id -u)" >/dev/null; then
             start_agent
         fi
     else
