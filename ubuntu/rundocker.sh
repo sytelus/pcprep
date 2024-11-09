@@ -4,14 +4,15 @@
 # this command makes available dev environment on new VMs
 # additional drives can be mapped using: -v ~/azblob/dataroot:$HOME/dataroot
 
-docker run --gpus all --name sydev \
+#     -e NCCL_P2P_LEVEL=NVL \
+
+docker run --gpus all --name dev_container \
     --rm \
     -u $(id -u):$(id -g) \
     -e HOME=$HOME -e USER=$USER \
-    -e NCCL_P2P_LEVEL=NVL \
     -v $HOME:$HOME \
     -w $HOME \
-    --shm-size=10g \
+    --ipc=host \
     --ulimit memlock=-1 \
     --net=host \
-    -it sytelus/dev
+    -it $1 /bin/bash
