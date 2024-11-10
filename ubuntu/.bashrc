@@ -276,6 +276,9 @@ fi
 HISTSIZE=10000
 HISTFILESIZE=20000
 
+mkdir -p ~/.local/bin
+export PATH="$HOME/.local/bin:$PATH"
+
 # HuggingFace cache and other locations
 # Typically you want to create links to these directories in your home folder
 # OR use
