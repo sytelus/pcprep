@@ -18,45 +18,24 @@ esac
 
 # Function to detect CUDA version
 detect_cuda_version() {
-    echo "Checking CUDA installation..."
-
-    if command -v nvidia-smi &> /dev/null; then
-        DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader)
-        CUDA_VERSION=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader)
-        # Get CUDA version from nvcc if available
-        if command -v nvcc &> /dev/null; then
-            CUDA_VERSION=$(nvcc --version | grep "release" | awk '{print $5}' | cut -d',' -f1)
-            CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
-            CUDA_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f2)
-        else
-            # Fallback to driver version to estimate CUDA version
-            # Driver 525+ -> CUDA 12.x
-            # Driver 450-520 -> CUDA 11.x
-            DRIVER_MAJOR=$(echo "$DRIVER_VERSION" | cut -d. -f1)
-            if [ "$DRIVER_MAJOR" -ge 525 ]; then
-                CUDA_MAJOR="12"
-                CUDA_MINOR="0"
-            else
-                CUDA_MAJOR="11"
-                CUDA_MINOR="8"
-            fi
-        fi
-
-        echo "✓ nvidia-smi detected:"
-        echo "  - Driver version: $DRIVER_VERSION"
-        echo "  - CUDA version: $CUDA_MAJOR.$CUDA_MINOR"
+    # Get CUDA version from nvcc if available
+    if command -v nvcc &> /dev/null; then
+        NVCC_PATH=$(command -v nvcc)
+    elif [ -f "/usr/local/cuda/bin/nvcc" ]; then
+        NVCC_PATH="/usr/local/cuda/bin/nvcc"
     else
-        echo "✗ nvidia-smi not found"
+        echo "✗ nvcc not found"
         return 1
     fi
 
-    if [ -n "$CUDA_MAJOR" ]; then
-        echo "→ Using CUDA version $CUDA_MAJOR.$CUDA_MINOR for PyTorch installation"
-        return 0
-    fi
+    CUDA_VERSION=$($NVCC_PATH --version | grep "release" | awk '{print $5}' | cut -d',' -f1)
+    CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
+    CUDA_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f2)
 
-    echo "✗ No CUDA installation detected"
-    return 1
+    echo "✓ CUDA detected:"
+    echo "  - CUDA version: $CUDA_MAJOR.$CUDA_MINOR"
+    echo "  - nvcc path: $NVCC_PATH"
+    return 0
 }
 
 # Function to install PyTorch based on CUDA version and architecture
