@@ -282,7 +282,13 @@ export PATH="$HOME/.local/bin:$PATH"
 # HuggingFace cache and other locations
 # Typically you want to create links to these directories in your home folder
 # OR use
-# mkdir -m 777 -p $DATA_ROOT $CACHE_ROOT $MODELS_ROOT $OUT_DIR
+# export BIG_DISK=/datadisk
+# sudo mkdir -m 777 -p $BIG_DISK/data $BIG_DISK/caches $BIG_DISK/models $BIG_DISK/out_dir
+# ln -s $BIG_DISK/data ~/data
+# ln -s $BIG_DISK/caches ~/caches
+# ln -s $BIG_DISK/models ~/models
+# ln -s $BIG_DISK/out_dir ~/out_dir
+
 export DATA_ROOT=~/data
 export CACHE_ROOT=~/caches
 export MODELS_ROOT=~/models
