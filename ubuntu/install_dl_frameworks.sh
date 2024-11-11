@@ -59,7 +59,8 @@ install_pytorch() {
 
 # Main installation logic
 if detect_cuda_version; then
-    install_pytorch "$CUDA_MAJOR" "$CUDA_MINOR"
+    # nvcc seems to get upgraded to 12.6 even when we installed 12.4 :(, so just install hard coded version
+    install_pytorch "12" "4" #  "$CUDA_MAJOR" "$CUDA_MINOR"
 else
     install_pytorch "" ""
 fi
