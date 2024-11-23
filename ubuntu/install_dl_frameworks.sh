@@ -38,6 +38,17 @@ detect_cuda_version() {
     return 0
 }
 
+
+# Install additional frameworks based on architecture
+conda install -y -c conda-forge tensorflow
+conda install -y -c conda-forge tensorboard keras
+# pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece
+pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece
+
+# Install additional common ML packages
+conda install pandas scikit-learn matplotlib jupyter -y
+
+
 # Function to install PyTorch based on CUDA version and architecture
 install_pytorch() {
     local cuda_major=$1
@@ -64,15 +75,6 @@ if detect_cuda_version; then
 else
     install_pytorch "" ""
 fi
-
-# Install additional frameworks based on architecture
-conda install -y -c conda-forge tensorflow
-conda install -y -c conda-forge tensorboard keras
-# pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece
-pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece
-
-# Install additional common ML packages
-conda install pandas scikit-learn matplotlib jupyter -y
 
 # Verify installation
 python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
