@@ -37,7 +37,7 @@ alias smv='function _f() { rsync -az --remove-source-files "$@"; }; _f'
 alias dockerclean='docker rm $(docker ps --filter status=exited -q) ; docker rm $(docker ps --filter status=created -q)'
 alias dockerls='docker container ls'
 alias dockersize='docker ps --all --size'
-alias rundocker='bash ~/rundocker.sh'
+alias rundocker='rundocker.sh'
 alias version='lsb_release -a'
 alias treesize='sudo du -a --max-depth=1 --human-readable --time --exclude=.* "${1:-/}" | sort --human-numeric-sort --reverse'
 alias freespace="df -h | grep -vE '^Filesystem|tmpfs|cdrom' | sort -k4hr"

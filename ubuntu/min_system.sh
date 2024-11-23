@@ -91,6 +91,10 @@ if sudo -n true 2>/dev/null; then
 
         sudo usermod -aG docker $USER
         newgrp docker
+        # below is needed on Lambda ARM system
+        sudo setfacl -m user:$USER:rw /var/run/docker.sock
+        # below is likely not needed
+        sudo systemctl restart docker
     else
         echo "Docker is already installed."
     fi
