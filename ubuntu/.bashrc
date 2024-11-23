@@ -279,18 +279,11 @@ HISTFILESIZE=20000
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
 
-# HuggingFace cache and other locations
-# Typically you want to create links to these directories in your home folder
-# OR use
-# export BIG_DISK=/datadisk
-# sudo mkdir -m 777 -p $BIG_DISK/data $BIG_DISK/caches $BIG_DISK/models $BIG_DISK/out_dir
-# ln -s $BIG_DISK/data ~/data
-# ln -s $BIG_DISK/models ~/models
-# ln -s $BIG_DISK/out_dir ~/out_dir
-# ln -s $BIG_DISK/caches ~/caches
 
+# HuggingFace cache and other locations
+# links allows to use same paths in docker and host
 export DATA_ROOT=~/data
-export CACHE_ROOT=~/caches
+export CACHE_ROOT=~/misc_caches
 export MODELS_ROOT=~/models
 export OUT_DIR=~/out_dir
 
@@ -299,20 +292,36 @@ export TRANSFORMERS_CACHE=$CACHE_ROOT/models
 export HF_DATASETS_CACHE=$CACHE_ROOT/datasets
 export TIKTOKEN_CACHE_DIR=$CACHE_ROOT/tiktoken_cache
 export WANDB_CACHE_DIR=$CACHE_ROOT/wandb_cache
-export WANDB_API_KEY=_YOUR_KEY_
-export WANDB_HOST=_YOUR_HOST_
 export OLLAMA_MODELS=$MODELS_ROOT/ollama
+export WANDB_API_KEY=__YOUR_KEY__
+export WANDB_HOST=__YOUR_HOST__
+# BIG_DISK is where we would like to store large datasets, models etc
+export BIG_DISK=__YOUR_BIG_DISK__
+# if $BIG_DISK exists
+if [ -d "$BIG_DISK" ]; then
+    if [ ! -d "$BIG_DISK/data" ]; then
+        sudo mkdir -m 777 -p $BIG_DISK/data $BIG_DISK/caches $BIG_DISK/models $BIG_DISK/out_dir
+        ln -s $BIG_DISK/data ~/data
+        ln -s $BIG_DISK/models ~/models
+        ln -s $BIG_DISK/out_dir ~/out_dir
+        ln -s $BIG_DISK/misc_caches ~/misc_caches
+    fi
+fi
+
 
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
+# within NVidia docker, everything is installed without conda,
+# don't init conda by default or we will pick up wrong torch etc
+if [ "$IS_IN_DOCKER" = false ]; then
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+# <<< conda initialize <<<
+fi
+
 
 # chmod 600 ~/.ssh/*
+# start-tmux
 
-
-
-#start-tmux
-
-if [ "$IS_IN_DOCKER" = false ]; then
-    echo modify .bashrc to put Conda init here
-fi
+echo "REMEMBER: search for __ in .bashrc to complete setup and remove this message!!"

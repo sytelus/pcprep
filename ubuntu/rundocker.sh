@@ -11,11 +11,15 @@
 # __NV_PRIME_RENDER_OFFLOAD: Specifies the prime render offload.
 # __GLX_VENDOR_LIBRARY_NAME: Specifies the GLX vendor library name.
 
+# -v option is used to mount the host directory to the container directory.
+# we also need to mount BIG_DISK which will have the data etc (see .bashrc)
+
 docker run --gpus all --name dev_container \
     --rm \
     -u $(id -u):$(id -g) \
     -e HOME=$HOME -e USER=$USER \
     -v $HOME:$HOME \
+    -v $BIG_DISK:$BIG_DISK \
     -w $HOME \
     --ipc=host \
     --ulimit memlock=-1 \
