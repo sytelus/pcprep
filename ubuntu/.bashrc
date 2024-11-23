@@ -285,9 +285,9 @@ export PATH="$HOME/.local/bin:$PATH"
 # export BIG_DISK=/datadisk
 # sudo mkdir -m 777 -p $BIG_DISK/data $BIG_DISK/caches $BIG_DISK/models $BIG_DISK/out_dir
 # ln -s $BIG_DISK/data ~/data
-# ln -s $BIG_DISK/caches ~/caches
 # ln -s $BIG_DISK/models ~/models
 # ln -s $BIG_DISK/out_dir ~/out_dir
+# ln -s $BIG_DISK/caches ~/caches
 
 export DATA_ROOT=~/data
 export CACHE_ROOT=~/caches

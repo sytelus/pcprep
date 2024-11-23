@@ -58,6 +58,9 @@ if sudo -n true 2>/dev/null; then
     sudo mkdir -p /opt/az/extensions/
     sudo chmod 777 /opt/az/extensions/
 
+    # on ARM architecture wrong azcopy exist in ~/.azure/bin
+    bash install_azcopy.sh
+
     # GitHub CLI
     (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
     && sudo mkdir -p -m 755 /etc/apt/keyrings \

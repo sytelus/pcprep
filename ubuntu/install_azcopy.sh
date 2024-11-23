@@ -37,6 +37,12 @@ sudo mv azcopy_linux_*/azcopy /usr/local/bin/azcopy
 # Clean up downloaded files
 rm -rf azcopy_linux_* azcopy.tar.gz
 
+# On arm arch like in Lambda GH200s, wrong azcopy exist in ~/.azure/bin
+if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
+    mkdir -p ~/.azure/bin # make sure ~/.azure/bin exists
+    cp /usr/local/bin/azcopy ~/.azure/bin/azcopy
+fi
+
 # Verify installation
 if command -v azcopy &> /dev/null; then
     echo "AzCopy has been successfully installed!"
