@@ -137,6 +137,9 @@ shopt -q -s extglob
 # Allow aliases such as ll in sudo
 alias sudo='sudo '
 
+bind '"\t":menu-complete'
+bind '"\e[Z":menu-complete-backward'
+
 is_wsl() {
     case "$(uname -r)" in
     *microsoft* ) true ;; # WSL 2
