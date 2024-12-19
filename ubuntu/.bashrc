@@ -59,15 +59,15 @@ fi
 
 PROMPT_DIRTRIM=1
 # First, set the environment variable if we detect Docker
-if [ -f /.dockerenv ]; then
-    export IS_IN_DOCKER=true
+if grep -qE '(docker|kubepods)' /proc/1/cgroup 2>/dev/null; then
+    export IS_CONTAINER=true
 else
-    export IS_IN_DOCKER=false
+    export IS_CONTAINER=false
 fi
 
 # Then use it to set the prompt
 if [ "$color_prompt" = yes ]; then
-    if [ "$IS_IN_DOCKER" = true ]; then
+    if [ "$IS_CONTAINER" = true ]; then
         # Show chroot without color and make prompt end green in Docker
         PS1='${debian_chroot:+($debian_chroot)}\[\033[01;34m\]\w\[\033[32m\]\$ \[\033[00m\]'
     else
@@ -254,7 +254,7 @@ ssh_agent_setup
 # Ensure the custom socket is always used
 export SSH_AUTH_SOCK="$HOME/.ssh/ssh_auth_sock"
 
-if [ "$IS_IN_DOCKER" = false ]; then # otherwise use docker settings
+if [ "$IS_CONTAINER" = false ]; then # otherwise use docker settings
     # Use local CUDA version instead of one in /usr/bin
     # If below is not done then nvcc will be found in /usr/bin which is older
     # Flash Attention won't install because it will detect wrong nvcc
@@ -317,7 +317,7 @@ echo OUT_DIR=$OUT_DIR
 
 # within NVidia docker, everything is installed without conda,
 # don't init conda by default or we will pick up wrong torch etc
-if [ "$IS_IN_DOCKER" = false ]; then
+if [ "$IS_CONTAINER" = false ]; then
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
 # <<< conda initialize <<<
