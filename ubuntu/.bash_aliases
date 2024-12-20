@@ -52,5 +52,5 @@ alias sdrained='scontrol show --json node | jq -r '"'"'.nodes[] | select(any(.st
 alias sreason='scontrol show --json node | jq -r '"'"'.nodes[] | select(.reason != "") | [.hostname, (.state | join(",")), .reason] | join("\t")'"'"''
 alias salljobs='squeue -o "%.18i %.8u %.6D %.16S %.8P"'
 alias sjobs='squeue -o "%.7i %.9P %.8j %.8u %.2t %.10M %.6D %R" -u $USER'
-alias skill='job_id=$(squeue -u $USER -h -o %A | head -n1) && [ -n "$job_id" ] && scancel $job_id && echo "Cancelled job $job_id" || echo "No job found or cancellation failed"'
+alias skill='[ -n "$1" ] && job_id=$1 || job_id=$(squeue -u $USER -h -o %A | head -n1) && [ -n "$job_id" ] && scancel $job_id && echo "Cancelled job $job_id" || echo "No job found or cancellation failed"'
 alias skillall='read -p "Are you sure you want to cancel all Slurm jobs? (y/N) " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] && scancel -u $USER && echo "All Slurm jobs for user $USER have been cancelled" || echo "Operation cancelled or no jobs found for user $USER"'
