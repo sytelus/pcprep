@@ -276,8 +276,9 @@ if [ "$IS_CONTAINER" = false ]; then # otherwise use docker settings
 fi
 
 # set larger history size than default 1000/2000 values
-HISTSIZE=10000
-HISTFILESIZE=20000
+export HISTCONTROL=ignoredups:erasedups  # Removes duplicate commands
+export HISTSIZE=10000
+export HISTFILESIZE=20000
 
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
