@@ -291,8 +291,8 @@ export CACHE_ROOT=~/misc_caches
 export MODELS_ROOT=~/models
 export OUT_DIR=~/out_dir
 
-export XDG_CACHE_HOME=$CACHE_ROOT/misc
-export TRANSFORMERS_CACHE=$CACHE_ROOT/models
+#export XDG_CACHE_HOME=$CACHE_ROOT/misc  # don't set this, it interfers in some containers
+export HF_HOME=$CACHE_ROOT/hf_home
 export HF_DATASETS_CACHE=$CACHE_ROOT/datasets
 export TIKTOKEN_CACHE_DIR=$CACHE_ROOT/tiktoken_cache
 export WANDB_CACHE_DIR=$CACHE_ROOT/wandb_cache
