@@ -20,6 +20,9 @@ git config --global user.name "$user_name"
 git config --global user.email "$user_email"
 # git config --global url.ssh://git@github.com/.insteadOf https://github.com/
 
+# set default line ending to LF
+git config --global core.eol lf
+
 git config --global merge.tool vscode
 git config --global mergetool.vscode.cmd "code --wait $MERGED"
 git config --global diff.tool vscode
