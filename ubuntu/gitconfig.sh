@@ -22,6 +22,8 @@ git config --global user.email "$user_email"
 
 # set default line ending to LF
 git config --global core.eol lf
+# convert line endings from CRLF to LF but not the other way around
+git config --global core.autocrlf input
 
 git config --global merge.tool vscode
 git config --global mergetool.vscode.cmd "code --wait $MERGED"
