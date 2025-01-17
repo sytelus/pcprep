@@ -28,4 +28,5 @@ docker run --gpus all --name dev_container \
     -e NVIDIA_VISIBLE_DEVICES=all \
     -e __NV_PRIME_RENDER_OFFLOAD=1 \
     -e __GLX_VENDOR_LIBRARY_NAME=nvidia \
-    -it ${1:-nvcr.io/nvidia/pytorch:24.07-py3} /bin/bash
+    -it ${1:-pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel} /bin/bash
+    # can also ise image: docker://@nvcr.io#nvidia/pytorch:24.07-py3
