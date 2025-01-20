@@ -1,7 +1,6 @@
 #!/bin/bash
 #fail if any errors
-set -e
-set -o xtrace
+set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
 if [[ -n "$WSL_DISTRO_NAME" ]]; then
     read -p "Make sure to follow manual steps in wsl_prep.sh. Proceed? (y/N): " response && [[ $response =~ ^[Yy]$ ]] || { echo "Exiting."; exit 1; }
