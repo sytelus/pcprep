@@ -1,5 +1,5 @@
 # run this as:
-# curl -sL bit.ly/setupbox | bash
+# curl -L https://raw.githubusercontent.com/sytelus/pcprep/refs/heads/master/ubuntu/setupbox.sh | bash
 
 set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
