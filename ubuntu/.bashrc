@@ -304,7 +304,7 @@ export BIG_DISK=__YOUR_BIG_DISK__
 # if $BIG_DISK exists
 if [ -d "$BIG_DISK" ]; then
     if [ ! -d "$BIG_DISK/data" ]; then
-        sudo mkdir -m 777 -p $BIG_DISK/data $BIG_DISK/caches $BIG_DISK/models $BIG_DISK/out_dir
+        sudo mkdir -m 777 -p $BIG_DISK/data $BIG_DISK/misc_caches $BIG_DISK/models $BIG_DISK/out_dir
         ln -s $BIG_DISK/data ~/data
         ln -s $BIG_DISK/models ~/models
         ln -s $BIG_DISK/out_dir ~/out_dir
@@ -324,8 +324,7 @@ if [ "$IS_CONTAINER" = false ]; then
 # <<< conda initialize <<<
 fi
 
-
-# chmod 600 ~/.ssh/*
+# bash ~/GitHubSrc/pcprep/ubuntu/ssh_perms.sh
 # start-tmux
 
 echo "REMEMBER: search for __ in .bashrc to complete setup and remove this message!!"
