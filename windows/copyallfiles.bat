@@ -1,0 +1,1 @@
+robocopy %1 %2 /E /Z /COPY:DAT /DCOPY:DATE /R:1 /V /FP /ETA
