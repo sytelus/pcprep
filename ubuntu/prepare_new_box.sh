@@ -2,6 +2,14 @@
 #fail if any errors
 set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
+# Check if NO_NET is not set and test internet connectivity
+if [ -z "${NO_NET}" ]; then
+    if ! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        echo "No internet connectivity detected"
+        export NO_NET=1
+    fi
+fi
+
 if [[ -n "$WSL_DISTRO_NAME" ]]; then
     read -p "Make sure to follow manual steps in wsl_prep.sh. Proceed? (y/N): " response && [[ $response =~ ^[Yy]$ ]] || { echo "Exiting."; exit 1; }
 
@@ -35,20 +43,15 @@ fi
 bash cp_dotfiles.sh
 bash min_system.sh
 bash gitconfig.sh
-bash install_fzf.sh
-
+#bash install_fzf.sh
 
 bash install_miniconda.sh
 
-
-# Source the conda.sh script directly so we don't have reopen the terminal
-. $HOME/miniconda3/etc/profile.d/conda.sh
-
-conda activate base
-
 # install Poetry
-curl -sSL https://install.python-poetry.org | python3 -
+#curl -sSL https://install.python-poetry.org | python3 -
+
+# pip installs
 pip install --upgrade nvitop
 
-bash install_dl_frameworks.sh
 
+bash install_dl_frameworks.sh

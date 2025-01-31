@@ -22,14 +22,35 @@ case $ARCH in
         ;;
 esac
 
-# install mini conda with Python 3.11 (3.12 has breaking changes with imp module)
-mkdir -p ~/miniconda3
-wget "$MINICONDA_URL" -O ~/miniconda3/miniconda.sh
-bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
-rm -rf ~/miniconda3/miniconda.sh
+# Check if MINICONDA_FILE is set, if not set use the path where we will download it
+if [ -z "$MINICONDA_FILE" ]; then
+    if [ -z "${NO_NET}" ]; then
+        MINICONDA_FILE=~/miniconda3/miniconda.sh
+    else
+        echo "MINICONDA_FILE is not set but NO_NET is set so won't install miniconda"
+        exit 0
+    fi
+fi
+
+# Create directory for miniconda installation
+mkdir -p "$(dirname "$MINICONDA_FILE")"
+
+# Download miniconda installer
+wget "$MINICONDA_URL" -O "$MINICONDA_FILE"
+
+# Install miniconda
+bash "$MINICONDA_FILE" -b -u -p ~/miniconda3
+
+# Clean up installer
+#rm -rf "$MINICONDA_FILE"
 
 # modify .bashrc
 ~/miniconda3/bin/conda init bash
+
+# Source the conda.sh script directly so we don't have reopen the terminal
+. $HOME/miniconda3/etc/profile.d/conda.sh
+
+conda activate base
 
 # update to latest version
 # conda update -n base -c defaults conda

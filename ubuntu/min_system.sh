@@ -42,76 +42,83 @@ if sudo -n true 2>/dev/null; then
     fi
 
     # update stdc, without this pytest discovery fails
-    sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-    sudo apt-get -y update
-    sudo apt install -y gcc
-    sudo apt-get install -y --only-upgrade libstdc++6
+    if [ -z "${NO_NET}" ]; then
+        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+        sudo apt-get -y update
+        sudo apt install -y gcc
+        sudo apt-get install -y --only-upgrade libstdc++6
 
-    # Check if Azure CLI is installed
-    if ! command -v az &> /dev/null; then
-        echo "Azure CLI not found. Installing..."
-        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-    fi
+        # Check if Azure CLI is installed
+        if ! command -v az &> /dev/null; then
+            echo "Azure CLI not found. Installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        fi
 
-    # perms to install az extensions
-    az config set extension.use_dynamic_install=yes_without_prompt
-    sudo mkdir -p /opt/az/extensions/
-    sudo chmod 777 /opt/az/extensions/
+        # perms to install az extensions
+        az config set extension.use_dynamic_install=yes_without_prompt
+        sudo mkdir -p /opt/az/extensions/
+        sudo chmod 777 /opt/az/extensions/
 
-    # on ARM architecture wrong azcopy exist in ~/.azure/bin
-    bash install_azcopy.sh
+        # on ARM architecture wrong azcopy exist in ~/.azure/bin
+        bash install_azcopy.sh
 
-    # GitHub CLI
-    (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
-    && sudo mkdir -p -m 755 /etc/apt/keyrings \
-    && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-    && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=$ARCH_DEB signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && sudo apt update \
-    && sudo apt install gh -y
+        # GitHub CLI
+        (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
+        && sudo mkdir -p -m 755 /etc/apt/keyrings \
+        && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+        && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+        && echo "deb [arch=$ARCH_DEB signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+        && sudo apt update \
+        && sudo apt install gh -y
 
-    # Check if Docker is installed
-    if ! command -v docker &> /dev/null; then
-        echo "Docker not found. Installing..."
-        # Add Docker's official GPG key:
-        sudo apt-get update
-        sudo apt-get install ca-certificates curl
-        sudo install -m 0755 -d /etc/apt/keyrings
-        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-        sudo chmod a+r /etc/apt/keyrings/docker.asc
+        # Check if Docker is installed
+        if ! command -v docker &> /dev/null; then
+            echo "Docker not found. Installing..."
+            # Add Docker's official GPG key:
+            sudo apt-get update
+            sudo apt-get install ca-certificates curl
+            sudo install -m 0755 -d /etc/apt/keyrings
+            sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+            sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-        # Add the repository to Apt sources:
-        echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-        sudo apt-get update
+            # Add the repository to Apt sources:
+            echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update
 
-        sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-        sudo usermod -aG docker $USER
-        newgrp docker
-        # below is needed on Lambda ARM system
-        sudo setfacl -m user:$USER:rw /var/run/docker.sock
-        # below is likely not needed
-        sudo systemctl restart docker
+            sudo usermod -aG docker $USER
+            newgrp docker
+            # below is needed on Lambda ARM system
+            sudo setfacl -m user:$USER:rw /var/run/docker.sock
+            # below is likely not needed
+            sudo systemctl restart docker
+        else
+            echo "Docker is already installed."
+        fi
     else
-        echo "Docker is already installed."
+        echo "Skipping network-dependent installations due to NO_NET being set"
     fi
 else
     echo "Sudo access is not available."
 fi
 
 # Install micro editor
-pushd "$HOME/.local/bin"
-curl https://getmic.ro | MICRO_DESTDIR="$HOME/.local" sh
-popd
+if [ -z "${NO_NET}" ]; then
+    pushd "$HOME/.local/bin"
+    curl https://getmic.ro | MICRO_DESTDIR="$HOME/.local" sh
+    popd
 
-# Install rusage (only available for x86_64)
-if [ "$ARCH" = "x86_64" ]; then
-    curl -o "$HOME/.local/bin/rusage" https://justine.lol/rusage/rusage.com
-    chmod +x "$HOME/.local/bin/rusage"
+    # Install rusage (only available for x86_64)
+    if [ "$ARCH" = "x86_64" ]; then
+        curl -o "$HOME/.local/bin/rusage" https://justine.lol/rusage/rusage.com
+        chmod +x "$HOME/.local/bin/rusage"
+    else
+        echo "Skipping rusage installation - not available for $ARCH architecture"
+    fi
 else
-    echo "Skipping rusage installation - not available for $ARCH architecture"
+    echo "Skipping micro editor and rusage installation due to NO_NET being set"
 fi
-

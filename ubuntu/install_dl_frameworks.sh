@@ -39,15 +39,11 @@ detect_cuda_version() {
 }
 
 
-# Install additional frameworks based on architecture
-conda install -y -c conda-forge tensorflow
-conda install -y -c conda-forge tensorboard keras
-# pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece
-pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece
-
 # Install additional common ML packages
-conda install pandas scikit-learn matplotlib jupyter -y
+pip install -q pandas scikit-learn matplotlib jupyter
 
+# Install additional frameworks based on architecture
+pip install -q tensorflow tensorboard keras
 
 # Function to install PyTorch based on CUDA version and architecture
 install_pytorch() {
@@ -58,10 +54,10 @@ install_pytorch() {
         "x86_64"|"arm64")
             if [ -n "$cuda_major" ]; then
                 # Install CUDA-enabled PyTorch
-                conda install pytorch torchvision torchaudio pytorch-cuda="$cuda_major.$cuda_minor" -c pytorch -c nvidia -y
+                pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu${cuda_major}${cuda_minor}
             else
                 # Install CPU-only version
-                conda install pytorch torchvision torchaudio cpuonly -c pytorch -y
+                pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
                 echo "Installing CPU-only PyTorch as no CUDA was detected"
             fi
             ;;
@@ -70,11 +66,14 @@ install_pytorch() {
 
 # Main installation logic
 if detect_cuda_version; then
-    # nvcc seems to get upgraded to 12.6 even when we installed 12.4 :(, so just install hard coded version
-    install_pytorch "12" "4" #  "$CUDA_MAJOR" "$CUDA_MINOR"
+    # nvcc has random version than what we installed :(, so just install hard coded version for now.
+    install_pytorch "12" "6" #  "$CUDA_MAJOR" "$CUDA_MINOR"
 else
     install_pytorch "" ""
 fi
+
+# pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece
+pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece
 
 # Verify installation
 python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"

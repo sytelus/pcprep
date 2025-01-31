@@ -268,13 +268,10 @@ if [ "$IS_CONTAINER" = false ]; then # otherwise use docker settings
     # below is needed because cuda install ends up with 12.3 instead of 12.1 anyway
     #export CUDA_HOME=/usr/local/cuda-12.1
     # export CUDA_HOME=$CONDA_PREFIX
-
-    # max threads, leaving out 2 or 1 cores
-    export NUMEXPR_MAX_THREADS=$([ $(nproc) -le 1 ] && echo 1 || echo $(( $(nproc) <= 2 ? 1 : $(nproc) - 2 )))
-    export PYTHONHASHSEED=0
-    echo NUMEXPR_MAX_THREADS=$NUMEXPR_MAX_THREADS
 fi
 
+# use fixed seed for python hash generation for reproducibility
+export PYTHONHASHSEED=0
 # set larger history size than default 1000/2000 values
 export HISTCONTROL=ignoredups:erasedups  # Removes duplicate commands
 export HISTSIZE=10000
