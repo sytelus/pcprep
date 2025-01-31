@@ -2,9 +2,13 @@
 #fail if any errors
 set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
+export NO_NET=${NO_NET:-}
+
 # Check if NO_NET is not set and test internet connectivity
 if [ -z "${NO_NET}" ]; then
-    if ! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+    echo "Checking Internet connection..."
+    export NO_NET=0
+    if ! ping -w 5 -c 1 8.8.8.8 >/dev/null 2>&1; then
         echo "No internet connectivity detected"
         export NO_NET=1
     fi
@@ -15,7 +19,9 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
 
     # share .ssh keys
     mkdir -p ~/.ssh
-    cp -r /mnt/c/Users/$USER/.ssh ~/.ssh
+    if [ -d "/mnt/c/Users/$USER/.ssh" ]; then
+        cp -r /mnt/c/Users/$USER/.ssh ~/.ssh
+    fi
     bash ssh_perms.sh
 
     # make sure we don't check-in with CRLFs
@@ -46,6 +52,13 @@ bash gitconfig.sh
 #bash install_fzf.sh
 
 bash install_miniconda.sh
+
+# below needs to be done after miniconda install script as script exists after last command
+# modify .bashrc
+~/miniconda3/bin/conda init bash
+# Source the conda.sh script directly so we don't have reopen the terminal
+. $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate base
 
 # install Poetry
 #curl -sSL https://install.python-poetry.org | python3 -

@@ -1,5 +1,7 @@
 #!/bin/bash
-set -e
+set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
+
+export NO_NET=${NO_NET:-0}
 
 # Detect architecture
 ARCH=$(uname -m)
@@ -24,33 +26,28 @@ esac
 
 # Check if MINICONDA_FILE is set, if not set use the path where we will download it
 if [ -z "$MINICONDA_FILE" ]; then
-    if [ -z "${NO_NET}" ]; then
+    if [ "$NO_NET" = "0" ]; then
+        # use target download path
         MINICONDA_FILE=~/miniconda3/miniconda.sh
+
+        # Create directory for miniconda installation
+        mkdir -p "$(dirname "$MINICONDA_FILE")"
+
+        # Download miniconda installer
+        wget "$MINICONDA_URL" -O "$MINICONDA_FILE"
     else
         echo "MINICONDA_FILE is not set but NO_NET is set so won't install miniconda"
         exit 0
     fi
 fi
 
-# Create directory for miniconda installation
-mkdir -p "$(dirname "$MINICONDA_FILE")"
-
-# Download miniconda installer
-wget "$MINICONDA_URL" -O "$MINICONDA_FILE"
-
 # Install miniconda
 bash "$MINICONDA_FILE" -b -u -p ~/miniconda3
 
+# !!!!!!! lines after this won't be executed as script exits after last command !!!!!!
+
 # Clean up installer
 #rm -rf "$MINICONDA_FILE"
-
-# modify .bashrc
-~/miniconda3/bin/conda init bash
-
-# Source the conda.sh script directly so we don't have reopen the terminal
-. $HOME/miniconda3/etc/profile.d/conda.sh
-
-conda activate base
 
 # update to latest version
 # conda update -n base -c defaults conda

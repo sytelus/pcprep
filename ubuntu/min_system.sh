@@ -1,7 +1,6 @@
 #!/bin/bash
 #fail if any errors
-set -e
-set -o xtrace
+set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
 # Detect architecture
 ARCH=$(uname -m)

@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
+export NO_NET=${NO_NET:-0}
+
 # Detect architecture
 ARCH=$(uname -m)
 case $ARCH in
@@ -64,12 +66,14 @@ install_pytorch() {
     esac
 }
 
-# Main installation logic
-if detect_cuda_version; then
-    # nvcc has random version than what we installed :(, so just install hard coded version for now.
-    install_pytorch "12" "6" #  "$CUDA_MAJOR" "$CUDA_MINOR"
-else
-    install_pytorch "" ""
+if [ "$NO_NET" = "0" ]; then
+    # Main installation logic
+    if detect_cuda_version; then
+        # nvcc has random version than what we installed :(, so just install hard coded version for now.
+        install_pytorch "12" "6" #  "$CUDA_MAJOR" "$CUDA_MINOR"
+    else
+        install_pytorch "" ""
+    fi
 fi
 
 # pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece

@@ -29,11 +29,10 @@ Map local GitHubSrc to WSL home directory
 
 ```bash
 ln -s "/mnt/d/GitHubSrc" "$HOME/GitHubSrc"
-ln -s /mnt/c/Users/$USER/.ssh ~/.ssh
 ```
 
 ## Install stuff
 
 ```bash
-bash install_full_sandbox.sh
+bash prepare_new_box.sh
 ```
