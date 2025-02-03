@@ -137,6 +137,7 @@ shopt -q -s extglob
 # Allow aliases such as ll in sudo
 alias sudo='sudo '
 
+# auto complete cycle through by keep pressing tab
 bind '"\t":menu-complete'
 bind '"\e[Z":menu-complete-backward'
 
