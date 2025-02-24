@@ -2,6 +2,7 @@
 set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
 export NO_NET=${NO_NET:-0}
+export MINICONDA_FILE=${MINICONDA_FILE:-}
 
 # Detect architecture
 ARCH=$(uname -m)
