@@ -47,9 +47,11 @@ detect_cuda_version() {
 
 
 # Install additional common ML packages
+echo "Installing general data science packages..."
 pip install -q pandas scikit-learn matplotlib jupyter
 
 # Install additional frameworks based on architecture
+echo "Installing TF and other packages..."
 pip install -q tensorflow tensorboard keras
 
 # Function to install PyTorch based on CUDA version and architecture
@@ -60,12 +62,13 @@ install_pytorch() {
     case $ARCH_NAME in
         "x86_64"|"arm64")
             if [ -n "$cuda_major" ]; then
+                echo "Installing PyTorch with CUDA..."
                 # Install CUDA-enabled PyTorch
                 pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu${cuda_major}${cuda_minor}
             else
+                echo "Installing CPU-only PyTorch as no CUDA was detected"
                 # Install CPU-only version
                 pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-                echo "Installing CPU-only PyTorch as no CUDA was detected"
             fi
             ;;
     esac
@@ -82,6 +85,7 @@ if [ "$NO_NET" = "0" ]; then
 fi
 
 # pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece
+echo "Installing HF and other packages..."
 pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece
 
 # Verify installation
