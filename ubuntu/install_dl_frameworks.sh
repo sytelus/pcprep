@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
+set -eu -o pipefail  # fail if any command failes, -o xtrace to log all commands, -o xtrace
 
 export NO_NET=${NO_NET:-0}
 
@@ -20,23 +20,28 @@ esac
 
 # Function to detect CUDA version
 detect_cuda_version() {
-    # Get CUDA version from nvcc if available
-    if command -v nvcc &> /dev/null; then
-        NVCC_PATH=$(command -v nvcc)
-    elif [ -f "/usr/local/cuda/bin/nvcc" ]; then
-        NVCC_PATH="/usr/local/cuda/bin/nvcc"
+    # Get CUDA version from nvidia-smi if available
+    if command -v nvidia-smi &> /dev/null; then
+        NVCC_PATH=$(command -v nvidia-smi)
     else
-        echo "✗ nvcc not found"
+        echo "✗ nvidia-smi not found"
         return 1
     fi
 
-    CUDA_VERSION=$($NVCC_PATH --version | grep "release" | awk '{print $5}' | cut -d',' -f1)
+    CUDA_VERSION=$($NVCC_PATH | grep "CUDA Version" | sed -n 's/.*CUDA Version: \([0-9]*\.[0-9]*\).*/\1/p')
+    if [ -z "$CUDA_VERSION" ]; then
+        echo "✗ Unable to detect CUDA version"
+        return 1
+    fi
+
     CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
     CUDA_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f2)
 
     echo "✓ CUDA detected:"
     echo "  - CUDA version: $CUDA_MAJOR.$CUDA_MINOR"
     echo "  - nvcc path: $NVCC_PATH"
+    read -p "Press Enter to proceed with above (Ctrl+C to terminate)." -n 1 -r
+    echo ""
     return 0
 }
 
