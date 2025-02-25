@@ -125,11 +125,12 @@ class SystemInfoCollector:
             'Executable': sys.executable,
         }
 
-        # Get installed packages related to PyTorch ecosystem
+        # Collect PyTorch related packages
         related_pkgs = [
             'torch', 'torchvision', 'torchaudio', 'torchtext', 'numpy',
             'pandas', 'scipy', 'pillow', 'matplotlib', 'tensorboard',
-            'sklearn', 'onnx', 'cuda'
+            'sklearn', 'onnx', 'cuda', 'pytorch-lightning', 'lightning',
+            'torchmetrics', 'transformers'
         ]
 
         installed_packages = []
@@ -291,14 +292,19 @@ class SystemInfoCollector:
                     device_info['Memory Used'] = f"{(mem_info[1] - mem_info[0]) / (1024**3):.2f} GB"
                 except (RuntimeError, AttributeError):
                     # mem_get_info not available in older PyTorch versions
-                    pass
+                    try:
+                        # Alternative: Try to get total memory from device properties
+                        props = torch.cuda.get_device_properties(i)
+                        total_memory = props.total_memory / (1024**3)
+                        device_info['Memory Total'] = f"{total_memory:.2f} GB"
+                    except (RuntimeError, AttributeError):
+                        pass
 
                 # Try to get device properties
                 try:
                     props = torch.cuda.get_device_properties(i)
                     device_info.update({
                         'Multi Processor Count': props.multi_processor_count,
-                        'Total Memory': f"{props.total_memory / (1024**3):.2f} GB",
                         'Clock Rate': f"{props.clock_rate / 1000:.0f} MHz",
                         'Is Integrated': props.is_integrated,
                         'Is Multi GPU Board': props.is_multi_gpu_board
@@ -332,7 +338,7 @@ class SystemInfoCollector:
                 gpu_info['ROCm/HIP Version'] = torch.version.hip
                 if torch.version.hip != None:
                     gpu_info['ROCm Available'] = True
-        except:
+        except Exception:
             pass
 
         # Check for MPS (Metal Performance Shaders) backend for Apple Silicon
@@ -480,7 +486,7 @@ class SystemInfoCollector:
             try:
                 jit_config['Profiling Mode'] = not torch._C._jit_set_profiling_mode(True)  # Get current value
                 torch._C._jit_set_profiling_mode(jit_config['Profiling Mode'])  # Reset to original
-            except:
+            except Exception:
                 pass
 
         # Check for mobile optimizations
@@ -569,7 +575,7 @@ class SystemInfoCollector:
         # Check if we can get promotion configurations
         try:
             dtype_defaults['Promote Types'] = torch.get_promote_type_indices != None
-        except:
+        except Exception:
             pass
 
         # Check floating point configuration
@@ -792,7 +798,7 @@ class SystemInfoCollector:
                 custom_namespaces = [ns for ns in all_namespaces if not ns.startswith('_')]
                 if custom_namespaces:
                     custom_ops['Registered Namespaces'] = custom_namespaces
-            except:
+            except Exception:
                 pass
         else:
             custom_ops['Available'] = False
@@ -969,7 +975,19 @@ class InfoFormatter:
             parent_keys = []
 
         if isinstance(data, dict):
-            for key, value in data.items():
+            # Sort keys to match the order in the reference report
+            keys = sorted(data.keys(), key=lambda k: (
+                # Put these keys first in this order
+                k not in ['Version', 'CUDA Available', 'GPU Count', 'Devices', 'Default Dtype',
+                         'System', 'Physical Cores', 'Logical Cores', 'Model',
+                         'Major Version', 'Minor Version', 'Has CUDA', 'Has MKL',
+                         'Python Version', 'Implementation', 'Timestamp', 'Script'],
+                # Then sort alphabetically
+                k
+            ))
+
+            for key in keys:
+                value = data[key]
                 current_keys = parent_keys + [key]
                 key_style = InfoFormatter.STYLES["key"]
 
