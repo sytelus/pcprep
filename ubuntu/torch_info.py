@@ -1367,17 +1367,16 @@ def main():
         pretty = args.pretty.lower() == 'true'
 
         if pretty and RICH_AVAILABLE:
-            # Show warning if rich is not available but pretty output requested
-            if not RICH_AVAILABLE and pretty:
-                print("Warning: rich is not installed. Output will not be colorized.")
-                print("Install with: pip install rich")
-
             # Use rich formatting
             InfoFormatter.format_as_rich(info)
         else:
             # Use plain text
             text_output = InfoFormatter.format_as_text(info)
             print(text_output)
+
+            # Print message about rich if it's not available but pretty output was requested
+            if pretty and not RICH_AVAILABLE:
+                print("\n\nYou can get better looking output if you install rich package like this:\n\npip install rich")
 
 
 if __name__ == "__main__":
