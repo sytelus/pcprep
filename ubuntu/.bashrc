@@ -281,10 +281,10 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # HuggingFace cache and other locations
 # links allows to use same paths in docker and host
-export DATA_ROOT=~/data
-export CACHE_ROOT=~/misc_caches
-export MODELS_ROOT=~/models
-export OUT_DIR=~/out_dir
+export DATA_ROOT=$HOME/data
+export CACHE_ROOT=$HOME/misc_caches
+export MODELS_ROOT=$HOME/models
+export OUT_DIR=$HOME/out_dir
 
 #export XDG_CACHE_HOME=$CACHE_ROOT/misc  # don't set this, it interfers in some containers
 export HF_HOME=$CACHE_ROOT/hf_home
