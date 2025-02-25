@@ -46,4 +46,5 @@ sudo cp /var/cudnn-local-repo-ubuntu2204-9.7.1/cudnn-*-keyring.gpg /usr/share/ke
 sudo apt-get update
 sudo apt-get -y install cudnn-cuda-12
 
-echo "Rebooting machine may be required!"
+# .bashrc checks for /usr/local/cuda and sets it to CUDA_HOME
+source ~/.bashrc

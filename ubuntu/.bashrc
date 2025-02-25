@@ -262,13 +262,10 @@ if [ "$IS_CONTAINER" = false ]; then # otherwise use docker settings
     # Set CUDA paths if directories exist
     [ -d "/usr/local/cuda/bin" ] && export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
     [ -d "/usr/local/cuda/lib64" ] && export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+    [ -d "/usr/local/cuda" ] && export CUDA_HOME=/usr/local/cuda
     # below is sometime needed to find libstdc++.so.6 used by TensorFlow, matplotlib etc
     # Set Conda paths if Conda is active and directory exists
     [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ] && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
-    # Use one of below if getting libcudart.so error or want to compile flash-attn
-    # below is needed because cuda install ends up with 12.3 instead of 12.1 anyway
-    #export CUDA_HOME=/usr/local/cuda-12.1
-    # export CUDA_HOME=$CONDA_PREFIX
 fi
 
 # use fixed seed for python hash generation for reproducibility
