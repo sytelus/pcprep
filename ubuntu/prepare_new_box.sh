@@ -60,6 +60,6 @@ conda activate base
 #curl -sSL https://install.python-poetry.org | python3 -
 
 # pip installs
-pip install --upgrade nvitop rich
+pip install -q nvitop rich
 
 bash install_dl_frameworks.sh
