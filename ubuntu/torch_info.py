@@ -13,6 +13,7 @@ import subprocess
 import json
 import datetime
 import re
+import argparse
 from collections import OrderedDict
 from typing import Dict, List, Any, Optional, Union
 
@@ -39,8 +40,6 @@ try:
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
-    print("Warning: rich is not installed. Output will not be colorized.")
-    print("Install with: pip install rich")
 
 
 try:
@@ -1300,70 +1299,85 @@ class InfoFormatter:
         return '\n'.join(lines)
 
 
-def main():
-    # Create console for rich output
-    if RICH_AVAILABLE:
-        console = Console()
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="PyTorch System Information Dumper")
 
-        # Welcome banner with styled text
-        console.print()
-        title = Text("PyTorch System and Configuration Information Dumper", style="bold cyan")
-        console.print(Rule(title, style="cyan"))
-        console.print()
-    else:
-        print("=" * 80)
-        print("PyTorch System and Configuration Information Dumper".center(80))
-        print("=" * 80)
+    parser.add_argument('--json', nargs='?', const='-', metavar='FILE',
+                      help='Output as JSON to the specified file, or stdout if no file specified')
+
+    parser.add_argument('--pretty', nargs='?', const='true', default='true',
+                      choices=['true', 'false'],
+                      help='Use rich formatting for output (default: true)')
+
+    parser.add_argument('--file', nargs='?', const='-', metavar='FILE',
+                      help='Output to the specified file, or stdout if no file specified')
+
+    return parser.parse_args()
+
+
+def main():
+    # Parse command line arguments
+    args = parse_arguments()
 
     # Check if PyTorch is available
     if not TORCH_AVAILABLE:
-        if RICH_AVAILABLE:
-            console.print(Panel(
-                "[bold red]PyTorch is not available in this environment.[/bold red]\n"
-                "Install with: [green]pip install torch[/green]",
-                title="Error",
-                border_style="red"
-            ))
+        error_msg = "Error: PyTorch is not available in this environment.\nInstall with: pip install torch"
+        if args.json:
+            error_data = {"error": "PyTorch not available", "solution": "Install with: pip install torch"}
+            if args.json == '-':
+                print(json.dumps(error_data))
+            else:
+                with open(args.json, 'w', encoding='utf-8') as f:
+                    json.dump(error_data, f)
         else:
-            print("Error: PyTorch is not available in this environment.")
-            print("Install with: pip install torch")
+            print(error_msg)
         sys.exit(1)
 
-    # Collect system information with progress indicator
-    if RICH_AVAILABLE:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console
-        ) as progress:
-            task = progress.add_task("Collecting system information...", total=1)
-            collector = SystemInfoCollector()
-            info = collector.collect_all()
-            progress.update(task, completed=1)
-    else:
-        print("\nCollecting system information...")
-        collector = SystemInfoCollector()
-        info = collector.collect_all()
+    # Collect system information
+    collector = SystemInfoCollector()
+    info = collector.collect_all()
 
-    # Format and display the information
-    if RICH_AVAILABLE:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console
-        ) as progress:
-            task = progress.add_task("Formatting information...", total=1)
-            progress.update(task, completed=1)
+    # Determine output method based on arguments
+    if args.json:
+        # Output as JSON
+        json_output = InfoFormatter.make_json_serializable(info)
+        json_str = json.dumps(json_output, indent=2)
 
-        console.print()
-        InfoFormatter.format_as_rich(info)
+        if args.json == '-':
+            # Output to stdout
+            print(json_str)
+        else:
+            # Output to file
+            with open(args.json, 'w', encoding='utf-8') as f:
+                f.write(json_str)
+    elif args.file:
+        # Output as plain text to file
+        text_output = InfoFormatter.format_as_text(info)
+
+        if args.file == '-':
+            # Output to stdout
+            print(text_output)
+        else:
+            # Output to file
+            with open(args.file, 'w', encoding='utf-8') as f:
+                f.write(text_output)
     else:
-        print("Formatting information...")
-        text_formatter = InfoFormatter()
-        text_output = text_formatter.format_as_text(info)
-        print("\nPyTorch System Information:")
-        print("-" * 80)
-        print(text_output)
+        # Output to stdout with or without rich formatting
+        pretty = args.pretty.lower() == 'true'
+
+        if pretty and RICH_AVAILABLE:
+            # Show warning if rich is not available but pretty output requested
+            if not RICH_AVAILABLE and pretty:
+                print("Warning: rich is not installed. Output will not be colorized.")
+                print("Install with: pip install rich")
+
+            # Use rich formatting
+            InfoFormatter.format_as_rich(info)
+        else:
+            # Use plain text
+            text_output = InfoFormatter.format_as_text(info)
+            print(text_output)
 
 
 if __name__ == "__main__":
