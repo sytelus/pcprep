@@ -846,7 +846,12 @@ class InfoFormatter:
         "subsection": Style(color="blue", bold=True),
         "key": Style(color="bright_white", italic=True),
         "dim": Style(color="grey70"),
-        "header": Style(color="bright_magenta", bold=True, underline=True),
+        "header": Style(color="bright_magenta", bold=True),
+        # New highly prominent styles for key information - using orange instead of underline
+        "key_info": Style(color="bright_green", bold=True),
+        "important": Style(color="orange1", bold=True),  # Changed to orange
+        "primary": Style(color="bright_white", bold=True),
+        "important_key": Style(color="orange_red1", bold=True),  # New orange for important keys/names
     }
 
     @staticmethod
@@ -870,10 +875,17 @@ class InfoFormatter:
     @staticmethod
     def determine_value_importance(key, value):
         """Determine the importance/color of a value based on key and content."""
+        # Top 10% most critical keys that users frequently search for
+        critical_search_keys = [
+            'cuda available', 'cuda version', 'gpu count', 'python version',
+            'pytorch version', 'version', 'physical cores', 'logical cores',
+            'cudnn version', 'device types', 'memory total', 'deterministic',
+            'memory available', 'model', 'capability'
+        ]
+
         # Keys that indicate critical information
         critical_keys = [
-            'error', 'cuda available', 'failure', 'critical',
-            'cuda version', 'cudnn version', 'gpu count'
+            'error', 'failure', 'critical'
         ]
 
         # Keys that indicate warnings
@@ -883,17 +895,46 @@ class InfoFormatter:
 
         # Keys that indicate positive information
         positive_keys = [
-            'available', 'supported', 'enabled', 'success', 'capability'
+            'available', 'supported', 'enabled', 'success'
         ]
 
         # Keys that are important to highlight
         highlight_keys = [
-            'version', 'model', 'device', 'capability', 'platform',
-            'total memory', 'release'
+            'device', 'platform', 'release'
         ]
 
         # Convert key to lowercase for case-insensitive matching
         key_lower = str(key).lower()
+
+        # Check for top 10% most critical keys first
+        for critical_search in critical_search_keys:
+            if critical_search in key_lower:
+                # Special case for version numbers
+                if ('version' in key_lower or key_lower == 'model') and isinstance(value, str):
+                    if len(value) > 0:
+                        return "key_info"
+                # Special case for CUDA availability - extremely important
+                if key_lower == 'cuda available' and value is True:
+                    return "primary"
+                elif key_lower == 'cuda available' and value is False:
+                    return "critical"
+                # GPU count is extremely important
+                if key_lower == 'gpu count' and isinstance(value, int):
+                    return "primary"
+                # Python version is very important
+                if key_lower == 'python version' or 'implementation' in key_lower:
+                    return "important"
+                # Core count is very important
+                if 'cores' in key_lower and isinstance(value, int):
+                    return "important"
+                # Memory information is very important
+                if ('memory' in key_lower and 'total' in key_lower) or ('memory' in key_lower and 'available' in key_lower):
+                    return "important"
+                # GPU model name is important to see clearly
+                if key_lower == 'name' and isinstance(value, str) and ('nvidia' in value.lower() or 'amd' in value.lower() or 'intel' in value.lower()):
+                    return "primary"
+
+                return "key_info"
 
         # Handle boolean values
         if isinstance(value, bool):
@@ -927,6 +968,10 @@ class InfoFormatter:
             # Check for warning strings
             if 'warning' in value_lower or 'deprecated' in value_lower:
                 return "warning"
+
+            # Detect GPU capabilities - usually important
+            if 'capability' in key_lower and '.' in value:
+                return "important"
 
             # Version information is important
             if ('version' in key_lower and len(value) > 0):
