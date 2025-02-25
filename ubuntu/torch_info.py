@@ -95,17 +95,20 @@ class SystemInfoCollector:
 
     def collect_all(self) -> OrderedDict:
         """Collect all available information."""
-        self.collect_basic_info()
-        self.collect_python_info()
-        self.collect_os_info()
-        self.collect_cpu_info()
-        if PSUTIL_AVAILABLE:
-            self.collect_memory_info()
+        # Collect PyTorch-specific information first
         self.collect_gpu_info()
         self.collect_pytorch_info()
         self.collect_pytorch_config()
         self.collect_pytorch_build_info()
         self.collect_extension_info()
+
+        # Collect system information at the end
+        self.collect_cpu_info()
+        if PSUTIL_AVAILABLE:
+            self.collect_memory_info()
+        self.collect_os_info()
+        self.collect_python_info()
+
         return self.info
 
     def collect_basic_info(self) -> None:
