@@ -1,0 +1,1 @@
+Get-WinEvent -FilterHashtable @{LogName='System'; ID=@(6008,1074,41)} | Format-List TimeCreated,Id,Message
