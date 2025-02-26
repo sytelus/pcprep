@@ -274,6 +274,8 @@ export PYTHONHASHSEED=0
 export HISTCONTROL=ignoredups:erasedups  # Removes duplicate commands
 export HISTSIZE=10000
 export HISTFILESIZE=20000
+# assume all dirs to be safe for git
+export GIT_TEST_ASSUME_ALL_SAFE=1
 
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
