@@ -42,7 +42,7 @@ alias version='lsb_release -a'
 alias treesize='sudo du -a --max-depth=1 --human-readable --time --exclude=.* "${1:-/}" | sort --human-numeric-sort --reverse'
 alias freespace="df -h | grep -vE '^Filesystem|tmpfs|cdrom' | sort -k4hr"
 alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux)'
-alias disks='df -hT 2>/dev/null | sort -k 3 --human-numeric-sort --reverse'
+alias drives='df -hT 2>/dev/null | sort -k 3 --human-numeric-sort --reverse'
 alias realview='less +F "$1"'
 alias torchver="python -c 'import torch; print(torch.__version__)'"
 # remove pass phrase from ssh keys
