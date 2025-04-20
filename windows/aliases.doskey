@@ -1,0 +1,34 @@
+ls=dir \B %1
+grevertall=git reset --hard ^& git reset --hard origin/master ^& git clean -f -d
+grevertfile=git checkout -- $1
+gstat=git status
+gpush=git push
+gpull=git pull
+gpullr=git pull --rebase
+gdiff=git difftool $*
+gcommit=git add -A :/ ^& git commit -m $*
+gtag=git tag -a $1 -m $2 :/ ^& git push --tags
+gcln=git clean -fdx
+gdelbra=git push origin -delete $* ^& git branch -d $*
+gconf=git diff --name-only --diff-filter=U
+gviewcommits=git log --pretty=oneline  -n 10
+gclean=git clean -fdx
+gcreatebranch=git checkout -b $*
+gdeletebranch=git push origin -delete $* ^& git branch -d $*
+gpendingconf=git diff --name-only --diff-filter=U
+gpendingcommits=git log --branches  @{u}..
+gmaster=git checkout master
+gsubmods=git submodule update --init --recursive
+gbra=git checkout -b $1
+glog=git log --pretty=oneline -10
+grem=git remote -v
+gbranch=git checkout -b $1
+gcommithistory=git log --pretty=oneline -10
+sshs=ssh shitals@$1 -t tmux new -A -s 0
+jnb=jupyter notebook
+pu=pushd .
+po=popd
+copynewfiles=robocopy $1 $2 /E /Z /DCOPY:DATE /V /FP /ETA /W:0 /R:0
+mirfiles=robocopy $1 $2 /MIR /E /Z /DCOPY:DATE /V /FP /ETA /W:0 /R:0
+gsrc=cd /d "d:\GitHubSrc\"
+bashrt=cd /d "%LOCALAPPDATA%\lxss\rootfs"
