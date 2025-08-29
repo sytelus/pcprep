@@ -46,6 +46,7 @@ alias drives='df -hT 2>/dev/null | sort -k 3 --human-numeric-sort --reverse'
 alias disks=drives
 # Displays a full, hierarchical snapshot of all running processes.
 alias psex='ps -ef f'
+alias pmy='ps -u $USER -U $USER u'
 alias realview='less +F "$1"'
 alias torchver="python -c 'import torch; print(torch.__version__)'"
 # remove pass phrase from ssh keys
