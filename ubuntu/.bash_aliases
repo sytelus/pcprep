@@ -39,7 +39,6 @@ alias dockerls='docker container ls'
 alias dockersize='docker ps --all --size'
 alias rundocker='rundocker.sh'
 alias version='lsb_release -a'
-alias treesize='sudo du -a --max-depth=1 --human-readable --time --exclude=.* "${1:-/}" | sort --human-numeric-sort --reverse'
 alias freespace="df -h | grep -vE '^Filesystem|tmpfs|cdrom' | sort -k4hr"
 alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux)'
 alias drives='df -hT 2>/dev/null | sort -k 3 --human-numeric-sort --reverse'
@@ -60,3 +59,17 @@ alias sjobs='squeue -o "%.7i %.9P %.8j %.8u %.2t %.10M %.6D %R" -u $USER'
 alias skill='[ -n "$1" ] && job_id=$1 || job_id=$(squeue -u $USER -h -o %A | head -n1) && [ -n "$job_id" ] && scancel $job_id && echo "Cancelled job $job_id" || echo "No job found or cancellation failed"'
 alias skillall='read -p "Are you sure you want to cancel all Slurm jobs? (y/N) " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] && scancel -u $USER && echo "All Slurm jobs for user $USER have been cancelled" || echo "Operation cancelled or no jobs found for user $USER"'
 alias sresr='squeue --reservation=$1'
+alias kpods='kubectl get pod'
+
+function treesize {
+  local target="${1:-.}"
+  du -a --max-depth=1 --human-readable --time --exclude='.*' -- "$target" \
+    | sort --human-numeric-sort --reverse
+}
+function k {
+    kubectl "$@"
+}
+
+function kpod {
+    kubectl describe pod "$@"
+}
