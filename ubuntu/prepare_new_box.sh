@@ -24,11 +24,27 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
     fi
     bash ssh_perms.sh
 
+    # provides browser integration with the host system
+    sudo add-apt-repository -y ppa:wslutilities/wslu
+    sudo apt update
+    sudo apt install wslu -y
+
     # make sure we don't check-in with CRLFs
     git config --global core.autocrlf input
     # setup git credentials sharing
     cmd.exe /c "git config --global credential.helper wincred"
-    git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe"
+    if [[ "$(uname -m)" == "aarch64" ]]; then git config --global credential.helper "/mnt/c/Program\ Files/Git/clangarm64/bin/git-credential-manager.exe"; else git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe"; fi
+    git config --global credential.useHttpPath true
+
+    # if using tailscale, create alias
+    if [ -f "/mnt/c/Program Files/Tailscale/tailscale.exe" ]; then
+        echo 'alias tailscale="/mnt/c/Program\ Files/Tailscale/tailscale.exe"' >> ~/.zshrc
+        echo 'alias tailscale="/mnt/c/Program\ Files/Tailscale/tailscale.exe"' >> ~/.bashrc
+        alias tailscale="/mnt/c/Program\ Files/Tailscale/tailscale.exe"
+
+        sudo mkdir -p /Applications/Tailscale.app/Contents/MacOS
+        sudo ln -sf "/mnt/c/Program Files/Tailscale/tailscale.exe" /Applications/Tailscale.app/Contents/MacOS/Tailscale
+    fi
 fi
 
 # Check if nvcc is installed
@@ -63,3 +79,4 @@ conda activate base
 pip install -q nvitop rich
 
 bash install_dl_frameworks.sh
+

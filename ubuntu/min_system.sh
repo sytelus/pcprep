@@ -98,6 +98,11 @@ if sudo -n true 2>/dev/null; then
         else
             echo "Docker is already installed."
         fi
+
+        # install zsh
+        sudo apt update
+        sudo apt install zsh -y
+        # chsh -s $(which zsh) # make zsh default shell
     else
         echo "Skipping network-dependent installations due to NO_NET being set"
     fi

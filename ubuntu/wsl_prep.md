@@ -8,7 +8,8 @@ To start from  scratch:
 # in admin prompt
 wsl --uninstall
 wsl --update
-wsl --install -d Ubuntu-22.04
+# wsl --install -d Ubuntu-22.04
+wsl --install -d Ubuntu-24.04
 # init distro, enter user name, password and complete the setup
 wsl
 ```
