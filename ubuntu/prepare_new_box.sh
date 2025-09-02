@@ -3,6 +3,9 @@
 set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
 export NO_NET=${NO_NET:-}
+export user_name=${user_name:-}
+export user_email=${user_email:-}
+export INSTALL_PYTORCH=${INSTALL_PYTORCH:-1}
 
 # Check if NO_NET is not set and test internet connectivity
 if [ -z "${NO_NET}" ]; then
@@ -45,18 +48,17 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
         sudo mkdir -p /Applications/Tailscale.app/Contents/MacOS
         sudo ln -sf "/mnt/c/Program Files/Tailscale/tailscale.exe" /Applications/Tailscale.app/Contents/MacOS/Tailscale
     fi
-fi
-
-# Check if nvcc is installed
-if ! command -v /usr/local/cuda/bin/nvcc &> /dev/null && ! command -v nvcc &> /dev/null; then
-    read -p "CUDA not found. Do you want to install CUDA 12.6? (y/N): " install_cuda
-    if [[ $install_cuda =~ ^[Yy]$ ]]; then
-        bash install_cuda12.6.sh
-    else
-        echo "Skipping CUDA installation."
+else
+    # Check if nvcc is installed
+    if ! command -v /usr/local/cuda/bin/nvcc &> /dev/null && ! command -v nvcc &> /dev/null; then
+        read -p "CUDA not found. Do you want to install CUDA 12.6? (y/N): " install_cuda
+        if [[ $install_cuda =~ ^[Yy]$ ]]; then
+            bash install_cuda12.6.sh
+        else
+            echo "Skipping CUDA installation."
+        fi
     fi
 fi
-
 
 bash cp_dotfiles.sh
 bash min_system.sh

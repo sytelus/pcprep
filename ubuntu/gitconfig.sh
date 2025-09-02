@@ -12,8 +12,13 @@ set -o xtrace
 #!/bin/bash
 
 # Prompt the user for their name and email
-read -p "Enter your name: " user_name
-read -p "Enter your email: " user_email
+# Prompt only if not already set via environment
+if [ -z "${user_name:-}" ]; then
+    read -p "Enter your name: " user_name
+fi
+if [ -z "${user_email:-}" ]; then
+    read -p "Enter your email: " user_email
+fi
 
 # Set global Git configurations using the user's input
 git config --global user.name "$user_name"

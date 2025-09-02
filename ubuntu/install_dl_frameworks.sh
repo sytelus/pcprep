@@ -40,7 +40,18 @@ detect_cuda_version() {
     echo "✓ CUDA detected:"
     echo "  - CUDA version: $CUDA_MAJOR.$CUDA_MINOR"
     echo "  - nvcc path: $NVCC_PATH"
-    read -p "Press Enter to proceed with above (Ctrl+C to terminate)." -n 1 -r
+
+    # if INSTALL_PYTORCH is non-zero or y then install without prompting
+    if [ -n "${INSTALL_PYTORCH:-}" ]; then
+        low=$(printf '%s' "$INSTALL_PYTORCH" | tr '[:upper:]' '[:lower:]')
+        if echo "$INSTALL_PYTORCH" | grep -Eq '^[1-9][0-9]*$' || [ "$low" = "y" ]; then
+            :  # Skip prompt
+        else
+            read -p "Press Enter to proceed with above (Ctrl+C to terminate)." -n 1 -r
+        fi
+    else
+        read -p "Press Enter to proceed with above (Ctrl+C to terminate)." -n 1 -r
+    fi
     echo ""
     return 0
 }
@@ -68,7 +79,10 @@ install_pytorch() {
             else
                 echo "Installing CPU-only PyTorch as no CUDA was detected"
                 # Install CPU-only version
-                pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+                # Below  was causing stange error so trying below more verbose way
+                PYTORCH_INDEX_URL="https://download.pytorch.org/whl/cpu"
+                python3 -m pip install -q torch torchvision torchaudio --index-url "$PYTORCH_INDEX_URL"
+
             fi
             ;;
     esac

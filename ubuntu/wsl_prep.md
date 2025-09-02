@@ -21,6 +21,7 @@ wsl
 # make dir to vhd file which can big and you
 # probably want to move it to a different drive
 mkdir e:\wsl_vhd
+wsl --shutdown
 wsl --manage Ubuntu-22.04 --move e:\wsl_vhd
 # list your distros to verify
 wsl -l -v

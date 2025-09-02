@@ -111,7 +111,7 @@ else
 fi
 
 # Install micro editor
-if [ -z "${NO_NET}" ]; then
+if [ -n "${NO_NET}" ]; then
     pushd "$HOME/.local/bin"
     curl https://getmic.ro | MICRO_DESTDIR="$HOME/.local" sh
     popd
