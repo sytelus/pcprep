@@ -31,6 +31,7 @@ alias clshard='reset; stty sane; tput rs1; setterm -reset; tput reset'
 alias cls='tput reset'
 alias pu='pushd .'
 alias po='popd'
+alias tmuxx='tmux attach -t 0'
 alias ipconfig='nmcli dev show'
 alias nvreset='sudo rmmod nvidia_uvm;sudo rmmod nvidia;sudo modprobe nvidia;sudo modprobe nvidia_uvm;'
 alias smv='function _f() { rsync -az --remove-source-files "$@"; }; _f'
@@ -60,6 +61,7 @@ alias skill='[ -n "$1" ] && job_id=$1 || job_id=$(squeue -u $USER -h -o %A | hea
 alias skillall='read -p "Are you sure you want to cancel all Slurm jobs? (y/N) " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] && scancel -u $USER && echo "All Slurm jobs for user $USER have been cancelled" || echo "Operation cancelled or no jobs found for user $USER"'
 alias sresr='squeue --reservation=$1'
 alias kpods='kubectl get pod'
+alias knodes='kubectl get nodes --no-headers | awk '\''{print $2}'\'' | sort | uniq -c'
 
 function treesize {
   local target="${1:-.}"
