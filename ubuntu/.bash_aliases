@@ -62,6 +62,8 @@ alias skillall='read -p "Are you sure you want to cancel all Slurm jobs? (y/N) "
 alias sresr='squeue --reservation=$1'
 alias kpods='kubectl get pod'
 alias knodes='kubectl get nodes --no-headers | awk '\''{print $2}'\'' | sort | uniq -c'
+alias kjobs='kubectl get vcjob | grep -E "Pending|Running"'
+alias kjobsall='kubectl get vcjob'
 
 function treesize {
   local target="${1:-.}"
@@ -74,4 +76,8 @@ function k {
 
 function kpod {
     kubectl describe pod "$@"
+}
+
+function kdel {
+    kubectl delete pod "$@"
 }
