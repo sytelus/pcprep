@@ -8,6 +8,12 @@ set show-all-if-unmodified On
 set visible-stats On
 set completion-display-width 1
 set menu-complete-display-prefix on
+set colored-completion-prefix on
+set page-completions off
+
+# Make Ctrl+S work for forward search
+set enable-bracketed-paste on
+
 # TAB: menu-complete
 # "\e[Z": menu-complete-backward
 
