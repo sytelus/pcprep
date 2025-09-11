@@ -79,5 +79,5 @@ function kpod {
 }
 
 function kdel {
-    kubectl delete pod "$@"
+    kubectl delete vcjob "$@"
 }
