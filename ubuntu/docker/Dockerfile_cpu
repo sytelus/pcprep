@@ -1,218 +1,235 @@
-# For a slim CPU-only image, leave the CUDA_VERSION argument blank -- e.g.
-# ARG CUDA_VERSION=
-ARG CUDA_VERSION=12.1.0
+# syntax=docker/dockerfile:1.7
+# Multi-arch base (x86_64/amd64, arm64, arm/v7 (armhf))
+FROM --platform=$TARGETPLATFORM ubuntu:24.04
 
-# Calculate the base image based on CUDA_VERSION
-ARG BASE_IMAGE=${CUDA_VERSION:+"nvidia/cuda:${CUDA_VERSION}-cudnn8-devel-ubuntu20.04"}
-ARG BASE_IMAGE=${BASE_IMAGE:-"ubuntu:20.04"}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Creates variables from arguments
-FROM ${BASE_IMAGE} as base
-
-# Labels for the docker
-LABEL description="Docker for AI Research and Development" \
-      repository="sytelus" \
-      tag="latest" \
-      creator="Shital Shah" \
-      tooltype="pytorch" \
-      tooltypeversion="2.1.0" \
-      createtime="11/15/2023"
-
-# for informational purposes
-ENV DOCKER_TAG='sytelus/dev'
-
-# Defines the base image
-FROM base
-
-# disable interactive prompts
 ARG DEBIAN_FRONTEND=noninteractive
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETVARIANT
 
-# Set the shell to bash so all next commands can use bash features
-SHELL ["/bin/bash", "-c"]
+# Basic labels (OCI)
+ARG VCS_REF
+LABEL org.opencontainers.image.source="https://github.com/sytelus/pcprep" \
+      org.opencontainers.image.revision="${VCS_REF}"
+LABEL org.opencontainers.image.title="cpu-devbox"
+LABEL org.opencontainers.image.description="Ubuntu 24.04 interactive terminal devbox with Azure/Git/GH CLI, kubectl/helm, AzCopy, Miniconda+ML stack, and a rich toolbox."
+LABEL org.opencontainers.image.version="2025.09"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.base.name="ubuntu:24.04"
+LABEL org.opencontainers.image.ref.name="cpu-devbox"
 
-ENV NVIDIA_VISIBLE_DEVICES all
-ENV NVIDIA_DRIVER_CAPABILITIES compute,video,utility
+ENV TZ=UTC \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
-# update cuda repository keys
-# https://developer.nvidia.com/blog/updating-the-cuda-linux-gpg-repository-key/
-RUN if [ -n "$CUDA_VERSION" ] ; then \
-        rm -f /etc/apt/sources.list.d/cuda.list && \
-        rm -f /etc/apt/sources.list.d/nvidia-ml.list && \
-        apt-get update &&  \
-        apt-get install -y --no-install-recommends wget && \
-        apt-get autoclean && \
-        apt-get clean && \
-        rm -rf /var/lib/apt/lists/* \
-        apt-key del 7fa2af80 && \
-        mkdir -p /tmp/cuda-keyring && \
-        wget -P /tmp/cuda-keyring https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb && \
-        dpkg -i /tmp/cuda-keyring/cuda-keyring_1.0-1_all.deb && \
-        rm -rf /tmp/cuda-keyring ; \
-    fi
-
-# install basic pakages we might need
-RUN apt-get -y update --fix-missing && \
-    apt-get install --assume-yes --no-install-recommends --no-install-suggests \
-        libgomp1 curl wget sudo build-essential software-properties-common \
-        dirmngr apt-utils gpg-agent openssh-client less grep sed \
-         tar apt-transport-https ca-certificates gnupg \
-        # For PILLOW:
-        zlib1g-dev libtiff-dev libfreetype6-dev liblcms2-dev tcl libjpeg8-dev \
-        # For AWS EFA:
-        autoconf autotools-dev automake libtool \
-        # Development tools
-        tmux cmake htop nvtop virt-what xclip xz-utils trash-cli bash-completion \
-        tlp powertop tlp-rdw inxi procinfo nvidia-prime \
-        libopencv-dev g++ libopenmpi-dev zlib1g-dev lsb-release \
-        bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 \
-        fdupes locate \
-        # For DeepSpeed
-        libaio-dev libaio1 \
-        # fun stuff
-        fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet \
-        pi xcowsay aview bb rig weather-util  \
-        && \
-    apt-get autoclean && \
-    apt-get clean && \
+# Enable Universe/Multiverse, baseline packages, and utility repos prerequisites
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends software-properties-common gpg ca-certificates curl wget xz-utils apt-transport-https lsb-release gnupg locales; \
+    locale-gen en_US.UTF-8; \
+    add-apt-repository -y universe; \
+    add-apt-repository -y multiverse; \
     rm -rf /var/lib/apt/lists/*
 
-# Install latest version of git
-RUN add-apt-repository ppa:git-core/ppa && \
-    apt-get install -y --no-install-recommends \
-        git && \
-    apt-get autoclean && \
-    apt-get clean && \
+# ---- Function to install "available" packages only (skip gracefully if missing) ----
+# We gather your long lists (from request + tools.txt) and install what exists on each arch.
+RUN set -eux; \
+    apt-get update; \
+    # Core/tooling from your list
+    PKGS=" \
+      git git-lfs curl wget xclip xsel xz-utils tar trash-cli bash-completion \
+      tlp powertop tlp-rdw inxi procinfo htop aptitude \
+      build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev \
+      fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util \
+      fdupes plocate keychain pass micro zlib1g \
+      bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
+      virt-what sudo freeglut3-dev libx11-dev libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 \
+      libfreeimage-dev vmtouch neofetch powerstat gcc libstdc++6 tmux screen \
+      # ---- tools.txt (Everyday CLI QoL) ---- \
+      ripgrep fd-find bat fzf tldr tree ncdu gdu moreutils rename jq yq parallel entr rsync \
+      pkg-config ninja-build meson autoconf automake libtool ccache clang clang-format clang-tidy lld gdb lldb valgrind strace ltrace \
+      libssl-dev libffi-dev libbz2-dev liblzma-dev libsqlite3-dev \
+      btop glances sysstat iotop ifstat iftop nethogs linux-tools-generic numactl hwloc lm-sensors smartmontools nvme-cli acpi \
+      openssh-client autossh mosh mtr nmap traceroute tcpdump wireshark-common net-tools \
+      exfatprogs exfat-fuse ntfs-3g sshfs nfs-common cifs-utils mergerfs lsof pstree \
+      zip unzip p7zip-full zstd pigz pbzip2 unar \
+      rclone httpie aria2 \
+      neovim emacs-nox direnv starship fonts-powerline fonts-firacode \
+      imagemagick ffmpeg pandoc ghostscript pdftk-java \
+      watch whois dnsutils uuid-runtime time colordiff \
+    "; \
+    # Filter to install only packages that exist in current apt index
+    INSTALLABLE=""; SKIPPED=""; \
+    for p in $PKGS; do \
+      if apt-cache show --no-all-versions "$p" >/dev/null 2>&1; then INSTALLABLE="$INSTALLABLE $p"; else SKIPPED="$SKIPPED $p"; fi; \
+    done; \
+    echo "Installing packages:" $INSTALLABLE; \
+    apt-get install -y --no-install-recommends $INSTALLABLE || true; \
+    if [ -n "$SKIPPED" ]; then echo "Skipped (not available for this arch/repo): $SKIPPED"; fi; \
+    # Create friendly symlinks for fd/bat (Debian names are fdfind/batcat)
+    if command -v fdfind >/dev/null 2>&1 && [ ! -e /usr/local/bin/fd ]; then ln -s "$(command -v fdfind)" /usr/local/bin/fd; fi; \
+    if command -v batcat >/dev/null 2>&1 && [ ! -e /usr/local/bin/bat ]; then ln -s "$(command -v batcat)" /usr/local/bin/bat; fi; \
     rm -rf /var/lib/apt/lists/*
 
-# Install NodeJS (for Pyright)
-RUN \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get autoclean && \
-    apt-get clean && \
+# ---- Azure CLI (official repo for Ubuntu/Debian; supports amd64 & arm64) ----
+# Docs: Microsoft Learn shows azure-cli.sources with noble support and keyring usage.
+RUN set -eux; \
+    ARCH=$(dpkg --print-architecture); \
+    mkdir -p /etc/apt/keyrings; \
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /etc/apt/keyrings/microsoft.gpg; \
+    chmod go+r /etc/apt/keyrings/microsoft.gpg; \
+    AZ_DIST="$(lsb_release -cs)"; \
+    printf "Types: deb\nURIs: https://packages.microsoft.com/repos/azure-cli/\nSuites: %s\nComponents: main\nArchitectures: %s\nSigned-by: /etc/apt/keyrings/microsoft.gpg\n" "$AZ_DIST" "$ARCH" > /etc/apt/sources.list.d/azure-cli.sources; \
+    apt-get update; \
+    if apt-cache show azure-cli >/dev/null 2>&1; then apt-get install -y azure-cli; else echo "Azure CLI not available for $ARCH; skipping"; fi; \
+    rm -rf /var/lib/apt/lists/*
+# (Ref: Microsoft docs confirm Ubuntu 24.04 + amd64/arm64 and the azure-cli.sources format.)
+
+# ---- AzCopy (x86_64 & ARM64 tarballs). Skip on other arches. ----
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) AZCOPY_URL="https://aka.ms/downloadazcopy-v10-linux";; \
+      arm64) AZCOPY_URL="https://aka.ms/downloadazcopy-v10-linux-arm64";; \
+      *) AZCOPY_URL="";; \
+    esac; \
+    if [ -n "$AZCOPY_URL" ]; then \
+      tmpdir="$(mktemp -d)"; \
+      curl -fsSL "$AZCOPY_URL" -o "$tmpdir/azcopy.tgz"; \
+      tar -xzf "$tmpdir/azcopy.tgz" -C "$tmpdir"; \
+      install "$tmpdir"/azcopy_linux_*/azcopy /usr/local/bin/azcopy; \
+      rm -rf "$tmpdir"; \
+    else echo "AzCopy not published for $TARGETARCH; skipping."; fi
+
+# ---- GitHub CLI (gh) official apt repo ----
+RUN set -eux; \
+    mkdir -p -m 755 /etc/apt/keyrings; \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null; \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list; \
+    apt-get update; \
+    if apt-cache show gh >/dev/null 2>&1; then apt-get install -y gh; else echo "GitHub CLI not available for this arch; skipping"; fi; \
     rm -rf /var/lib/apt/lists/*
 
-# Install Conda
-# Set the environment variables
-ENV ANACONDA_HOME=/opt/anaconda3
-ENV PATH=$ANACONDA_HOME/bin:$PATH
+# ---- Kubernetes kubectl apt repo (pkgs.k8s.io v1.34 stable) ----
+RUN set -eux; \
+    mkdir -p /etc/apt/keyrings; \
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
+    chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
+    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list; \
+    apt-get update; \
+    if apt-cache show kubectl >/dev/null 2>&1; then apt-get install -y kubectl; else echo "kubectl not available for this arch; skipping"; fi; \
+    rm -rf /var/lib/apt/lists/*
 
-# -b option is batch mode to silence licence terms prompt. It also won't modify .bashrc.
-RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2023.07-2-Linux-x86_64.sh -O /tmp/anaconda.sh  && \
-        /bin/bash /tmp/anaconda.sh -b -p $ANACONDA_HOME && \
-        rm /tmp/anaconda.sh
+# ---- Helm apt repo (Buildkite-hosted helm-linux repo) ----
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl gpg apt-transport-https; \
+    curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | tee /usr/share/keyrings/helm.gpg >/dev/null; \
+    echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" > /etc/apt/sources.list.d/helm-stable-debian.list; \
+    apt-get update; \
+    if apt-cache show helm >/dev/null 2>&1; then apt-get install -y helm; else echo "helm not available for this arch; skipping"; fi; \
+    rm -rf /var/lib/apt/lists/*
 
-# Initialize conda for all users
-RUN ln -s $ANACONDA_HOME/etc/profile.d/conda.sh /etc/profile.d/conda.sh \
-    && echo ". $ANACONDA_HOME/etc/profile.d/conda.sh" >> /etc/skel/.bashrc \
-    && echo "conda activate base" >> /etc/skel/.bashrc \
-    && echo ". /opt/conda/etc/profile.d/conda.sh" >> "$HOME"/.bashrc \
-    && echo "conda activate base" >> "$HOME"/.bashrc
+# ---- rusage (cosmopolitan .com universal binary; install as /usr/local/bin/rusage) ----
+RUN set -eux; \
+    curl -fsSL https://justine.lol/rusage/rusage.com -o /usr/local/bin/rusage; \
+    chmod +x /usr/local/bin/rusage || true
 
-# update to latest version
-RUN conda update -y -n base -c defaults conda
+# ---- zsh (do not set default), micro editor already installed via apt above ----
+RUN set -eux; \
+    if ! command -v zsh >/dev/null 2>&1; then apt-get update && apt-get install -y --no-install-recommends zsh && rm -rf /var/lib/apt/lists/*; fi
 
-# use much faster mamba solver
-RUN conda install -y -n base conda-libmamba-solver
-RUN conda config --set solver libmamba
+# ---- Miniconda/Miniforge installation (multi-arch) ----
+ENV CONDA_DIR=/opt/conda \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PATH="${CONDA_DIR}/bin:${PATH}"
 
-# use base as default env
-RUN conda config --set auto_activate_base true
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64)  CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh";; \
+      arm64)  CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh";; \
+      arm)    # armhf/armv7 -> use Miniforge (conda-forge) since Miniconda not published
+              CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-armv7l.sh";; \
+      *)      echo "Unknown TARGETARCH=$TARGETARCH"; exit 1;; \
+    esac; \
+    curl -fsSL "$CONDA_URL" -o /tmp/conda.sh; \
+    bash /tmp/conda.sh -b -p "$CONDA_DIR"; \
+    rm -f /tmp/conda.sh; \
+    "$CONDA_DIR/bin/conda" config --system --set channel_priority strict; \
+    "$CONDA_DIR/bin/conda" config --system --add channels conda-forge; \
+    "$CONDA_DIR/bin/conda" update -y -n base -c conda-forge conda; \
+    "$CONDA_DIR/bin/conda" install -y -n base pip python=3.12; \
+    "$CONDA_DIR/bin/conda" clean -afy
 
-RUN pip install --upgrade pip setuptools wheel
+# ---- Python stack in base env (CPU‑only). We try conda-forge first; skip if unavailable on arch. ----
+# Packages requested (deduped): rich pandas scikit-learn matplotlib jupyter tensorflow tensorboard keras pytorch transformers datasets wandb
+# accelerate einops tokenizers sentencepiece evaluate mlflow natsort omegaconf pebble pre-commit pygtrie pytest typing-extensions tiktoken tqdm
+RUN set -eux; \
+    COMMON_PKGS="rich pandas scikit-learn matplotlib jupyter tensorboard keras transformers datasets wandb accelerate einops tokenizers sentencepiece evaluate mlflow natsort omegaconf pebble pre-commit pygtrie pytest typing-extensions tiktoken tqdm"; \
+    # Install common pkgs from conda-forge where available (fallback to pip for stragglers)
+    for pkg in $COMMON_PKGS; do \
+      if "$CONDA_DIR/bin/conda" search -c conda-forge --json "$pkg" >/dev/null 2>&1; then \
+        "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge "$pkg" || "$CONDA_DIR/bin/pip" install --no-cache-dir "$pkg"; \
+      else \
+        "$CONDA_DIR/bin/pip" install --no-cache-dir "$pkg"; \
+      fi; \
+    done; \
+    # TensorFlow & PyTorch (CPU): attempt via conda-forge on amd64/arm64, skip on armv7 if not found
+    if [ "$TARGETARCH" = "amd64" ] || [ "$TARGETARCH" = "arm64" ]; then \
+      "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge tensorflow || echo "tensorflow not available; skipped"; \
+      # For pytorch, conda-forge provides CPU builds; if resolution fails, try pytorch channel (amd64)
+      "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge pytorch || \
+      "$CONDA_DIR/bin/conda" install -y -n base -c pytorch -c conda-forge pytorch cpuonly || echo "pytorch not available; skipped"; \
+    else \
+      echo "Skipping tensorflow/pytorch on $TARGETARCH$TARGETVARIANT"; \
+    fi; \
+    "$CONDA_DIR/bin/conda" clean -afy
 
-RUN pip install ninja
+# ---- Dotfiles for interactive use ----
+# We take the referenced files and place them for root (and /etc/skel for future users).
+RUN set -eux; \
+    mkdir -p /etc/skel; \
+    curl -fsSLo /root/.bashrc https://raw.githubusercontent.com/sytelus/pcprep/ubuntu/.bashrc; \
+    curl -fsSLo /root/.inputrc https://raw.githubusercontent.com/sytelus/pcprep/ubuntu/.inputrc; \
+    curl -fsSLo /root/.bash_aliases https://raw.githubusercontent.com/sytelus/pcprep/ubuntu/.bash_aliases; \
+    curl -fsSLo /root/.tmux.conf https://raw.githubusercontent.com/sytelus/pcprep/ubuntu/.tmux.conf; \
+    cp -a /root/.bashrc /root/.inputrc /root/.bash_aliases /root/.tmux.conf /etc/skel/; \
+    # Ensure conda auto-activation for interactive shells + greeting (only once per session)
+    echo '' >> /etc/bash.bashrc; \
+    echo '# --- CPU devbox bootstrap ---' >> /etc/bash.bashrc; \
+    echo 'if [ -n "$PS1" ]; then' >> /etc/bash.bashrc; \
+    echo '  if [ -f "'"$CONDA_DIR"'/etc/profile.d/conda.sh" ]; then . "'"$CONDA_DIR"'/etc/profile.d/conda.sh"; conda activate base; fi' >> /etc/bash.bashrc; \
+    echo '  if [ -z "${DEVBOX_WELCOMED:-}" ]; then export DEVBOX_WELCOMED=1; /usr/local/bin/devbox-greeting || true; fi' >> /etc/bash.bashrc; \
+    echo 'fi' >> /etc/bash.bashrc
 
-# Install cmake
-RUN pip install cmake==3.27.7
+# ---- Git config: LF line endings preference ----
+RUN set -eux; \
+    git config --global core.eol lf; \
+    git config --global core.autocrlf input
 
-# Install Pandoc Dependency
-RUN pip install pandoc==2.3
+# ---- Friendly greeting script shown at interactive start ----
+RUN set -eux; \
+    cat >/usr/local/bin/devbox-greeting <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "Welcome to CPU devbox!"
+cores=$( (nproc 2>/dev/null) || echo "N/A")
+mem_kb=$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
+mem_gb=$(awk -v kb="${mem_kb}" 'BEGIN{printf "%.1f", kb/1024/1024}')
+arch=$(uname -m 2>/dev/null || echo unknown)
+kernel=$(uname -r 2>/dev/null || echo unknown)
+host=$(hostname 2>/dev/null || echo container)
+echo "Host: ${host} | Arch: ${arch} | Kernel: ${kernel} | Cores: ${cores} | RAM: ${mem_gb}G"
+# Helpful versions if present
+command -v az >/dev/null 2>&1 && az version 2>/dev/null | sed -n 's/.*"azure-cli": "\(.*\)".*/Azure CLI: \1/p'
+command -v gh >/dev/null 2>&1 && gh --version | head -n1
+command -v kubectl >/dev/null 2>&1 && kubectl version --client --short 2>/dev/null || true
+command -v helm >/dev/null 2>&1 && helm version --short 2>/dev/null || true
+python -V 2>/dev/null || true
+EOF
+    chmod +x /usr/local/bin/devbox-greeting
 
-
-# Install PyTorch
-# Below two are only valid for PyTorch CUDA 12.1.0
-ENV TORCH_INDEX_URL="https://download.pytorch.org/whl/cu121"
-RUN conda install -y -n base pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
-
-# Install few utilities
-RUN conda install -y -n base -c conda-forge gpustat scikit-learn-intelex py3nvml glances
-
-# Install HuggingFace libs
-RUN conda install -y -n base -c conda-forge transformers datasets tokenizers sentencepiece
-
-# Install TensorFlow
-RUN conda install -y -n base -c conda-forge tensorflow tensorboard keras
-
-# Install other popular libraries
-RUN pip install -q tiktoken wandb tqdm einops mlflow natsort \
-    nbsphinx omegaconf pebble pre-commit pygtrie pytest \
-    sphinx sphinx-book-theme matplotlib rich
-
-# Updates TransformerEngine as v0.7 is not compatible with Flash-Attention 2
-RUN pip uninstall -y transformer-engine \
-    && git clone --branch stable --recursive https://github.com/NVIDIA/TransformerEngine.git \
-    && cd TransformerEngine  \
-    && export NVTE_FRAMEWORK=pytorch \
-    && pip install . \
-    && cd .. && rm -rf TransformerEngine
-
-# Install Triton, needed for some ops in DeepSpeed
-RUN pip install -q triton
-
-# DeepSpeed and OpenMPI
-ENV DEEPSPEED_VERSION="0.12.3"
-RUN DS_BUILD_UTILS=1 DS_BUILD_OPS=1 DS_BUILD_FUSED_LAMB=1 DS_BUILD_FUSED_ADAM=1 \
-    DS_BUILD_TRANSFORMER=1 DS_BUILD_TRANSFORMER_INFERENCE=1 \
-    DS_BUILD_CUTLASS_OPS=0 DS_BUILD_RAGGED_DEVICE_OPS=0 DS_BUILD_EVOFORMER_ATTN=0 \
-    DS_BUILD_SPARSE_ATTN=0 \
-    pip install deepspeed==$DEEPSPEED_VERSION --global-option="build_ext" --global-option="-j8" && \
-    CC=mpicc MPICC=mpicc pip install mpi4py --no-binary mpi4py
-
-# Flash-Attention and CUDA extensions for cross-entropy, fused dense, layer norm, etc
-ENV FLASH_ATTENTION_VERSION="2.3.3"
-RUN git clone https://github.com/HazyResearch/flash-attention \
-    && cd flash-attention && git checkout v$FLASH_ATTENTION_VERSION \
-    && python setup.py install \
-    && FLASH_ATTENTION_FORCE_BUILD=TRUE pip install . \
-    && cd csrc/fused_softmax && pip install . && cd ../../ \
-    && cd csrc/rotary && pip install . && cd ../../ \
-    && cd csrc/xentropy && pip install . && cd ../../ \
-    && cd csrc/layer_norm && pip install . && cd ../../ \
-    && cd csrc/fused_dense_lib && pip install . && cd ../../ \
-    && cd .. && rm -rf flash-attention
-
-# xFormers (without dependencies to avoid clashing with PyTorch)
-ENV XFORMERS_VERSION="0.0.22.post7"
-RUN pip install --no-dependencies xformers --index-url $TORCH_INDEX_URL
-
-# Additional packages that prevents pip uninstalling when running on the cluster
-RUN pip install -q accelerate azureml-mlflow datasets einops evaluate mlflow natsort omegaconf \
-    pebble pre-commit pygtrie pytest tokenizers transformers typing-extensions wandb
-
-# add user for doing sudo
-# su - docker_admin -c "sudo adduser $USER sudo"
-# create user with home dir (-m), UID=1000 (-u), and same group as user (-U)
-RUN useradd -m docker_admin -s /bin/bash -u 1000 -U
-RUN usermod -aG sudo docker_admin
-RUN passwd -x -1 docker_admin && passwd -d docker_admin
-RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-
-# ----- end of main Dockerfile -----
-
-# ARG INSTALLER_IMAGE
-# ARG VALIDATOR_IMAGE
-
-# FROM $INSTALLER_IMAGE as installer
-# FROM $VALIDATOR_IMAGE as validator
-
-# # Retrieves and install Singularity script
-# COPY --from=installer /installer /opt/microsoft/_singularity/installations/
-# RUN /opt/microsoft/_singularity/installations/singularity/installer.sh
-
-# # Sets some validation environment variables for additional checks
-# ENV SINGULARITY_IMAGE_ACCELERATOR="NVIDIA"
-
-# # Retrieves and validates Singularity script
-# COPY --from=validator /validations /opt/microsoft/_singularity/validations/
-# RUN /opt/microsoft/_singularity/validations/validator.sh
+# Default to login shell so /etc/bash.bashrc runs (activates conda + greeting)
+CMD ["/bin/bash", "-l"]
