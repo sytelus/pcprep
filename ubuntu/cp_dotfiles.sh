@@ -68,3 +68,4 @@ cp -vn start_tmux.sh ~/.local/bin/start_tmux.sh
 cp -vn sysinfo.sh ~/.local/bin/sysinfo.sh
 cp -vn treesize.sh ~/.local/bin/treesize.sh
 cp -vn measure_flops.py ~/.local/bin/measure_flops.py
+cp -vn kill_vscode_srv.sh ~/.local/bin/kill_vscode_srv.sh

@@ -1,0 +1,1 @@
+pkill -u $USER -f vscode-server || true && rm -rf ~/.vscode-serve
