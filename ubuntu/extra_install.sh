@@ -193,7 +193,7 @@ install_system_hw() {
 install_networking() {
   install_pkg openssh-client || true
   install_pkg autossh || true
-  install_pkg mosh || true
+  # install_pkg mosh || true
   # mtr-tiny is a smaller CLI variant; fallback to mtr if needed
   if apt_has_pkg mtr-tiny; then install_pkg mtr-tiny; else install_pkg mtr || true; fi
   install_pkg nmap || true
@@ -241,17 +241,17 @@ install_archivers() {
 install_dev_clis() {
   # Only install what exists in current repos; we do not add external repos
   if apt_has_pkg kubectl; then install_pkg kubectl; else skip "kubectl not in default repos for this distro"; fi
-  if apt_has_pkg helm; then install_pkg helm; else skip "helm not in default repos for this distro"; fi
+  # if apt_has_pkg helm; then install_pkg helm; else skip "helm not in default repos for this distro"; fi
   install_pkg rclone || true
   # Prefer httpie over curlie
-  if apt_has_pkg httpie; then install_pkg httpie; elif apt_has_pkg curlie; then install_pkg curlie; else skip "Neither httpie nor curlie available"; fi
-  install_pkg aria2 || true
+  # if apt_has_pkg httpie; then install_pkg httpie; elif apt_has_pkg curlie; then install_pkg curlie; else skip "Neither httpie nor curlie available"; fi
+  # install_pkg aria2 || true
 }
 
 # ----- Editors / Shell / Prompt -----
 install_editors_shell() {
   # Try neovim first; if not available, use emacs-nox
-  if apt_has_pkg neovim; then install_pkg neovim; elif apt_has_pkg emacs-nox; then install_pkg emacs-nox; else warn "Neither neovim nor emacs-nox available"; fi
+  # if apt_has_pkg neovim; then install_pkg neovim; elif apt_has_pkg emacs-nox; then install_pkg emacs-nox; else warn "Neither neovim nor emacs-nox available"; fi
   install_pkg direnv || true
   install_pkg starship || true
   install_pkg fonts-powerline || true
@@ -260,9 +260,9 @@ install_editors_shell() {
 
 # ----- Media / Docs -----
 install_media_docs() {
-  install_pkg imagemagick || true
+  # install_pkg imagemagick || true
   install_pkg ffmpeg || true
-  install_pkg pandoc || true
+  # install_pkg pandoc || true
   install_pkg ghostscript || true
   if apt_has_pkg pdftk-java; then install_pkg pdftk-java; elif apt_has_pkg pdftk; then install_pkg pdftk; else skip "pdftk not available (pdftk-java/pdftk)"; fi
 }
@@ -274,7 +274,7 @@ install_misc() {
   install_pkg dnsutils || true
   install_pkg uuid-runtime || true
   install_pkg time || true
-  install_pkg colordiff || true
+  # install_pkg colordiff || true
 }
 
 # Run installers

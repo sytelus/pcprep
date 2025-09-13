@@ -52,13 +52,14 @@ RUN set -eux; \
       pkg-config ninja-build meson autoconf automake libtool ccache clang clang-format clang-tidy lld gdb lldb valgrind strace ltrace \
       libssl-dev libffi-dev libbz2-dev liblzma-dev libsqlite3-dev \
       btop glances sysstat iotop ifstat iftop nethogs linux-tools-generic numactl hwloc lm-sensors smartmontools nvme-cli acpi \
-      openssh-client autossh mosh mtr nmap traceroute tcpdump wireshark-common net-tools \
+      openssh-client autossh mtr nmap traceroute tcpdump net-tools \
       exfatprogs exfat-fuse ntfs-3g sshfs nfs-common cifs-utils mergerfs lsof pstree \
       zip unzip p7zip-full zstd pigz pbzip2 unar \
-      rclone httpie aria2 \
-      neovim emacs-nox direnv starship fonts-powerline fonts-firacode \
-      imagemagick ffmpeg pandoc ghostscript pdftk-java \
-      watch whois dnsutils uuid-runtime time colordiff \
+      rclone  \
+      direnv starship fonts-powerline fonts-firacode \
+      ffmpeg ghostscript pdftk-java \
+      watch whois dnsutils uuid-runtime time  \
+      #pandoc imagemagick httpie aria2 neovim emacs-nox mosh colordiff wireshark-common
     "; \
     # Filter to install only packages that exist in current apt index
     INSTALLABLE=""; SKIPPED=""; \
@@ -122,15 +123,15 @@ RUN set -eux; \
     if apt-cache show kubectl >/dev/null 2>&1; then apt-get install -y kubectl; else echo "kubectl not available for this arch; skipping"; fi; \
     rm -rf /var/lib/apt/lists/*
 
-# ---- Helm apt repo (Buildkite-hosted helm-linux repo) ----
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends curl gpg apt-transport-https; \
-    curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | tee /usr/share/keyrings/helm.gpg >/dev/null; \
-    echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" > /etc/apt/sources.list.d/helm-stable-debian.list; \
-    apt-get update; \
-    if apt-cache show helm >/dev/null 2>&1; then apt-get install -y helm; else echo "helm not available for this arch; skipping"; fi; \
-    rm -rf /var/lib/apt/lists/*
+# # ---- Helm apt repo (Buildkite-hosted helm-linux repo) ----
+# RUN set -eux; \
+#     apt-get update; \
+#     apt-get install -y --no-install-recommends curl gpg apt-transport-https; \
+#     curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | tee /usr/share/keyrings/helm.gpg >/dev/null; \
+#     echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" > /etc/apt/sources.list.d/helm-stable-debian.list; \
+#     apt-get update; \
+#     if apt-cache show helm >/dev/null 2>&1; then apt-get install -y helm; else echo "helm not available for this arch; skipping"; fi; \
+#     rm -rf /var/lib/apt/lists/*
 
 # ---- rusage (cosmopolitan .com universal binary; install as /usr/local/bin/rusage) ----
 RUN set -eux; \
