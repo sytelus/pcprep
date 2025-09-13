@@ -16,4 +16,7 @@ docker buildx build \
   -t "${IMAGE}:${TAG}" \
   "${BUILD_CONTEXT}"
 
-echo ">> Done. Try: docker run --rm -it ${IMAGE}:${TAG}"
+echo "Done.
+
+To run use:
+docker run --rm -it ${IMAGE}:${TAG}"

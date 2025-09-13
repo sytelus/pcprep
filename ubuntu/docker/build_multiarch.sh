@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Build a multi-arch image (amd64, arm64, arm/v7) without pushing.
 
-: "${IMAGE:?Set IMAGE, e.g. docker.io/yourname/cpu-devbox or yourname/cpu-devbox}"
+IMAGE=${IMAGE:-"sytelus/cpu-devbox"}
 TAG="${TAG:-$(date +%Y.%m.%d)}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64,linux/arm/v7}"
 BUILD_CONTEXT="${BUILD_CONTEXT:-.}"
@@ -27,5 +27,6 @@ docker buildx build \
   -t "${IMAGE}:${TAG}" \
   "${BUILD_CONTEXT}"
 
-echo ">> Multi-arch build completed (artifacts cached via buildx)."
-echo ">> To push: ubuntu/docker/push_multiarch.sh using the same IMAGE/TAG."
+echo "Multi-arch build completed (artifacts cached via buildx)."
+echo "To push:
+./push_multiarch.sh IMAGE=${IMAGE} TAG=${TAG} PLATFORMS=${PLATFORMS} BUILDER=${BUILDER}"
