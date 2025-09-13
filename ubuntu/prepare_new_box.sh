@@ -1,6 +1,6 @@
 #!/bin/bash
 #fail if any errors
-set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
+set -eu -o pipefail # fail if any command failes, log all commands, -o xtrace
 
 export NO_NET=${NO_NET:-}
 export user_name=${user_name:-}
@@ -8,12 +8,45 @@ export user_email=${user_email:-}
 export INSTALL_PYTORCH=${INSTALL_PYTORCH:-1}
 export WSL_DISTRO_NAME=${WSL_DISTRO_NAME:-}
 
+# Robust internet check that works even when ICMP is blocked.
+net_ok() {
+  # 1) HTTPS probe (most reliable)
+  if command -v curl >/dev/null 2>&1; then
+    # should return 204 on success
+    curl -fsSI --max-time 5 https://clients3.google.com/generate_204 >/dev/null && return 0
+    # general HTTPS reachability
+    curl -fsSI --max-time 5 https://www.google.com >/dev/null && return 0
+    # SNI over a known Google IP (avoids cert mismatch)
+    curl -fsSI --max-time 5 --resolve www.google.com:443:142.250.72.14 https://www.google.com >/dev/null 2>&1 && return 0
+  fi
+
+  # 2) Raw TCP reachability (no TLS needed)
+  if command -v nc >/dev/null 2>&1; then
+    nc -zw3 142.250.72.14 443 >/dev/null 2>&1 && return 0  # Google IP:443
+    nc -zw3 1.1.1.1 443        >/dev/null 2>&1 && return 0  # Cloudflare:443
+    nc -zw3 8.8.8.8 53         >/dev/null 2>&1 && return 0  # DNS UDP/TCP often open
+  fi
+
+  # 3) Last resort: public Git over HTTPS
+  if command -v git >/dev/null 2>&1; then
+    git ls-remote https://github.com >/dev/null 2>&1 && return 0
+  fi
+
+  return 1
+}
+
 # Check if NO_NET is not set and test internet connectivity
 if [ -z "${NO_NET}" ]; then
     echo "Checking Internet connection..."
     export NO_NET=0
-    if ! ping -w 5 -c 1 8.8.8.8 >/dev/null 2>&1; then
-        echo "No internet connectivity detected"
+
+    if ! net_ok; then
+        echo "Internet connectivity test failed."
+        read -p "No internet detected. Continue offline? (y/N): " resp
+        if ! [[ $resp =~ ^[Yy]$ ]]; then
+            echo "Aborting."
+            exit 1
+        fi
         export NO_NET=1
     fi
 fi
@@ -69,18 +102,20 @@ bash extra_install.sh
 
 bash install_miniconda.sh
 
-# below needs to be done after miniconda install script as script exists after last command
-# modify .bashrc
-~/miniconda3/bin/conda init bash
-# Source the conda.sh script directly so we don't have reopen the terminal
-. $HOME/miniconda3/etc/profile.d/conda.sh
-conda activate base
+if [ "$NO_NET" = "0" ]; then
+    # below needs to be done after miniconda install script as script exists after last command
+    # modify .bashrc
+    ~/miniconda3/bin/conda init bash
+    # Source the conda.sh script directly so we don't have reopen the terminal
+    . $HOME/miniconda3/etc/profile.d/conda.sh
+    conda activate base
 
-# install Poetry
-#curl -sSL https://install.python-poetry.org | python3 -
+    # install Poetry
+    #curl -sSL https://install.python-poetry.org | python3 -
 
-# pip installs
-pip install -q nvitop rich
+    # pip installs
+    pip install -q nvitop rich
 
-bash install_dl_frameworks.sh
+    bash install_dl_frameworks.sh
+fi
 

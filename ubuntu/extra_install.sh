@@ -201,12 +201,12 @@ install_networking() {
   install_pkg tcpdump || true
   install_pkg net-tools || true
 
-  if [ "$IS_WSL" = "1" ]; then
-    skip "Skipping wireshark-common on WSL"
-  else
-    # Use wireshark-common to avoid GUI; still may prompt, but we set noninteractive
-    install_pkg wireshark-common || true
-  fi
+  # if [ "$IS_WSL" = "1" ]; then
+  #   skip "Skipping wireshark-common on WSL"
+  # else
+  #   # Use wireshark-common to avoid GUI; still may prompt, but we set noninteractive
+  #   install_pkg wireshark-common || true
+  # fi
 }
 
 # ----- Filesystems / Storage -----
