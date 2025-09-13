@@ -6,6 +6,7 @@ export NO_NET=${NO_NET:-}
 export user_name=${user_name:-}
 export user_email=${user_email:-}
 export INSTALL_PYTORCH=${INSTALL_PYTORCH:-1}
+export WSL_DISTRO_NAME=${WSL_DISTRO_NAME:-}
 
 # Check if NO_NET is not set and test internet connectivity
 if [ -z "${NO_NET}" ]; then
