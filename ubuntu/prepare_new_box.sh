@@ -64,6 +64,7 @@ bash cp_dotfiles.sh
 bash min_system.sh
 bash gitconfig.sh
 #bash install_fzf.sh
+bash extra_install.sh
 
 bash install_miniconda.sh
 
