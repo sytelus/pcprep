@@ -24,7 +24,7 @@ esac
 if sudo -n true 2>/dev/null; then
     # install core packages
     sudo apt-get install --assume-yes --no-install-recommends \
-        git curl wget xclip xz-utils tar apt-transport-https trash-cli bash-completion \
+        git curl wget xclip xsel xz-utils tar apt-transport-https trash-cli bash-completion \
         tlp powertop tlp-rdw inxi procinfo htop aptitude \
         build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev \
         fortune-mod sl espeak figlet sysvbanner cowsay oneko cmatrix toilet pi xcowsay aview bb rig weather-util \
@@ -33,7 +33,8 @@ if sudo -n true 2>/dev/null; then
         bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion \
         virt-what sudo zlib1g g++ freeglut3-dev build-essential libx11-dev \
         libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 \
-        libfreeimage-dev vmtouch neofetch powerstat powertop nvtop
+        libfreeimage-dev vmtouch neofetch powerstat powertop nvtop \
+        tmux screen vim nano
 
     # Install nvidia-prime only on x86_64 architecture
     if [ "$ARCH" = "x86_64" ]; then
