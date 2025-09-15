@@ -1,268 +1,436 @@
-# Collect-SleepDiagnostics.ps1
-# Gathers all info needed to diagnose why "Sleep" is missing from Windows power menus.
+<# 
+Collect-SleepDiagnostics_v2.ps1
+- Fast, step-timed, timeout-aware collector for "Sleep option missing" diagnosis.
+- Outputs a timestamped folder on Desktop + a ZIP, with raw data and summaries.
+
+USAGE EXAMPLES:
+  .\Collect-SleepDiagnostics_v2.ps1
+  .\Collect-SleepDiagnostics_v2.ps1 -Deep -TimeoutSec 30 -MaxEvents 250
+
+PARAMS:
+  -Deep           : also run powercfg /energy and /systemsleepdiagnostics (slower)
+  -TimeoutSec     : per external-command timeout (seconds). Default 20.
+  -MaxEvents      : cap power-related events read from System log. Default 150.
+  -NoZip          : skip final ZIP creation
+#>
 
 [CmdletBinding()]
 param(
-  [switch]$Deep   # Adds powercfg energy/systemsleepdiagnostics (slower)
+  [switch]$Deep,
+  [int]$TimeoutSec = 20,
+  [int]$MaxEvents = 150,
+  [switch]$NoZip
 )
 
+Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-# ---------- Helpers ----------
-function Save-Text {
-  param([string]$File, [string]$Text)
-  $FilePath = Join-Path $root $File
-  $Text | Out-File -FilePath $FilePath -Encoding UTF8 -Force
+# ----------------------- Paths & transcript -----------------------
+$timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+$desktop   = [Environment]::GetFolderPath('Desktop')
+$root      = Join-Path $desktop ("SleepDiag_{0}_{1}" -f $env:COMPUTERNAME, $timestamp)
+New-Item -ItemType Directory -Path $root -Force | Out-Null
+
+# Simple logger
+$logFile = Join-Path $root 'progress.log'
+function Write-Log {
+  param([string]$Message, [string]$Level = 'INFO')
+  $line = "[{0:HH:mm:ss}] [{1}] {2}" -f (Get-Date), $Level, $Message
+  Write-Host $line
+  Add-Content -Path $logFile -Value $line
 }
 
-function Save-Command {
-  param([string]$File, [string]$Cmd, [string]$Args)
+# Save text/json helpers
+function Save-Text { param([string]$File,[string]$Text) $Text | Out-File -FilePath (Join-Path $root $File) -Encoding UTF8 -Force }
+function Save-Json { param([string]$File,[object]$Obj) ($Obj | ConvertTo-Json -Depth 6) | Out-File -FilePath (Join-Path $root $File) -Encoding UTF8 -Force }
+
+# Admin?
+$IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).
+  IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+Write-Log "IsAdministrator=$IsAdmin"
+Save-Text 'admin.txt' ("IsAdministrator=$IsAdmin")
+
+# Transcript
+Start-Transcript -Path (Join-Path $root 'console_transcript.txt') -Force | Out-Null
+
+# Stopwatch for steps
+function New-Stopwatch { return [System.Diagnostics.Stopwatch]::StartNew() }
+
+# ----------------------- External command with timeout -----------------------
+# Prints the statement, times it, captures stdout/stderr/exitcode, and enforces a timeout.
+function Invoke-External {
+  param(
+    [Parameter(Mandatory)] [string]$Exe,
+    [Parameter(Mandatory)] [string]$Args,
+    [Parameter(Mandatory)] [string]$OutFile,   # relative to $root
+    [int]$Timeout = $TimeoutSec
+  )
+  $target = Join-Path $root $OutFile
+  $sw = New-Stopwatch
+  Write-Log "RUN: $Exe $Args (timeout ${Timeout}s)"
+
   $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = $Cmd
+  $psi.FileName = $Exe
   $psi.Arguments = $Args
+  $psi.UseShellExecute = $false
   $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError  = $true
-  $psi.UseShellExecute        = $false
-  $p = [System.Diagnostics.Process]::Start($psi)
-  $p.WaitForExit()
-  $out = $p.StandardOutput.ReadToEnd()
-  $err = $p.StandardError.ReadToEnd()
-  Save-Text $File ($out + "`r`n`r`n--- STDERR ---`r`n" + $err)
-}
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
 
-function Get-RegValue {
-  param([string]$Path, [string]$Name)
-  try {
-    $item = Get-ItemProperty -Path $Path -ErrorAction Stop
-    [pscustomobject]@{
-      Path    = $Path
-      Name    = $Name
-      Present = $true
-      Value   = $item.$Name
-    }
-  } catch {
-    [pscustomobject]@{
-      Path    = $Path
-      Name    = $Name
-      Present = $false
-      Value   = $null
-    }
+  $p = New-Object System.Diagnostics.Process
+  $p.StartInfo = $psi
+
+  $null = $p.Start()
+  if (-not $p.WaitForExit($Timeout * 1000)) {
+    try { $p.Kill() } catch {}
+    $stdout = $p.StandardOutput.ReadToEnd()
+    $stderr = $p.StandardError.ReadToEnd()
+    $content = @"
+# COMMAND: $Exe $Args
+# STATUS : TIMED OUT after $Timeout s
+# DURATION: {0:n2} s
+
+# ---- STDOUT ----
+$stdout
+
+# ---- STDERR ----
+$stderr
+"@ -f $sw.Elapsed.TotalSeconds
+    $content | Out-File -FilePath $target -Encoding UTF8 -Force
+    Write-Log "TIMEOUT after ${Timeout}s -> $OutFile" "WARN"
+    return @{ ExitCode = $null; TimedOut = $true; Duration = $sw.Elapsed.TotalSeconds; OutFile = $target }
+  } else {
+    $stdout = $p.StandardOutput.ReadToEnd()
+    $stderr = $p.StandardError.ReadToEnd()
+    $exit   = $p.ExitCode
+    $content = @"
+# COMMAND: $Exe $Args
+# STATUS : COMPLETED
+# EXIT   : $exit
+# DURATION: {0:n2} s
+
+# ---- STDOUT ----
+$stdout
+
+# ---- STDERR ----
+$stderr
+"@ -f $sw.Elapsed.TotalSeconds
+    $content | Out-File -FilePath $target -Encoding UTF8 -Force
+    Write-Log "OK in {0:n2}s -> {1}" -f $sw.Elapsed.TotalSeconds, $OutFile
+    return @{ ExitCode = $exit; TimedOut = $false; Duration = $sw.Elapsed.TotalSeconds; OutFile = $target }
   }
 }
 
-# ---------- Setup ----------
-$timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$root = Join-Path $env:USERPROFILE "Desktop\SleepDiagnostics_$($env:COMPUTERNAME)_$timestamp"
-New-Item -ItemType Directory -Path $root -Force | Out-Null
-
-$IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).
-  IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
-Save-Text 'admin.txt' ("IsAdministrator=$IsAdmin")
-
-Start-Transcript -Path (Join-Path $root 'console_transcript.txt') -Force | Out-Null
-
-# ---------- System & OS ----------
-$os   = Get-CimInstance Win32_OperatingSystem
-$cs   = Get-CimInstance Win32_ComputerSystem
-$bios = Get-CimInstance Win32_BIOS
-$cpu  = Get-CimInstance Win32_Processor
-$gpu  = Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion, DriverDate, PNPDeviceID
-
-$sys = [pscustomobject]@{
-  ComputerName     = $env:COMPUTERNAME
-  Manufacturer     = $cs.Manufacturer
-  Model            = $cs.Model
-  SystemType       = $cs.SystemType
-  PartOfDomain     = $cs.PartOfDomain
-  Domain           = $cs.Domain
-  BIOS_Version     = $bios.SMBIOSBIOSVersion
-  BIOS_ReleaseDate = $bios.ReleaseDate
-  OS_Caption       = $os.Caption
-  OS_Version       = $os.Version
-  OS_Build         = $os.BuildNumber
-  OS_InstallDate   = $os.InstallDate
-  TotalMemoryGB    = [Math]::Round($cs.TotalPhysicalMemory/1GB,2)
-  BatteryPresent   = [bool](Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue)
-  IsRdpSession     = ($env:SESSIONNAME -like 'RDP*')
-  IsVirtualMachine = ($cs.Model -match 'Virtual|VMware|Hyper-V|KVM|VirtualBox')
-}
-$sys | ConvertTo-Json -Depth 4 | Out-File -Encoding UTF8 (Join-Path $root 'system_info.json')
-$gpu | Format-Table -AutoSize | Out-String | Save-Text 'gpus.txt'
-
-# ---------- Quick environment signals ----------
-# Hyper-V/WSL presence + hypervisor launch mode
-try {
-  $hv  = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue
-  $wsl = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue
-  $bcd = (cmd /c 'bcdedit /enum {current}') 2>&1
-  $hvLaunch = if ($bcd -match '(?i)hypervisorlaunchtype\s+(\S+)') { $Matches[1] } else { 'NotPresent' }
-  Save-Text 'virtualization_status.txt' ("HyperVFeatureState=$($hv.State)`r`nWSLFeatureState=$($wsl.State)`r`nHypervisorLaunchType=$hvLaunch")
-} catch {
-  Save-Text 'virtualization_status.txt' "Error retrieving virtualization/WSL/BCD info: $($_.Exception.Message)"
+# ----------------------- Registry helper -----------------------
+function Get-RegValue {
+  param([string]$Path, [string]$Name)
+  try {
+    Write-Log "REG READ: Get-ItemProperty -Path '$Path' -Name '$Name'"
+    $val = Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop | Select-Object -ExpandProperty $Name
+    return [pscustomobject]@{ Path=$Path; Name=$Name; Value=$val; Error=$null }
+  } catch {
+    return [pscustomobject]@{ Path=$Path; Name=$Name; Value=$null; Error=$_.Exception.Message }
+  }
 }
 
-# Domain/AAD/MDM footprint (if available)
-Save-Command 'dsregcmd_status.txt' 'cmd.exe' '/c dsregcmd /status'
+# ----------------------- STEP 1: System & session basics -----------------------
+Write-Log "STEP 1: System & session basics"
+$os   = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+$cs   = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+$bios = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue
+$cpu  = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
+$gpu  = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Select-Object Name, DriverVersion, DriverDate, PNPDeviceID
 
-# Group Policy footprint (can include domain objects)
-Save-Command 'gpresult_user.txt'     'cmd.exe' '/c gpresult /scope user /v'
-Save-Command 'gpresult_computer.txt' 'cmd.exe' '/c gpresult /scope computer /v'
+# RDP detection
+$rdpSession = $env:SESSIONNAME -like 'RDP*'
 
-# ---------- powercfg core ----------
-Save-Command 'powercfg_a.txt'               'cmd.exe' '/c powercfg /a'
-Save-Command 'powercfg_requests.txt'        'cmd.exe' '/c powercfg -requests'
-Save-Command 'powercfg_wake_armed.txt'      'cmd.exe' '/c powercfg -devicequery wake_armed'
-Save-Command 'powercfg_wake_programmable.txt' 'cmd.exe' '/c powercfg -devicequery wake_programmable'
-Save-Command 'powercfg_sleep_subgroup.txt'  'cmd.exe' '/c powercfg -q scheme_current sub_sleep'
+# Battery presence
+$batt = Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue
 
-if ($IsAdmin -and $Deep) {
-  # Optional deeper diagnostics; these can take 60-120 seconds and may not be available on all systems
-  Save-Command 'powercfg_energy_report.html' 'cmd.exe' "/c powercfg /energy /duration 60 /output `"$($root)\energy_report.html`""
-  Save-Command 'powercfg_systemsleepdiagnostics.html' 'cmd.exe' "/c powercfg /systemsleepdiagnostics /output `"$($root)\systemsleepdiagnostics.html`""
+$sysInfo = [pscustomobject]@{
+  ComputerName  = $env:COMPUTERNAME
+  Manufacturer  = $cs.Manufacturer
+  Model         = $cs.Model
+  SystemType    = $cs.SystemType
+  DomainJoined  = $cs.PartOfDomain
+  Domain        = $cs.Domain
+  BIOS_Version  = $bios.SMBIOSBIOSVersion
+  BIOS_Release  = $bios.ReleaseDate
+  OS_Caption    = $os.Caption
+  OS_Version    = $os.Version
+  OS_Build      = $os.BuildNumber
+  CPU_Name      = $cpu.Name
+  RdpSession    = $rdpSession
+  BatteryPresent= [bool]$batt
 }
+Save-Json 'system_info.json' $sysInfo
+$sysInfo | Format-List | Out-String | Save-Text 'system_info.txt'
 
-# SleepStudy (works only on Modern Standby platforms)
-if ($IsAdmin) {
-  Save-Command 'powercfg_sleepstudy.html' 'cmd.exe' "/c powercfg /sleepstudy /output `"$($root)\sleepstudy.html`""
-}
+# ----------------------- STEP 2: UI & Policy toggles that hide Sleep -----------------------
+Write-Log "STEP 2: Policy/UI toggles that can hide Sleep (Start/Explorer/MDM)"
+$policyChecks = @(
+  # Explorer ADMX-backed policy: Show sleep in the power options menu
+  @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer'; Name='ShowSleepOption' }
 
-# ---------- Registry & Policy checks that affect Sleep visibility ----------
-$regQueries = @(
-  # Explorer flyout toggles
+  # Explorer FlyoutMenuSettings (user choice / some 3rd-party menus read this)
   @{ Path='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings'; Name='ShowSleepOption' }
   @{ Path='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings'; Name='ShowHibernateOption' }
+  @{ Path='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings'; Name='ShowLockOption' }
 
-  # Explorer policy overrides (GPO: File Explorer > Show Sleep/Hibernate in power menu)
-  @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer'; Name='ShowSleepOption' }
-  @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer'; Name='ShowHibernateOption' }
+  # MDM/Policy CSP Start: HideSleep (device policy)
+  @{ Path='HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Start'; Name='HideSleep' }
+  @{ Path='HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Start';          Name='HideSleep' }
 
-  # Remove/Hide power options policies
-  @{ Path='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'; Name='HidePowerOptions' } # Computer scope
-  @{ Path='HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'; Name='NoClose' }         # User scope
+  # Legacy "hide power" policies that nuke power menu
+  @{ Path='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'; Name='HidePowerOptions' } # if 1, hides power options
+  @{ Path='HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'; Name='HidePowerOptions' }
+  @{ Path='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'; Name='NoClose' } # also affects shutdown UI
+  @{ Path='HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'; Name='NoClose' }
+)
 
-  # MDM/Policy CSP "Start" items that can hide Sleep/Power
-  @{ Path='HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Start\HideSleep';        Name='value' }
-  @{ Path='HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Start\HideSleep'; Name='value' }
-  @{ Path='HKLM:\SOFTWARE\Microsoft\PolicyManager\current\Start\HideSleep';        Name='value' }        # some builds use this
-  @{ Path='HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Start\HidePowerButton';        Name='value' }
-  @{ Path='HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Start\HidePowerButton'; Name='value' }
+$policyResults = foreach ($q in $policyChecks) { Get-RegValue @q }
+Save-Json 'policy_ui_checks.json' $policyResults
+$policyResults | Sort-Object Path,Name | Format-Table -AutoSize | Out-String | Save-Text 'policy_ui_checks.txt'
 
-  # “Allow standby states (S1-S3) when sleeping” policy (AC/DC) - disabling this blocks legacy sleep
+# ----------------------- STEP 3: Power policy: AllowStandby & Hybrid sleep -----------------------
+Write-Log "STEP 3: Power policy (ALLOWSTANDBY S1–S3 & HybridSleep) via registry-backed policies"
+$powerPolicyChecks = @(
+  # AllowStandby S1-S3 policy (AC/DC) -> GUID abfc2519-3608-4c2a-94ea-171b0ed546ab
   @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\abfc2519-3608-4c2a-94ea-171b0ed546ab'; Name='ACSettingIndex' }
   @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\abfc2519-3608-4c2a-94ea-171b0ed546ab'; Name='DCSettingIndex' }
 
-  # Hybrid sleep policy toggles (AC/DC)
+  # Hybrid Sleep policy (AC/DC) -> GUID 94ac6d29-73ce-41a6-809f-6363ba21b47e
   @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\94ac6d29-73ce-41a6-809f-6363ba21b47e'; Name='ACSettingIndex' }
   @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\94ac6d29-73ce-41a6-809f-6363ba21b47e'; Name='DCSettingIndex' }
 
-  # Core power keys
+  # Core power flags
   @{ Path='HKLM:\SYSTEM\CurrentControlSet\Control\Power'; Name='HibernateEnabled' }
   @{ Path='HKLM:\SYSTEM\CurrentControlSet\Control\Power'; Name='HiberbootEnabled' }
-  @{ Path='HKLM:\SYSTEM\CurrentControlSet\Control\Power'; Name='CsEnabled' }            # legacy toggle (ignored on newer builds, but record)
-  @{ Path='HKLM:\SYSTEM\CurrentControlSet\Control\Power'; Name='PlatformAoAcOverride' } # Modern Standby override flag (presence/value matters)
+  # Modern Standby related flags (note: CsEnabled is ignored on newer builds but record for completeness)
+  @{ Path='HKLM:\SYSTEM\CurrentControlSet\Control\Power'; Name='CsEnabled' }
+  @{ Path='HKLM:\SYSTEM\CurrentControlSet\Control\Power'; Name='PlatformAoAcOverride' }
 )
+$powerPolicyResults = foreach ($q in $powerPolicyChecks) { Get-RegValue @q }
+Save-Json 'power_policy_registry.json' $powerPolicyResults
+$powerPolicyResults | Sort-Object Path,Name | Format-Table -AutoSize | Out-String | Save-Text 'power_policy_registry.txt'
 
-$regResults = foreach ($q in $regQueries) { Get-RegValue -Path $q.Path -Name $q.Name }
-$regResults | ConvertTo-Json -Depth 5 | Out-File -Encoding UTF8 (Join-Path $root 'registry_checks.json')
-$regResults | Sort-Object Path, Name | Format-Table -AutoSize | Out-String | Save-Text 'registry_checks.txt'
+# ----------------------- STEP 4: powercfg core queries -----------------------
+Write-Log "STEP 4: powercfg queries"
+Invoke-External -Exe 'cmd.exe' -Args '/c powercfg /a'                         -OutFile 'powercfg_a.txt'            | Out-Null
+Invoke-External -Exe 'cmd.exe' -Args '/c powercfg -requests'                  -OutFile 'powercfg_requests.txt'     | Out-Null
+Invoke-External -Exe 'cmd.exe' -Args '/c powercfg -devicequery wake_armed'    -OutFile 'powercfg_wake_armed.txt'   | Out-Null
+Invoke-External -Exe 'cmd.exe' -Args '/c powercfg -devicequery wake_programmable' -OutFile 'powercfg_wake_programmable.txt' | Out-Null
+Invoke-External -Exe 'cmd.exe' -Args '/c powercfg -q scheme_current sub_sleep' -OutFile 'powercfg_sub_sleep.txt'   | Out-Null
 
-# ---------- System logs (recent power-related) ----------
+if ($IsAdmin -and $Deep) {
+  # These are slow by design; shorten duration a bit for speed
+  Invoke-External -Exe 'cmd.exe' -Args "/c powercfg /energy /duration 45 /output `"$($root)\energy_report.html`"" `
+    -OutFile 'powercfg_energy_command_output.txt' | Out-Null
+  Invoke-External -Exe 'cmd.exe' -Args "/c powercfg /systemsleepdiagnostics /output `"$($root)\systemsleepdiagnostics.html`"" `
+    -OutFile 'powercfg_systemsleepdiag_command_output.txt' | Out-Null
+}
+
+# ----------------------- STEP 5: Virtualization / Hyper-V / Device Guard hints -----------------------
+Write-Log "STEP 5: Virtualization/Hyper-V/Device Guard footprint"
+# Hyper-V launch mode (bcdedit), often influences S3 on some platforms
+Invoke-External -Exe 'cmd.exe' -Args '/c bcdedit /enum {current}' -OutFile 'bcdedit_current.txt' | Out-Null
+
+# Optional features can be slow; keep a timeout
+try {
+  Write-Log "RUN: Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All (timeout $TimeoutSec s)"
+  $sw = New-Stopwatch
+  $hv = $null
+  $job = Start-Job -ScriptBlock { Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue }
+  if (Wait-Job $job -Timeout $TimeoutSec) {
+    $hv = Receive-Job $job
+  } else {
+    Stop-Job $job -Force | Out-Null
+    Write-Log "Get-WindowsOptionalFeature timed out" "WARN"
+  }
+  $wsl = $null
+  $job2 = Start-Job -ScriptBlock { Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue }
+  if (Wait-Job $job2 -Timeout $TimeoutSec) {
+    $wsl = Receive-Job $job2
+  } else {
+    Stop-Job $job2 -Force | Out-Null
+    Write-Log "Get-WindowsOptionalFeature (WSL) timed out" "WARN"
+  }
+  $virt = [pscustomobject]@{
+    HyperVFeature = if ($hv) { $hv.State } else { 'Unknown/Timeout' }
+    WSLFeature    = if ($wsl){ $wsl.State } else { 'Unknown/Timeout' }
+  }
+  Save-Json 'virtualization_optional_features.json' $virt
+} catch {
+  Save-Text 'virtualization_optional_features.txt' "Error: $($_.Exception.Message)"
+}
+
+# Device Guard / VBS (can affect sleep states on some systems)
+try {
+  Write-Log "RUN: Get-CimInstance -Namespace root\Microsoft\Windows\DeviceGuard -ClassName Win32_DeviceGuard"
+  $dg = Get-CimInstance -Namespace root\Microsoft\Windows\DeviceGuard -ClassName Win32_DeviceGuard -ErrorAction SilentlyContinue
+  if ($dg) { Save-Json 'deviceguard.json' $dg } else { Save-Text 'deviceguard.txt' 'DeviceGuard info not available' }
+} catch {
+  Save-Text 'deviceguard.txt' "Error: $($_.Exception.Message)"
+}
+
+# ----------------------- STEP 6: AAD/Domain/GPO footprint (timeout-safe) -----------------------
+Write-Log "STEP 6: AAD/Domain/GPO footprint (with timeouts)"
+Invoke-External -Exe 'cmd.exe' -Args '/c dsregcmd /status'                 -OutFile 'dsregcmd_status.txt'       | Out-Null
+Invoke-External -Exe 'cmd.exe' -Args '/c gpresult /scope user /r'          -OutFile 'gpresult_user_r.txt'       | Out-Null
+Invoke-External -Exe 'cmd.exe' -Args '/c gpresult /scope computer /r'      -OutFile 'gpresult_computer_r.txt'   | Out-Null
+# Deep verbose GP is slow; only if requested
+if ($Deep) {
+  Invoke-External -Exe 'cmd.exe' -Args '/c gpresult /scope user /v'        -OutFile 'gpresult_user_v.txt'       | Out-Null
+  Invoke-External -Exe 'cmd.exe' -Args '/c gpresult /scope computer /v'    -OutFile 'gpresult_computer_v.txt'   | Out-Null
+}
+
+# ----------------------- STEP 7: Drivers/Display & third‑party start menus -----------------------
+Write-Log "STEP 7: GPU driver + common Start menu replacements"
+$display = Get-PnpDevice -Class Display -Status OK -ErrorAction SilentlyContinue |
+           Select-Object FriendlyName, Manufacturer, DriverProviderName, DriverVersion, DriverDate
+$display | Format-Table -AutoSize | Out-String | Save-Text 'display_adapters.txt'
+Save-Json 'display_adapters.json' $display
+
+# Third‑party Start menu products that may control power flyout
+$uninstRoots = @(
+  'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+  'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+)
+$startVendors = 'Stardock','Open-Shell','Classic Shell','StartIsBack','StartAllBack','Start11','Start10'
+$apps = foreach ($path in $uninstRoots) {
+  Get-ItemProperty -Path $path -ErrorAction SilentlyContinue |
+    Where-Object { $_.DisplayName -and ($startVendors | ForEach-Object { $_ }) -contains ($_.Publisher) -or ($startVendors | Where-Object { $_ -and $_ -as [string] } | ForEach-Object { $_ }) -contains $_.DisplayName } |
+    Select-Object DisplayName, DisplayVersion, Publisher, InstallLocation
+}
+if ($apps) {
+  Save-Json 'startmenu_thirdparty.json' $apps
+  $apps | Format-Table -AutoSize | Out-String | Save-Text 'startmenu_thirdparty.txt'
+} else {
+  Save-Text 'startmenu_thirdparty.txt' 'No common Start menu replacements detected (vendor heuristic).'
+}
+
+# ----------------------- STEP 8: Recent power-related events (bounded) -----------------------
+Write-Log "STEP 8: Recent Kernel-Power/Troubleshooter events (bounded)"
 try {
   $start = (Get-Date).AddDays(-7)
   $ev = Get-WinEvent -FilterHashtable @{
     LogName='System'
     ProviderName=@('Microsoft-Windows-Kernel-Power','Microsoft-Windows-Power-Troubleshooter')
     StartTime=$start
-  } -ErrorAction SilentlyContinue | Select-Object TimeCreated, ProviderName, Id, LevelDisplayName, Message
-  $ev | Format-Table -AutoSize | Out-String | Save-Text 'recent_power_events.txt'
+  } -ErrorAction SilentlyContinue -MaxEvents $MaxEvents |
+  Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message
+  if ($ev) {
+    $ev | Format-Table -AutoSize | Out-String | Save-Text 'recent_power_events.txt'
+  } else {
+    Save-Text 'recent_power_events.txt' "No matching events in last 7 days (MaxEvents=$MaxEvents)."
+  }
 } catch {
   Save-Text 'recent_power_events.txt' "Error reading events: $($_.Exception.Message)"
 }
 
-# ---------- Parse a short human summary ----------
-function Parse-PowerCfgA {
-  param([string[]]$Lines)
-  $summary = [ordered]@{
-    Available   = @()
-    NotAvailable= @()
-    Raw         = ($Lines -join "`n")
+# ----------------------- STEP 9: Parse powercfg /a for summary hints -----------------------
+Write-Log "STEP 9: Parse powercfg /a for availability & blockers"
+$pcA = Get-Content (Join-Path $root 'powercfg_a.txt') -ErrorAction SilentlyContinue
+$available = @()
+$blocked   = @()
+if ($pcA) {
+  $mode = ''
+  foreach ($line in $pcA) {
+    if ($line -match 'The following sleep states are available on this system:') { $mode='avail'; continue }
+    if ($line -match 'The following sleep states are not available on this system:') { $mode='na'; continue }
+    if ($mode -eq 'avail' -and $line.Trim()) { $available += $line.Trim() }
+    if ($mode -eq 'na' -and $line.Trim())   { $blocked   += $line.Trim() }
   }
-  $section = ''
-  foreach ($line in $Lines) {
-    if ($line -match 'The following sleep states are available') { $section = 'avail'; continue }
-    if ($line -match 'The following sleep states are not available') { $section = 'notavail'; continue }
-    if ($line.Trim().Length -eq 0) { continue }
-    if ($section -eq 'avail')    { if ($line -match '^\s*(.+?)\s+($|:)') { $summary.Available += $Matches[1].Trim() } }
-    if ($section -eq 'notavail') {
-      if ($line -match '^\s*(.+?)\s+($|:)') {
-        $state = $Matches[1].Trim()
-        # capture following indented reasons
-        $reasons = @()
-        continue
-      }
-    }
+}
+
+# ----------------------- STEP 10: Build human summary -----------------------
+Write-Log "STEP 10: Build SUMMARY files"
+$policyMap = @{}
+foreach ($r in $policyResults) { $policyMap["$($r.Path)|$($r.Name)"] = $r.Value }
+
+$powerMap = @{}
+foreach ($r in $powerPolicyResults) { $powerMap["$($r.Path)|$($r.Name)"] = $r.Value }
+
+$summary = [pscustomobject]@{
+  Computer            = $sysInfo.ComputerName
+  OS                  = "$($sysInfo.OS_Caption) ($($sysInfo.OS_Build))"
+  Model               = "$($sysInfo.Manufacturer) $($sysInfo.Model)"
+  RdpSession          = $sysInfo.RdpSession
+  BatteryPresent      = $sysInfo.BatteryPresent
+  Policies = [pscustomobject]@{
+    Explorer_ShowSleepOption_HKLM = $policyMap['HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer|ShowSleepOption']
+    Explorer_Flyout_ShowSleep     = $policyMap['HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings|ShowSleepOption']
+    StartCSP_HideSleep_current    = $policyMap['HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Start|HideSleep']
+    StartCSP_HideSleep_default    = $policyMap['HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Start|HideSleep']
+    HidePowerOptions_All          = @(
+      $policyMap['HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer|HidePowerOptions'],
+      $policyMap['HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer|HidePowerOptions'],
+      $policyMap['HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer|NoClose'],
+      $policyMap['HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer|NoClose']
+    ) -join ';'
   }
-  return $summary
+  PowerPolicy = [pscustomobject]@{
+    AllowStandby_AC = $powerMap['HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\abfc2519-3608-4c2a-94ea-171b0ed546ab|ACSettingIndex']
+    AllowStandby_DC = $powerMap['HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\abfc2519-3608-4c2a-94ea-171b0ed546ab|DCSettingIndex']
+    HybridSleep_AC  = $powerMap['HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\94ac6d29-73ce-41a6-809f-6363ba21b47e|ACSettingIndex']
+    HybridSleep_DC  = $powerMap['HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\94ac6d29-73ce-41a6-809f-6363ba21b47e|DCSettingIndex']
+    HibernateEnabled= $powerMap['HKLM:\SYSTEM\CurrentControlSet\Control\Power|HibernateEnabled']
+    HiberbootEnabled= $powerMap['HKLM:\SYSTEM\CurrentControlSet\Control\Power|HiberbootEnabled']
+    CsEnabled       = $powerMap['HKLM:\SYSTEM\CurrentControlSet\Control\Power|CsEnabled']
+    PlatformAoAcOverride = $powerMap['HKLM:\SYSTEM\CurrentControlSet\Control\Power|PlatformAoAcOverride']
+  }
+  PowerCfgAvailable = $available
+  PowerCfgBlocked   = $blocked
 }
+Save-Json 'SUMMARY.json' $summary
 
-try {
-  $powa = (cmd /c 'powercfg /a') 2>&1
-  $pSummary = Parse-PowerCfgA -Lines $powa
-} catch {
-  $pSummary = @{ Available=@(); NotAvailable=@(); Raw="(error running powercfg /a)" }
-}
-
-# High-level booleans from registry/policy
-function AsBool($v) { if ($null -eq $v) { $null } else { [int]$v -ne 0 } }
-$map = $regResults | Group-Object Path,Name -AsHashTable -AsString
-$summary = [ordered]@{
-  Machine              = $sys.ComputerName
-  OS_Build             = $sys.OS_Build
-  IsRdpSession         = $sys.IsRdpSession
-  DomainJoined         = $sys.PartOfDomain
-  BatteryPresent       = $sys.BatteryPresent
-  SleepMenuHidden_PolicyCSP  = (AsBool ($map['HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Start\HideSleep, value'].Value))
-  SleepMenuHidden_ExplorerGP = (AsBool ($map['HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer, ShowSleepOption'].Value) -eq $false)
-  HidePowerOptions_All        = (AsBool ($map['HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer, HidePowerOptions'].Value)) -or
-                                (AsBool ($map['HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer, NoClose'].Value))
-  PlatformAoAcOverride  = $map['HKLM:\SYSTEM\CurrentControlSet\Control\Power, PlatformAoAcOverride'].Value
-  CsEnabled             = $map['HKLM:\SYSTEM\CurrentControlSet\Control\Power, CsEnabled'].Value
-  HibernateEnabled      = $map['HKLM:\SYSTEM\CurrentControlSet\Control\Power, HibernateEnabled'].Value
-  AllowStandby_AC_Policy = $map['HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\abfc2519-3608-4c2a-94ea-171b0ed546ab, ACSettingIndex'].Value
-  AllowStandby_DC_Policy = $map['HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\abfc2519-3608-4c2a-94ea-171b0ed546ab, DCSettingIndex'].Value
-  PowerCfg_Available    = $pSummary.Available
-}
-$summary | ConvertTo-Json -Depth 5 | Out-File -Encoding UTF8 (Join-Path $root 'SUMMARY.json')
-
-# A small human-readable summary
+# Human-readable guidance
 $lines = @()
-$lines += "Sleep Diagnostics Summary for $($sys.ComputerName)  ($([DateTime]::Now))"
-$lines += "OS: $($sys.OS_Caption) build $($sys.OS_Build)   Model: $($sys.Manufacturer) $($sys.Model)"
-$lines += "DomainJoined: $($sys.PartOfDomain)   RDP: $($sys.IsRdpSession)   BatteryPresent: $($sys.BatteryPresent)"
+$lines += "Sleep Diagnostics Summary for $($summary.Computer)  ($([DateTime]::Now))"
+$lines += "OS: $($summary.OS)   Model: $($summary.Model)"
+$lines += "RDP Session: $($summary.RdpSession)   BatteryPresent: $($summary.BatteryPresent)"
 $lines += ""
-$lines += "Policy/Registry flags that can HIDE Sleep:"
-$lines += "  Policy CSP Start/HideSleep (device): $($summary.SleepMenuHidden_PolicyCSP)"
-$lines += "  Explorer policy ShowSleepOption (HKLM\\...\\Policies\\...\\Explorer): $($map['HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer, ShowSleepOption'].Value)"
-$lines += "  System/User HidePowerOptions/NoClose: $($summary.HidePowerOptions_All)"
+$lines += "Possible Hiding Toggles (policy/UI):"
+$lines += "  Explorer policy ShowSleepOption (HKLM\\...\\Policies\\Microsoft\\Windows\\Explorer) = $($summary.Policies.Explorer_ShowSleepOption_HKLM)"
+$lines += "  Explorer FlyoutMenuSettings ShowSleepOption (HKLM\\...\\Explorer\\FlyoutMenuSettings) = $($summary.Policies.Explorer_Flyout_ShowSleep)"
+$lines += "  Start CSP HideSleep (device) current/default = $($summary.Policies.StartCSP_HideSleep_current) / $($summary.Policies.StartCSP_HideSleep_default)"
+$lines += "  HidePowerOptions/NoClose (system/user) = $($summary.Policies.HidePowerOptions_All)"
 $lines += ""
-$lines += "Allow standby (S1-S3) policy (disabling blocks legacy sleep):"
-$lines += "  ACSettingIndex=$($summary.AllowStandby_AC_Policy)   DCSettingIndex=$($summary.AllowStandby_DC_Policy)"
+$lines += "AllowStandby (S1–S3) policy indices (1=Enabled, 0=Disabled)  [GUID abfc2519-3608-4c2a-94ea-171b0ed546ab]:"
+$lines += "  AC=$($summary.PowerPolicy.AllowStandby_AC)   DC=$($summary.PowerPolicy.AllowStandby_DC)"
+$lines += "HybridSleep policy indices (1=On, 0=Off) [GUID 94ac6d29-73ce-41a6-809f-6363ba21b47e]:"
+$lines += "  AC=$($summary.PowerPolicy.HybridSleep_AC)   DC=$($summary.PowerPolicy.HybridSleep_DC)"
 $lines += ""
-$lines += "Modern Standby (S0) toggles:"
-$lines += "  PlatformAoAcOverride=$($summary.PlatformAoAcOverride)   CsEnabled=$($summary.CsEnabled)"
-$lines += "  HibernateEnabled=$($summary.HibernateEnabled)"
+$lines += "Modern Standby toggles (note: CsEnabled ignored on newer builds):"
+$lines += "  PlatformAoAcOverride=$($summary.PowerPolicy.PlatformAoAcOverride)   CsEnabled=$($summary.PowerPolicy.CsEnabled)"
+$lines += "  HibernateEnabled=$($summary.PowerPolicy.HibernateEnabled)  HiberbootEnabled=$($summary.PowerPolicy.HiberbootEnabled)"
 $lines += ""
-$lines += "powercfg /a - Available states:"
-$lines += ("  " + ($summary.PowerCfg_Available -join ', '))
+$lines += "powercfg /a — Available states:"
+$lines += ("  " + (($summary.PowerCfgAvailable) -join ', '))
 $lines += ""
-$lines += "See raw files in this folder for details."
-Save-Text 'SUMMARY.txt' ($lines -join "`r`n")
+$lines += "powercfg /a — Not available (with reasons):"
+$lines += ("  " + (($summary.PowerCfgBlocked) -join ' | '))
+$lines += ""
+$lines += "See raw files for details in: $root"
+$lines -join "`r`n" | Out-File -FilePath (Join-Path $root 'SUMMARY.md') -Encoding UTF8 -Force
 
-# ---------- Systeminfo (includes Hyper-V hints) ----------
-Save-Command 'systeminfo.txt' 'cmd.exe' '/c systeminfo'
+# ----------------------- STEP 11: systeminfo (quick) -----------------------
+Write-Log "STEP 11: systeminfo"
+Invoke-External -Exe 'cmd.exe' -Args '/c systeminfo' -OutFile 'systeminfo.txt' | Out-Null
 
-# ---------- Wrap up ----------
+# ----------------------- Wrap up -----------------------
 Stop-Transcript | Out-Null
-$zip = Join-Path $env:USERPROFILE "Desktop\SleepDiagnostics_$($env:COMPUTERNAME)_$timestamp.zip"
-Compress-Archive -Path "$root\*" -DestinationPath $zip -Force
-Write-Host "`nDone. Folder:`n$root`nZIP:`n$zip"
+if (-not $NoZip) {
+  $zip = Join-Path $desktop ("{0}.zip" -f (Split-Path $root -Leaf))
+  Write-Log "Creating ZIP: $zip"
+  try {
+    Compress-Archive -Path "$root\*" -DestinationPath $zip -Force
+    Write-Log "ZIP created: $zip"
+  } catch {
+    Write-Log "ZIP failed: $($_.Exception.Message)" "WARN"
+  }
+}
+
+Write-Host "`nDONE."
+Write-Host "Folder: $root"
+if (-not $NoZip) { Write-Host "ZIP   : $(Join-Path $desktop ((Split-Path $root -Leaf) + '.zip'))" }
