@@ -120,7 +120,7 @@ RUN set -eux; \
     chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
     echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list; \
     apt-get update; \
-    if apt-cache show kubectl >/dev/null 2>&1; then apt-get install -y kubectl; else echo "kubectl not available for this arch; skipping"; fi; \
+    arch_deb="$(dpkg --print-architecture)"; if [ "$arch_deb" = "armhf" ]; then curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/v1.34.1/bin/linux/arm/kubectl"; chmod +x /usr/local/bin/kubectl; elif apt-cache show "kubectl:${arch_deb}" >/dev/null 2>&1; then apt-get install -y "kubectl:${arch_deb}"; else echo "kubectl not available for ${arch_deb}; skipping"; fi; \
     rm -rf /var/lib/apt/lists/*
 
 # # ---- Helm apt repo (Buildkite-hosted helm-linux repo) ----
@@ -150,19 +150,21 @@ ENV PATH="${CONDA_DIR}/bin:${PATH}"
 # armhf/armv7 -> use Miniforge (conda-forge) since Miniconda not published
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64)  CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh";; \
-      arm64)  CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh";; \
+      amd64)  CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh";; \
+      arm64)  CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh";; \
       arm)    CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-armv7l.sh";; \
       *)      echo "Unknown TARGETARCH=$TARGETARCH"; exit 1;; \
     esac; \
     curl -fsSL "$CONDA_URL" -o /tmp/conda.sh; \
     bash /tmp/conda.sh -b -p "$CONDA_DIR"; \
     rm -f /tmp/conda.sh; \
-    # Miniforge already uses conda-forge. Keep strict priority.
-    "${CONDA_DIR}/bin/conda" config --system --set channel_priority strict; \
-    "${CONDA_DIR}/bin/conda" update -y -n base conda; \
-    "${CONDA_DIR}/bin/conda" install -y -n base pip python=3.12; \
-    "${CONDA_DIR}/bin/conda" clean -afy
+    "$CONDA_DIR/bin/conda" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main; \
+    "$CONDA_DIR/bin/conda" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r; \
+    "$CONDA_DIR/bin/conda" config --system --set channel_priority strict; \
+    "$CONDA_DIR/bin/conda" config --system --add channels conda-forge; \
+    "$CONDA_DIR/bin/conda" update -y -n base -c conda-forge conda; \
+    "$CONDA_DIR/bin/conda" install -y -n base pip python=3.12; \
+    "$CONDA_DIR/bin/conda" clean -afy
 
 # ---- Python stack in base env (CPU‑only). We try conda-forge first; skip if unavailable on arch. ----
 # Packages requested (deduped): rich pandas scikit-learn matplotlib jupyter tensorflow tensorboard keras pytorch transformers datasets wandb
@@ -190,25 +192,20 @@ RUN set -eux; \
 
 # ---- Dotfiles for interactive use ----
 # We take the referenced files and place them for root (and /etc/skel for future users).
-# Install dotfiles
-ARG PCPREP_REF=master
-ARG PCPREP_BASE="https://raw.githubusercontent.com/sytelus/pcprep/${PCPREP_REF}/ubuntu"
-
 RUN set -eux; \
     mkdir -p /etc/skel; \
-    curl -fsSLo /root/.bashrc       "${PCPREP_BASE}/.bashrc"; \
-    curl -fsSLo /root/.inputrc      "${PCPREP_BASE}/.inputrc"; \
-    curl -fsSLo /root/.bash_aliases "${PCPREP_BASE}/.bash_aliases"; \
-    curl -fsSLo /root/.tmux.conf    "${PCPREP_BASE}/.tmux.conf"; \
+    curl -fsSLo /root/.bashrc https://raw.githubusercontent.com/sytelus/pcprep/master/ubuntu/.bashrc; \
+    curl -fsSLo /root/.inputrc https://raw.githubusercontent.com/sytelus/pcprep/master/ubuntu/.inputrc; \
+    curl -fsSLo /root/.bash_aliases https://raw.githubusercontent.com/sytelus/pcprep/master/ubuntu/.bash_aliases; \
+    curl -fsSLo /root/.tmux.conf https://raw.githubusercontent.com/sytelus/pcprep/master/ubuntu/.tmux.conf; \
     cp -a /root/.bashrc /root/.inputrc /root/.bash_aliases /root/.tmux.conf /etc/skel/; \
-    { \
-      echo ''; \
-      echo '# --- CPU devbox bootstrap ---'; \
-      echo 'if [ -n "$PS1" ]; then'; \
-      echo '  if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then . "/opt/conda/etc/profile.d/conda.sh"; conda activate base; fi'; \
-      echo '  if [ -z "${DEVBOX_WELCOMED:-}" ]; then export DEVBOX_WELCOMED=1; /usr/local/bin/devbox-greeting || true; fi'; \
-      echo 'fi'; \
-    } >> /etc/bash.bashrc
+    # Ensure conda auto-activation for interactive shells + greeting (only once per session)
+    echo '' >> /etc/bash.bashrc; \
+    echo '# --- CPU devbox bootstrap ---' >> /etc/bash.bashrc; \
+    echo 'if [ -n "$PS1" ]; then' >> /etc/bash.bashrc; \
+    echo '  if [ -f "'"$CONDA_DIR"'/etc/profile.d/conda.sh" ]; then . "'"$CONDA_DIR"'/etc/profile.d/conda.sh"; conda activate base; fi' >> /etc/bash.bashrc; \
+    echo '  if [ -z "${DEVBOX_WELCOMED:-}" ]; then export DEVBOX_WELCOMED=1; /usr/local/bin/devbox-greeting || true; fi' >> /etc/bash.bashrc; \
+    echo 'fi' >> /etc/bash.bashrc
 
 # ---- Git config: LF line endings preference ----
 RUN set -eux; \
