@@ -147,12 +147,12 @@ ENV CONDA_DIR=/opt/conda \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PATH="${CONDA_DIR}/bin:${PATH}"
 
+# armhf/armv7 -> use Miniforge (conda-forge) since Miniconda not published
 RUN set -eux; \
     case "$TARGETARCH" in \
       amd64)  CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh";; \
       arm64)  CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh";; \
-      arm)    # armhf/armv7 -> use Miniforge (conda-forge) since Miniconda not published
-              CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-armv7l.sh";; \
+      arm)    CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-armv7l.sh";; \
       *)      echo "Unknown TARGETARCH=$TARGETARCH"; exit 1;; \
     esac; \
     curl -fsSL "$CONDA_URL" -o /tmp/conda.sh; \
@@ -230,7 +230,7 @@ command -v kubectl >/dev/null 2>&1 && kubectl version --client --short 2>/dev/nu
 command -v helm >/dev/null 2>&1 && helm version --short 2>/dev/null || true
 python -V 2>/dev/null || true
 EOF
-    chmod +x /usr/local/bin/devbox-greeting
+RUN chmod +x /usr/local/bin/devbox-greeting
 
 # Default to login shell so /etc/bash.bashrc runs (activates conda + greeting)
 CMD ["/bin/bash", "-l"]

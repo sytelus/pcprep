@@ -17,6 +17,7 @@ echo "   Platforms: ${PLATFORMS}"
 echo "   Builder:   ${BUILDER}"
 
 docker buildx build \
+  --file Dockerfile_cpu-devbox \
   --builder "${BUILDER}" \
   --platform "${PLATFORMS}" \
   --progress=plain \
