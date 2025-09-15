@@ -150,10 +150,10 @@ ENV PATH="${CONDA_DIR}/bin:${PATH}"
 # armhf/armv7 -> use Miniforge (conda-forge) since Miniconda not published
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64)  CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh";; \
-      arm64)  CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh";; \
-      arm)    CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-armv7l.sh";; \
-      *)      echo "Unknown TARGETARCH=$TARGETARCH"; exit 1;; \
+      amd64) CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh";; \
+      arm64) CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh";; \
+      arm)   CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-armv7l.sh";;  \
+      *)     echo "Unknown TARGETARCH=$TARGETARCH"; exit 1;; \
     esac; \
     curl -fsSL "$CONDA_URL" -o /tmp/conda.sh; \
     bash /tmp/conda.sh -b -p "$CONDA_DIR"; \
@@ -163,7 +163,12 @@ RUN set -eux; \
     "$CONDA_DIR/bin/conda" config --system --set channel_priority strict; \
     "$CONDA_DIR/bin/conda" config --system --add channels conda-forge; \
     "$CONDA_DIR/bin/conda" update -y -n base -c conda-forge conda; \
-    "$CONDA_DIR/bin/conda" install -y -n base pip python=3.12; \
+    arch_deb="$(dpkg --print-architecture)"; \
+    if [ "$arch_deb" = "armhf" ]; then \
+      "$CONDA_DIR/bin/conda" install -y -n base pip; \
+    else \
+      "$CONDA_DIR/bin/conda" install -y -n base pip python=3.12; \
+    fi; \
     "$CONDA_DIR/bin/conda" clean -afy
 
 # ---- Python stack in base env (CPU‑only). We try conda-forge first; skip if unavailable on arch. ----
