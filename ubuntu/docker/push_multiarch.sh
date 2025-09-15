@@ -13,8 +13,8 @@ PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64,linux/arm/v7}"
 BUILD_CONTEXT="${BUILD_CONTEXT:-.}"
 BUILDER="${BUILDER:-cpu-devbox-builder}"
 
-echo ">> Logging into Docker Hub as sytelus"
-docker login -u sytelus
+echo ">> Logging into Docker Hub"
+docker login
 
 echo ">> Building & pushing ${IMAGE}:${TAG} and ${IMAGE}:latest"
 docker buildx build \
@@ -28,4 +28,5 @@ docker buildx build \
 
 echo ">> Multi-arch image pushed: ${IMAGE}:${TAG} and ${IMAGE}:latest"
 echo ">> To verify:
+
 ./verify.sh ${IMAGE}:${TAG}"

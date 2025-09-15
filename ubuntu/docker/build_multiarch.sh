@@ -27,6 +27,10 @@ docker buildx build \
   -t "${IMAGE}:${TAG}" \
   "${BUILD_CONTEXT}"
 
-echo "Multi-arch build completed (artifacts cached via buildx)."
-echo "To push:
+echo "Multi-arch build completed (artifacts cached via buildx).
+
+To Run:
+docker run --rm -it ${IMAGE}:${TAG}
+
+To push:
 ./push_multiarch.sh IMAGE=${IMAGE} TAG=${TAG} PLATFORMS=${PLATFORMS} BUILDER=${BUILDER}"
