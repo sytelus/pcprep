@@ -1,6 +1,6 @@
 # CPU Devbox (Ubuntu 24.04, multi-arch)
 
-A terminal-first development box for **amd64**, **arm64**, and **arm/v7 (armhf)** with Azure CLI + AzCopy, Git + Git LFS + GitHub CLI, kubectl/Helm, zsh, micro, rusage, Miniconda (base auto-activated), and a broad toolbox.
+A terminal-first development box for **amd64** and **arm64** with Azure CLI + AzCopy, Git + Git LFS + GitHub CLI, kubectl/Helm, zsh, micro, rusage, Miniconda (base auto-activated), and a broad toolbox.
 
 - **Greeting on start:** prints `Welcome to CPU devbox!` plus CPU, RAM, kernel, and key tool versions.
 - **Conda base** is auto-activated in interactive shells.
@@ -45,14 +45,13 @@ IMAGE=cpu-devbox TAG=local build-local.sh
 ## Platforms & architecture notes
 
 * The scripts default to:
-  `PLATFORMS=linux/amd64,linux/arm64,linux/arm/v7`
-  *`linux/arm/v7` corresponds to **armhf** (ARM 32‑bit hard-float).*
+  `PLATFORMS=linux/amd64,linux/arm64`
 * Ubuntu 24.04 is multi-arch. Some third-party tools (e.g., AzCopy) are only published for certain arches. The Dockerfile **skips** unavailable items per-arch instead of failing the build, and logs what was skipped.
 
 If you need to change platforms:
 
 ```bash
-PLATFORMS=linux/amd64,linux/arm64 \
+PLATFORMS=linux/amd64 \
 IMAGE=docker.io/<user>/cpu-devbox \
 TAG=2025.09.13 \
 ./build-multiarch.sh
@@ -76,5 +75,5 @@ You can inspect these with `docker buildx imagetools inspect <image:tag>` and co
 
 - **`no match for platform`**: Ensure the builder supports your requested platforms. Run `./setup-builder.sh` again.
 - **Very slow emulated builds**: That’s expected under QEMU; prefer native runners (e.g., arm64 VM) or let CI produce that arch.
-- **Azure CLI / AzCopy on arm/v7**: Not published by Microsoft for armhf; the Dockerfile will log a skip for that arch.
-- **Conda heavy packages (TF/PT) on arm/v7**: Skipped if not available; the rest of Python stack still installs.
+- **Azure CLI / AzCopy availability**: Microsoft currently publishes packages for amd64 and arm64. The Dockerfile logs a skip if a tool is missing for the active architecture.
+- **Conda heavy packages (TF/PT)**: These install via conda-forge on amd64/arm64 when available; otherwise the build logs a skip.

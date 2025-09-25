@@ -9,7 +9,7 @@ set -euo pipefail
 
 IMAGE="${IMAGE:-sytelus/cpu-devbox}"
 TAG="${TAG:-$(date +%Y.%m.%d)}"
-PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64,linux/arm/v7}"
+PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 BUILD_CONTEXT="${BUILD_CONTEXT:-.}"
 BUILDER="${BUILDER:-cpu-devbox-builder}"
 
