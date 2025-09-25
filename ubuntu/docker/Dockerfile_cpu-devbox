@@ -153,13 +153,13 @@ RUN set -eux; \
     rm -f /tmp/conda.sh; \
     rm -rf "$CONDA_DIR/etc/conda"; \
     mkdir -p "$CONDA_DIR/etc/conda"; \
-    cat <<'EOF' > "$CONDA_DIR/etc/conda/condarc"; \
-channel_priority: strict
-channels:
-  - conda-forge
-default_channels:
-  - https://conda.anaconda.org/conda-forge
-EOF
+    printf '%s\n' \
+      'channel_priority: strict' \
+      'channels:' \
+      '  - conda-forge' \
+      'default_channels:' \
+      '  - https://conda.anaconda.org/conda-forge' \
+      > "$CONDA_DIR/etc/conda/condarc"; \
     "$CONDA_DIR/bin/conda" update -y -n base --override-channels -c conda-forge conda; \
     "$CONDA_DIR/bin/conda" install -y -n base --override-channels -c conda-forge pip python=3.12; \
     "$CONDA_DIR/bin/conda" clean -afy
