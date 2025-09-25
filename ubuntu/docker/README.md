@@ -32,7 +32,6 @@ For multi-arch build:
 bash build_multiarch.sh
 
 # see instructions after build for running and pushing image
-# typically: docker run --rm -it <image:tag>
 ```
 
 Build the image for **your current machine’s architecture** and load it into the classic Docker image store:
@@ -47,7 +46,7 @@ IMAGE=cpu-devbox TAG=local build-local.sh
 * The scripts default to:
   `PLATFORMS=linux/amd64,linux/arm64`
 * Ubuntu 24.04 is multi-arch. Some third-party tools (e.g., AzCopy) are only published for certain arches. The Dockerfile **skips** unavailable items per-arch instead of failing the build, and logs what was skipped.
-* `build_multiarch.sh` keeps its cache under `.buildx-cache` (override with `CACHE_DIR`).
+* `build_multiarch.sh` keeps its cache under `.buildx-cache` (override with `CACHE_DIR`). Docker may warn that no output was specified—this is expected because the build is cached for a later `./push_multiarch.sh`.
 
 If you need to change platforms:
 

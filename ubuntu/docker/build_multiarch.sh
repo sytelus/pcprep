@@ -47,8 +47,13 @@ build_cmd+=("${BUILD_CONTEXT}")
 
 echo "Multi-arch build completed (artifacts cached via buildx).
 
-To Run:
-docker run --rm -it ${IMAGE}:${TAG}
+NOTE: Docker Buildx may print 'No output specified...' when using the container driver without
+      --push/--load. That's expected here—the image is stored in the local build cache so that
+      push_multiarch.sh can publish it without rebuilding.
 
 To push:
-./push_multiarch.sh IMAGE=${IMAGE} TAG=${TAG} PLATFORMS=${PLATFORMS} BUILDER=${BUILDER}"
+./push_multiarch.sh IMAGE=${IMAGE} TAG=${TAG} PLATFORMS=${PLATFORMS} BUILDER=${BUILDER}
+
+To test locally on one architecture:
+IMAGE=${IMAGE} TAG=${TAG} ./build_local.sh && ./run.sh
+"
