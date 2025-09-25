@@ -85,17 +85,18 @@ function Invoke-External {
     try { $p.Kill() } catch {}
     $stdout = $p.StandardOutput.ReadToEnd()
     $stderr = $p.StandardError.ReadToEnd()
+    $durationText = "{0:n2}" -f $sw.Elapsed.TotalSeconds
     $content = @"
 # COMMAND: $Exe $Args
 # STATUS : TIMED OUT after $Timeout s
-# DURATION: {0:n2} s
+# DURATION: $durationText s
 
 # ---- STDOUT ----
 $stdout
 
 # ---- STDERR ----
 $stderr
-"@ -f $sw.Elapsed.TotalSeconds
+"@
     $content | Out-File -FilePath $target -Encoding UTF8 -Force
     Write-Log "TIMEOUT after ${Timeout}s -> $OutFile" "WARN"
     return @{ ExitCode = $null; TimedOut = $true; Duration = $sw.Elapsed.TotalSeconds; OutFile = $target }
@@ -103,20 +104,21 @@ $stderr
     $stdout = $p.StandardOutput.ReadToEnd()
     $stderr = $p.StandardError.ReadToEnd()
     $exit   = $p.ExitCode
+    $durationText = "{0:n2}" -f $sw.Elapsed.TotalSeconds
     $content = @"
 # COMMAND: $Exe $Args
 # STATUS : COMPLETED
 # EXIT   : $exit
-# DURATION: {0:n2} s
+# DURATION: $durationText s
 
 # ---- STDOUT ----
 $stdout
 
 # ---- STDERR ----
 $stderr
-"@ -f $sw.Elapsed.TotalSeconds
+"@
     $content | Out-File -FilePath $target -Encoding UTF8 -Force
-    Write-Log "OK in {0:n2}s -> {1}" -f $sw.Elapsed.TotalSeconds, $OutFile
+    Write-Log ("OK in {0:n2}s -> {1}" -f $sw.Elapsed.TotalSeconds, $OutFile)
     return @{ ExitCode = $exit; TimedOut = $false; Duration = $sw.Elapsed.TotalSeconds; OutFile = $target }
   }
 }
@@ -193,7 +195,7 @@ Save-Json 'policy_ui_checks.json' $policyResults
 $policyResults | Sort-Object Path,Name | Format-Table -AutoSize | Out-String | Save-Text 'policy_ui_checks.txt'
 
 # ----------------------- STEP 3: Power policy: AllowStandby & Hybrid sleep -----------------------
-Write-Log "STEP 3: Power policy (ALLOWSTANDBY S1–S3 & HybridSleep) via registry-backed policies"
+Write-Log "STEP 3: Power policy (ALLOWSTANDBY S1-S3 & HybridSleep) via registry-backed policies"
 $powerPolicyChecks = @(
   # AllowStandby S1-S3 policy (AC/DC) -> GUID abfc2519-3608-4c2a-94ea-171b0ed546ab
   @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\abfc2519-3608-4c2a-94ea-171b0ed546ab'; Name='ACSettingIndex' }
@@ -284,14 +286,14 @@ if ($Deep) {
   Invoke-External -Exe 'cmd.exe' -Args '/c gpresult /scope computer /v'    -OutFile 'gpresult_computer_v.txt'   | Out-Null
 }
 
-# ----------------------- STEP 7: Drivers/Display & third‑party start menus -----------------------
+# ----------------------- STEP 7: Drivers/Display & third-party start menus -----------------------
 Write-Log "STEP 7: GPU driver + common Start menu replacements"
 $display = Get-PnpDevice -Class Display -Status OK -ErrorAction SilentlyContinue |
            Select-Object FriendlyName, Manufacturer, DriverProviderName, DriverVersion, DriverDate
 $display | Format-Table -AutoSize | Out-String | Save-Text 'display_adapters.txt'
 Save-Json 'display_adapters.json' $display
 
-# Third‑party Start menu products that may control power flyout
+# Third-party Start menu products that may control power flyout
 $uninstRoots = @(
   'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
   'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
@@ -299,8 +301,29 @@ $uninstRoots = @(
 $startVendors = 'Stardock','Open-Shell','Classic Shell','StartIsBack','StartAllBack','Start11','Start10'
 $apps = foreach ($path in $uninstRoots) {
   Get-ItemProperty -Path $path -ErrorAction SilentlyContinue |
-    Where-Object { $_.DisplayName -and ($startVendors | ForEach-Object { $_ }) -contains ($_.Publisher) -or ($startVendors | Where-Object { $_ -and $_ -as [string] } | ForEach-Object { $_ }) -contains $_.DisplayName } |
-    Select-Object DisplayName, DisplayVersion, Publisher, InstallLocation
+    ForEach-Object {
+      $displayNameProp    = $_.PSObject.Properties['DisplayName']
+      $publisherProp      = $_.PSObject.Properties['Publisher']
+      $displayVersionProp = $_.PSObject.Properties['DisplayVersion']
+      $installProp        = $_.PSObject.Properties['InstallLocation']
+
+      $displayName    = if ($displayNameProp)    { [string]$displayNameProp.Value }    else { $null }
+      $publisher      = if ($publisherProp)      { [string]$publisherProp.Value }      else { $null }
+      $displayVersion = if ($displayVersionProp) { [string]$displayVersionProp.Value } else { $null }
+      $install        = if ($installProp)        { [string]$installProp.Value }        else { $null }
+
+      if (-not ($displayName -or $publisher)) { return }
+      $matchesVendor = ($publisher -and ($startVendors -contains $publisher)) -or
+                       ($displayName -and ($startVendors -contains $displayName))
+      if (-not $matchesVendor) { return }
+
+      [pscustomobject]@{
+        DisplayName     = $displayName
+        DisplayVersion  = $displayVersion
+        Publisher       = $publisher
+        InstallLocation = $install
+      }
+    }
 }
 if ($apps) {
   Save-Json 'startmenu_thirdparty.json' $apps
@@ -396,7 +419,7 @@ $lines += "  Explorer FlyoutMenuSettings ShowSleepOption (HKLM\\...\\Explorer\\F
 $lines += "  Start CSP HideSleep (device) current/default = $($summary.Policies.StartCSP_HideSleep_current) / $($summary.Policies.StartCSP_HideSleep_default)"
 $lines += "  HidePowerOptions/NoClose (system/user) = $($summary.Policies.HidePowerOptions_All)"
 $lines += ""
-$lines += "AllowStandby (S1–S3) policy indices (1=Enabled, 0=Disabled)  [GUID abfc2519-3608-4c2a-94ea-171b0ed546ab]:"
+$lines += "AllowStandby (S1-S3) policy indices (1=Enabled, 0=Disabled)  [GUID abfc2519-3608-4c2a-94ea-171b0ed546ab]:"
 $lines += "  AC=$($summary.PowerPolicy.AllowStandby_AC)   DC=$($summary.PowerPolicy.AllowStandby_DC)"
 $lines += "HybridSleep policy indices (1=On, 0=Off) [GUID 94ac6d29-73ce-41a6-809f-6363ba21b47e]:"
 $lines += "  AC=$($summary.PowerPolicy.HybridSleep_AC)   DC=$($summary.PowerPolicy.HybridSleep_DC)"
@@ -405,10 +428,10 @@ $lines += "Modern Standby toggles (note: CsEnabled ignored on newer builds):"
 $lines += "  PlatformAoAcOverride=$($summary.PowerPolicy.PlatformAoAcOverride)   CsEnabled=$($summary.PowerPolicy.CsEnabled)"
 $lines += "  HibernateEnabled=$($summary.PowerPolicy.HibernateEnabled)  HiberbootEnabled=$($summary.PowerPolicy.HiberbootEnabled)"
 $lines += ""
-$lines += "powercfg /a — Available states:"
+$lines += "powercfg /a - Available states:"
 $lines += ("  " + (($summary.PowerCfgAvailable) -join ', '))
 $lines += ""
-$lines += "powercfg /a — Not available (with reasons):"
+$lines += "powercfg /a - Not available (with reasons):"
 $lines += ("  " + (($summary.PowerCfgBlocked) -join ' | '))
 $lines += ""
 $lines += "See raw files for details in: $root"
@@ -434,3 +457,6 @@ if (-not $NoZip) {
 Write-Host "`nDONE."
 Write-Host "Folder: $root"
 if (-not $NoZip) { Write-Host "ZIP   : $(Join-Path $desktop ((Split-Path $root -Leaf) + '.zip'))" }
+
+
+
