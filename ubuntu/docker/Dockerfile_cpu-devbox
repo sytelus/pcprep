@@ -134,8 +134,17 @@ RUN set -eux; \
 
 # ---- rusage (cosmopolitan .com universal binary; install as /usr/local/bin/rusage) ----
 RUN set -eux; \
-    curl -fsSL https://justine.lol/rusage/rusage.com -o /usr/local/bin/rusage; \
-    chmod +x /usr/local/bin/rusage || true
+    tmp="$(mktemp)"; \
+    primary="https://justine.lol/rusage/rusage.com"; \
+    fallback="https://github.com/jart/cosmopolitan/raw/master/examples/rusage.com"; \
+    if curl -fsSL "$primary" -o "$tmp"; then \
+      install -m 0755 "$tmp" /usr/local/bin/rusage; \
+    elif curl -fsSL "$fallback" -o "$tmp"; then \
+      install -m 0755 "$tmp" /usr/local/bin/rusage; \
+    else \
+      echo "rusage download unavailable; skipping install"; \
+    fi; \
+    rm -f "$tmp" || true
 
 # ---- zsh (do not set default), micro editor already installed via apt above ----
 RUN set -eux; \

@@ -47,6 +47,7 @@ IMAGE=cpu-devbox TAG=local build-local.sh
 * The scripts default to:
   `PLATFORMS=linux/amd64,linux/arm64`
 * Ubuntu 24.04 is multi-arch. Some third-party tools (e.g., AzCopy) are only published for certain arches. The Dockerfile **skips** unavailable items per-arch instead of failing the build, and logs what was skipped.
+* `build_multiarch.sh` keeps its cache under `.buildx-cache` (override with `CACHE_DIR`).
 
 If you need to change platforms:
 
@@ -56,13 +57,6 @@ IMAGE=docker.io/<user>/cpu-devbox \
 TAG=2025.09.13 \
 ./build-multiarch.sh
 ```
-
-The multi-arch script uses a registry cache:
-
-* `--cache-from type=registry,ref=$IMAGE:buildcache`
-* `--cache-to   type=registry,ref=$IMAGE:buildcache,mode=max`
-
-This dramatically speeds up subsequent builds on CI and on your workstation.
 
 The multi-arch script enables:
 
