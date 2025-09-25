@@ -144,8 +144,8 @@ ENV PATH="${CONDA_DIR}/bin:${PATH}"
 
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64) CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh";; \
-      arm64) CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh";; \
+      amd64) CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh";; \
+      arm64) CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh";; \
       *)     echo "Unknown TARGETARCH=$TARGETARCH"; exit 1;; \
     esac; \
     curl -fsSL "$CONDA_URL" -o /tmp/conda.sh; \
