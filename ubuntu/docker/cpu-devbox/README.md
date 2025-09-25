@@ -47,7 +47,7 @@ IMAGE=cpu-devbox TAG=local build-local.sh
   `PLATFORMS=linux/amd64,linux/arm64`
 * Ubuntu 24.04 is multi-arch. Some third-party tools (e.g., AzCopy) are only published for certain arches. The Dockerfile **skips** unavailable items per-arch instead of failing the build, and logs what was skipped.
 * `build_multiarch.sh` keeps its cache under `.buildx-cache` (override with `CACHE_DIR`). Docker may warn that no output was specified—this is expected because the build is cached for a later `./push_multiarch.sh`.
-* `push_multiarch.sh` uses `Dockerfile_cpu-devbox` by default; override with `DOCKERFILE=...` if you need a different Dockerfile.
+* `push_multiarch.sh` uses `Dockerfile` by default; override with `DOCKERFILE=...` if you need a different Dockerfile.
 
 If you need to change platforms:
 

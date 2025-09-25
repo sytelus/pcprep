@@ -27,7 +27,7 @@ echo "   Cache dir: ${CACHE_DIR}"
 
 build_cmd=(
   docker buildx build
-  --file Dockerfile_cpu-devbox
+  --file Dockerfile
   --builder "${BUILDER}"
   --platform "${PLATFORMS}"
   --progress=plain

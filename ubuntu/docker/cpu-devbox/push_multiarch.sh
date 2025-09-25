@@ -12,7 +12,7 @@ TAG="${TAG:-$(date +%Y.%m.%d)}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 BUILD_CONTEXT="${BUILD_CONTEXT:-.}"
 BUILDER="${BUILDER:-cpu-devbox-builder}"
-DOCKERFILE="${DOCKERFILE:-Dockerfile_cpu-devbox}"
+DOCKERFILE="${DOCKERFILE:-Dockerfile}"
 
 echo ">> Logging into Docker Hub"
 docker login
