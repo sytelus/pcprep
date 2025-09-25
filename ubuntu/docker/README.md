@@ -1,6 +1,6 @@
 # CPU Devbox (Ubuntu 24.04, multi-arch)
 
-A terminal-first development box for **amd64** and **arm64** with Azure CLI + AzCopy, Git + Git LFS + GitHub CLI, kubectl/Helm, zsh, micro, rusage, Miniconda (base auto-activated), and a broad toolbox.
+A terminal-first development box for **amd64** and **arm64** with Azure CLI + AzCopy, Git + Git LFS + GitHub CLI, kubectl/Helm, zsh, micro, Miniconda (base auto-activated), and a broad toolbox.
 
 - **Greeting on start:** prints `Welcome to CPU devbox!` plus CPU, RAM, kernel, and key tool versions.
 - **Conda base** is auto-activated in interactive shells.
