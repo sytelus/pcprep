@@ -151,11 +151,15 @@ RUN set -eux; \
     curl -fsSL "$CONDA_URL" -o /tmp/conda.sh; \
     bash /tmp/conda.sh -b -p "$CONDA_DIR"; \
     rm -f /tmp/conda.sh; \
-    "$CONDA_DIR/bin/conda" config --system --set channel_priority strict; \
-    "$CONDA_DIR/bin/conda" config --system --remove-key channels || true; \
-    "$CONDA_DIR/bin/conda" config --system --add channels conda-forge; \
-    "$CONDA_DIR/bin/conda" config --system --remove-key default_channels || true; \
-    "$CONDA_DIR/bin/conda" config --system --add default_channels https://conda.anaconda.org/conda-forge; \
+    rm -rf "$CONDA_DIR/etc/conda"; \
+    mkdir -p "$CONDA_DIR/etc/conda"; \
+    cat <<'EOF' > "$CONDA_DIR/etc/conda/condarc"; \
+channel_priority: strict
+channels:
+  - conda-forge
+default_channels:
+  - https://conda.anaconda.org/conda-forge
+EOF
     "$CONDA_DIR/bin/conda" update -y -n base --override-channels -c conda-forge conda; \
     "$CONDA_DIR/bin/conda" install -y -n base --override-channels -c conda-forge pip python=3.12; \
     "$CONDA_DIR/bin/conda" clean -afy
