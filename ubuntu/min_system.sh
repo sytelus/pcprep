@@ -119,8 +119,17 @@ if [ -n "${NO_NET}" ]; then
 
     # Install rusage (only available for x86_64)
     if [ "$ARCH" = "x86_64" ]; then
-        curl -o "$HOME/.local/bin/rusage" https://justine.lol/rusage/rusage.com
-        chmod +x "$HOME/.local/bin/rusage"
+        tmp_rusage="$(mktemp)"
+        primary="https://justine.lol/rusage/rusage.com"
+        fallback="https://github.com/jart/cosmopolitan/raw/master/examples/rusage.com"
+        if curl -fsSL "$primary" -o "$tmp_rusage"; then
+            install -m 0755 "$tmp_rusage" "$HOME/.local/bin/rusage"
+        elif curl -fsSL "$fallback" -o "$tmp_rusage"; then
+            install -m 0755 "$tmp_rusage" "$HOME/.local/bin/rusage"
+        else
+            echo "Skipping rusage installation - download failed from both primary and fallback URLs"
+        fi
+        rm -f "$tmp_rusage"
     else
         echo "Skipping rusage installation - not available for $ARCH architecture"
     fi

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Multi-arch base (x86_64/amd64, arm64, arm/v7 (armhf))
+# Multi-arch base (amd64, arm64)
 FROM --platform=$TARGETPLATFORM ubuntu:24.04
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -7,7 +7,6 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TARGETPLATFORM
 ARG TARGETARCH
-ARG TARGETVARIANT
 
 # Basic labels (OCI)
 ARG VCS_REF
@@ -120,7 +119,7 @@ RUN set -eux; \
     chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
     echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list; \
     apt-get update; \
-    arch_deb="$(dpkg --print-architecture)"; if [ "$arch_deb" = "armhf" ]; then curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/v1.34.1/bin/linux/arm/kubectl"; chmod +x /usr/local/bin/kubectl; elif apt-cache show "kubectl:${arch_deb}" >/dev/null 2>&1; then apt-get install -y "kubectl:${arch_deb}"; else echo "kubectl not available for ${arch_deb}; skipping"; fi; \
+    if apt-cache show kubectl >/dev/null 2>&1; then apt-get install -y kubectl; else echo "kubectl not available for this architecture; skipping"; fi; \
     rm -rf /var/lib/apt/lists/*
 
 # # ---- Helm apt repo (Buildkite-hosted helm-linux repo) ----
@@ -133,11 +132,6 @@ RUN set -eux; \
 #     if apt-cache show helm >/dev/null 2>&1; then apt-get install -y helm; else echo "helm not available for this arch; skipping"; fi; \
 #     rm -rf /var/lib/apt/lists/*
 
-# ---- rusage (cosmopolitan .com universal binary; install as /usr/local/bin/rusage) ----
-RUN set -eux; \
-    curl -fsSL https://justine.lol/rusage/rusage.com -o /usr/local/bin/rusage; \
-    chmod +x /usr/local/bin/rusage || true
-
 # ---- zsh (do not set default), micro editor already installed via apt above ----
 RUN set -eux; \
     if ! command -v zsh >/dev/null 2>&1; then apt-get update && apt-get install -y --no-install-recommends zsh && rm -rf /var/lib/apt/lists/*; fi
@@ -147,12 +141,10 @@ ENV CONDA_DIR=/opt/conda \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PATH="${CONDA_DIR}/bin:${PATH}"
 
-# armhf/armv7 -> use Miniforge (conda-forge) since Miniconda not published
 RUN set -eux; \
     case "$TARGETARCH" in \
       amd64) CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh";; \
       arm64) CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh";; \
-      arm)   CONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-armv7l.sh";;  \
       *)     echo "Unknown TARGETARCH=$TARGETARCH"; exit 1;; \
     esac; \
     curl -fsSL "$CONDA_URL" -o /tmp/conda.sh; \
@@ -163,12 +155,7 @@ RUN set -eux; \
     "$CONDA_DIR/bin/conda" config --system --set channel_priority strict; \
     "$CONDA_DIR/bin/conda" config --system --add channels conda-forge; \
     "$CONDA_DIR/bin/conda" update -y -n base -c conda-forge conda; \
-    arch_deb="$(dpkg --print-architecture)"; \
-    if [ "$arch_deb" = "armhf" ]; then \
-      "$CONDA_DIR/bin/conda" install -y -n base pip; \
-    else \
-      "$CONDA_DIR/bin/conda" install -y -n base pip python=3.12; \
-    fi; \
+    "$CONDA_DIR/bin/conda" install -y -n base pip python=3.12; \
     "$CONDA_DIR/bin/conda" clean -afy
 
 # ---- Python stack in base env (CPU‑only). We try conda-forge first; skip if unavailable on arch. ----
@@ -184,14 +171,14 @@ RUN set -eux; \
         "$CONDA_DIR/bin/pip" install --no-cache-dir "$pkg"; \
       fi; \
     done; \
-    # TensorFlow & PyTorch (CPU): attempt via conda-forge on amd64/arm64, skip on armv7 if not found
+    # TensorFlow & PyTorch (CPU): attempt via conda-forge on amd64/arm64; skip if unavailable
     if [ "$TARGETARCH" = "amd64" ] || [ "$TARGETARCH" = "arm64" ]; then \
       "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge tensorflow || echo "tensorflow not available; skipped"; \
       # For pytorch, conda-forge provides CPU builds; if resolution fails, try pytorch channel (amd64)
       "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge pytorch || \
       "$CONDA_DIR/bin/conda" install -y -n base -c pytorch -c conda-forge pytorch cpuonly || echo "pytorch not available; skipped"; \
     else \
-      echo "Skipping tensorflow/pytorch on $TARGETARCH$TARGETVARIANT"; \
+      echo "Skipping tensorflow/pytorch on $TARGETARCH"; \
     fi; \
     "$CONDA_DIR/bin/conda" clean -afy
 
