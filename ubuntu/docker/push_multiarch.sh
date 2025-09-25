@@ -12,12 +12,14 @@ TAG="${TAG:-$(date +%Y.%m.%d)}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 BUILD_CONTEXT="${BUILD_CONTEXT:-.}"
 BUILDER="${BUILDER:-cpu-devbox-builder}"
+DOCKERFILE="${DOCKERFILE:-Dockerfile_cpu-devbox}"
 
 echo ">> Logging into Docker Hub"
 docker login
 
 echo ">> Building & pushing ${IMAGE}:${TAG} and ${IMAGE}:latest"
 docker buildx build \
+  --file "${DOCKERFILE}" \
   --builder "${BUILDER}" \
   --platform "${PLATFORMS}" \
   --progress=plain \

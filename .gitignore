@@ -1,0 +1,67 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.env
+.env*/
+env/
+venv/
+.venv/
+.eggs/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.tox/
+.hypothesis/
+
+# ---- C/C++ ----
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.la
+*.lo
+*.out
+*.exe
+*.exp
+*.lib
+*.idb
+*.pdb
+*.ilk
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+build/
+*.gcda
+*.gcno
+*.gcov
+
+# ---- Docker ----
+.docker/
+.buildx-cache/
+*.tar
+*.tar.gz
+*.tgz
+*.img
+*.iso
+*.qcow2
+.env.local
+
+# ---- Shell tooling ----
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
+*.cache
+nohup.out
+
+# ---- General IDE / OS ----
+*.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.code-workspace
