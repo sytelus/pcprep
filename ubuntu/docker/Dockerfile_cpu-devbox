@@ -156,8 +156,8 @@ RUN set -eux; \
     "$CONDA_DIR/bin/conda" config --system --add channels conda-forge; \
     "$CONDA_DIR/bin/conda" config --system --remove-key default_channels || true; \
     "$CONDA_DIR/bin/conda" config --system --add default_channels https://conda.anaconda.org/conda-forge; \
-    "$CONDA_DIR/bin/conda" update -y -n base -c conda-forge conda; \
-    "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge pip python=3.12; \
+    "$CONDA_DIR/bin/conda" update -y -n base --override-channels -c conda-forge conda; \
+    "$CONDA_DIR/bin/conda" install -y -n base --override-channels -c conda-forge pip python=3.12; \
     "$CONDA_DIR/bin/conda" clean -afy
 
 # ---- Python stack in base env (CPU‑only). We try conda-forge first; skip if unavailable on arch. ----
