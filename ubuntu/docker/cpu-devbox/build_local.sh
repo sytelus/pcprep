@@ -6,7 +6,7 @@ set -euo pipefail
 IMAGE="${IMAGE:-cpu-devbox}"
 TAG="${TAG:-local}"
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-DEFAULT_CONTEXT=$(cd "${SCRIPT_DIR}/../.." && pwd)
+DEFAULT_CONTEXT=$(cd "${SCRIPT_DIR}/../../.." && pwd)
 BUILD_CONTEXT="${BUILD_CONTEXT:-${DEFAULT_CONTEXT}}"
 BUILD_CONTEXT=$(cd "${BUILD_CONTEXT}" && pwd)
 BUILDER="${BUILDER:-cpu-devbox-builder}"
@@ -35,6 +35,8 @@ fi
 echo ">> Building local arch image ${IMAGE}:${TAG}"
 echo "   Context:   ${BUILD_CONTEXT}"
 echo "   Dockerfile:${DOCKERFILE}"
+pushd "${BUILD_CONTEXT}" >/dev/null
+trap 'popd >/dev/null' EXIT
 # --load puts the image into the classic Docker engine store (single-arch only)
 docker buildx build \
   --file "${DOCKERFILE}" \

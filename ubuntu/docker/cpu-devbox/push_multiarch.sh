@@ -11,7 +11,7 @@ IMAGE="${IMAGE:-sytelus/cpu-devbox}"
 TAG="${TAG:-$(date +%Y.%m.%d)}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-DEFAULT_CONTEXT=$(cd "${SCRIPT_DIR}/../.." && pwd)
+DEFAULT_CONTEXT=$(cd "${SCRIPT_DIR}/../../.." && pwd)
 BUILD_CONTEXT="${BUILD_CONTEXT:-${DEFAULT_CONTEXT}}"
 BUILD_CONTEXT=$(cd "${BUILD_CONTEXT}" && pwd)
 BUILDER="${BUILDER:-cpu-devbox-builder}"
@@ -43,6 +43,8 @@ docker login
 echo ">> Building & pushing ${IMAGE}:${TAG} and ${IMAGE}:latest"
 echo "   Context:   ${BUILD_CONTEXT}"
 echo "   Dockerfile:${DOCKERFILE}"
+pushd "${BUILD_CONTEXT}" >/dev/null
+trap 'popd >/dev/null' EXIT
 docker buildx build \
   --file "${DOCKERFILE}" \
   --builder "${BUILDER}" \
