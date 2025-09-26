@@ -150,7 +150,7 @@ is_wsl() {
 }
 
 skip_host_ssh_agent=false
-if [ -n "${DEVBOX_CONTAINER:-}" ]; then
+if [ -n "${IS_CONTAINER:-}" ]; then
     skip_host_ssh_agent=true
 fi
 
@@ -293,6 +293,9 @@ shopt -s cmdhist              # save multi-line cmds as one
 shopt -s lithist              # keep line breaks and indentation
 # assume all dirs to be safe for git
 export GIT_TEST_ASSUME_ALL_SAFE=1
+
+# reset terminal state to avoid "mouse reporting mode" if client drops ssh
+tput rmcup
 
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
