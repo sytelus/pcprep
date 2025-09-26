@@ -47,7 +47,8 @@ IMAGE=cpu-devbox TAG=local build-local.sh
   `PLATFORMS=linux/amd64,linux/arm64`
 * Ubuntu 24.04 is multi-arch. Some third-party tools (e.g., AzCopy) are only published for certain arches. The Dockerfile **skips** unavailable items per-arch instead of failing the build, and logs what was skipped.
 * `build_multiarch.sh` keeps its cache under `.buildx-cache` (override with `CACHE_DIR`). Docker may warn that no output was specified—this is expected because the build is cached for a later `./push_multiarch.sh`.
-* `push_multiarch.sh` uses `Dockerfile` by default; override with `DOCKERFILE=...` if you need a different Dockerfile.
+* The helper scripts default the **build context** to the repo root so vendored dotfiles are available; override with `BUILD_CONTEXT=...` if you need something else.
+* By default the scripts point at `ubuntu/docker/cpu-devbox/Dockerfile`; override with `DOCKERFILE=...` if you need a different Dockerfile.
 
 If you need to change platforms:
 
@@ -71,3 +72,4 @@ You can inspect these with `docker buildx imagetools inspect <image:tag>` and co
 - **Very slow emulated builds**: That’s expected under QEMU; prefer native runners (e.g., arm64 VM) or let CI produce that arch.
 - **Azure CLI / AzCopy availability**: Microsoft currently publishes packages for amd64 and arm64. The Dockerfile logs a skip if a tool is missing for the active architecture.
 - **Conda heavy packages (TF/PT)**: These install via conda-forge on amd64/arm64 when available; otherwise the build logs a skip.
+- **SSH/GPG agent setup**: Inside the container we skip auto-starting host agents to avoid read-only filesystem errors. If you need an agent, start it manually once inside the devbox.

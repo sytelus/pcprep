@@ -189,13 +189,13 @@ RUN set -eux; \
     "$CONDA_DIR/bin/conda" clean -afy
 
 # ---- Dotfiles for interactive use ----
-# We take the referenced files and place them for root (and /etc/skel for future users).
+# We vendor the repo's dotfiles to avoid network fetches and keep builds reproducible.
+COPY ubuntu/.bashrc /root/.bashrc
+COPY ubuntu/.inputrc /root/.inputrc
+COPY ubuntu/.bash_aliases /root/.bash_aliases
+COPY ubuntu/.tmux.conf /root/.tmux.conf
 RUN set -eux; \
     mkdir -p /etc/skel; \
-    curl -fsSLo /root/.bashrc https://raw.githubusercontent.com/sytelus/pcprep/master/ubuntu/.bashrc; \
-    curl -fsSLo /root/.inputrc https://raw.githubusercontent.com/sytelus/pcprep/master/ubuntu/.inputrc; \
-    curl -fsSLo /root/.bash_aliases https://raw.githubusercontent.com/sytelus/pcprep/master/ubuntu/.bash_aliases; \
-    curl -fsSLo /root/.tmux.conf https://raw.githubusercontent.com/sytelus/pcprep/master/ubuntu/.tmux.conf; \
     cp -a /root/.bashrc /root/.inputrc /root/.bash_aliases /root/.tmux.conf /etc/skel/; \
     # Ensure conda auto-activation for interactive shells + greeting (only once per session)
     echo '' >> /etc/bash.bashrc; \
@@ -204,6 +204,9 @@ RUN set -eux; \
     echo '  if [ -f "'"$CONDA_DIR"'/etc/profile.d/conda.sh" ]; then . "'"$CONDA_DIR"'/etc/profile.d/conda.sh"; conda activate base; fi' >> /etc/bash.bashrc; \
     echo '  if [ -z "${DEVBOX_WELCOMED:-}" ]; then export DEVBOX_WELCOMED=1; /usr/local/bin/devbox-greeting || true; fi' >> /etc/bash.bashrc; \
     echo 'fi' >> /etc/bash.bashrc
+
+# Mark that we're inside the devbox container so dotfiles can adjust behavior.
+ENV DEVBOX_CONTAINER=1
 
 # ---- Git config: LF line endings preference ----
 RUN set -eux; \
