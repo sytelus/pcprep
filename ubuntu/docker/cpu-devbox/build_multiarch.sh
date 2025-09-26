@@ -35,21 +35,29 @@ fi
 
 # Use a local buildx cache to avoid requiring registry auth during build-only.
 CACHE_DIR="${CACHE_DIR:-.buildx-cache}"
-mkdir -p "${CACHE_DIR}"
+if [[ "${CACHE_DIR}" = /* ]]; then
+  CACHE_DIR_ABS="${CACHE_DIR}"
+else
+  CACHE_DIR_ABS="${BUILD_CONTEXT}/${CACHE_DIR}"
+fi
+mkdir -p "${CACHE_DIR_ABS}"
 
 CACHE_FROM_ARGS=()
-if [ -f "${CACHE_DIR}/index.json" ]; then
-  CACHE_FROM_ARGS+=(--cache-from "type=local,src=${CACHE_DIR}")
+if [ -f "${CACHE_DIR_ABS}/index.json" ]; then
+  CACHE_FROM_ARGS+=(--cache-from "type=local,src=${CACHE_DIR_ABS}")
 else
-  echo ">> Cache: warming new cache at ${CACHE_DIR}"
+  echo ">> Cache: warming new cache at ${CACHE_DIR_ABS}"
 fi
 
 echo ">> Building (no push) ${IMAGE}:${TAG}"
 echo "   Platforms: ${PLATFORMS}"
 echo "   Builder:   ${BUILDER}"
-echo "   Cache dir: ${CACHE_DIR}"
+echo "   Cache dir: ${CACHE_DIR_ABS}"
 echo "   Context:   ${BUILD_CONTEXT}"
 echo "   Dockerfile:${DOCKERFILE}"
+
+pushd "${BUILD_CONTEXT}" >/dev/null
+trap 'popd >/dev/null' EXIT
 
 build_cmd=(
   docker buildx build
@@ -65,7 +73,7 @@ if [ ${#CACHE_FROM_ARGS[@]} -gt 0 ]; then
   build_cmd+=("${CACHE_FROM_ARGS[@]}")
 fi
 
-build_cmd+=(--cache-to "type=local,dest=${CACHE_DIR},mode=max")
+build_cmd+=(--cache-to "type=local,dest=${CACHE_DIR_ABS},mode=max")
 build_cmd+=(-t "${IMAGE}:${TAG}")
 build_cmd+=("${BUILD_CONTEXT}")
 
