@@ -5,6 +5,7 @@ GPU-focused development environment based on `nvcr.io/nvidia/pytorch:25.08-py3` 
 Highlights:
 - Uses the official NVIDIA PyTorch container (multi-arch; ships CUDA/NCCL/cuDNN pre-tuned by NVIDIA).
 - Installs the requested CLI/debugging tooling when available for the active architecture, skipping items that are preloaded by the base image or not suited for containers.
+- Creates `/opt/nanugpt-venv` (a virtualenv with `--system-site-packages`) to layer Python deps on top of NVIDIA's stack; interactive shells auto-activate it.
 - Pre-installs `pip` dependencies from `nanuGPT`'s `pyproject.toml` plus GPU-centric helpers (`flash-attn`, `torch-tb-profiler`, `nvitop`, `accelerate`).
 - Provides a shell greeting summarising GPU/CPU status and pointers to profiling tools.
 
@@ -78,7 +79,7 @@ Packages are grouped by purpose. Items were only installed when available for th
 
 **Terminal fun (per request)**: `fortune-mod`, `sl`, `espeak`, `figlet`, `sysvbanner`, `cowsay`, `oneko`, `cmatrix`, `toilet`, `pi`, `xcowsay`, `aview`, `bb`, `rig`, `weather-util`.
 
-**Python packages**: `einops`, `wandb`, `mlflow`, `sentencepiece`, `tokenizers`, `tiktoken`, `transformers`, `datasets`, `tqdm`, `matplotlib`, `rich`, `pyarrow`, `orjson`, `tenacity`, `openai`, `numpy`, `pandas`, `scipy`, `accelerate`, `torch-tb-profiler`, `nvitop`, plus a best-effort install of `flash-attn` (`--no-build-isolation`; skips gracefully if wheels are unavailable for the active arch).
+**Python packages**: `einops`, `wandb`, `mlflow`, `sentencepiece`, `tokenizers`, `tiktoken`, `transformers`, `datasets`, `tqdm`, `matplotlib`, `rich`, `pyarrow==19.0.1`, `orjson`, `tenacity`, `openai`, `numpy`, `pandas`, `scipy`, `accelerate`, `torch-tb-profiler`, `nvitop`, plus a best-effort install of `flash-attn` (`--no-build-isolation`; skips gracefully if wheels are unavailable for the active arch).
 
 During build a `plocate` index is generated so `locate` works out of the box.
 
@@ -110,9 +111,10 @@ If you need TLP/Linux-tools inside a privileged VM rather than a container, inst
 
 ## nanuGPT readiness
 
-- Python dependencies mirror `pyproject.toml` of `nanuGPT` plus supporting scientific stack (`numpy/pandas/scipy`).
+- Python dependencies mirror `pyproject.toml` of `nanuGPT` plus supporting scientific stack (`numpy/pandas/scipy`) and live inside `/opt/nanugpt-venv`. The venv inherits NVIDIA's system packages (`--system-site-packages`) so CUDA/PyTorch remain the tuned builds from the base image.
 - The NVIDIA base image already ships CUDA 12.6, cuBLAS, cuDNN, NCCL, and PyTorch 2.8 nightly—no extra CUDA setup required.
 - `flash-attn` is attempted on both arches. On `arm64` the build may fall back to source compilation; if it fails a warning is printed but the image build continues.
+- Interactive shells automatically activate the venv; for non-interactive commands use `source /opt/nanugpt-venv/bin/activate` first or prefix with `/opt/nanugpt-venv/bin/python`.
 
 To clone and install nanuGPT inside the container:
 

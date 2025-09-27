@@ -21,7 +21,8 @@ ENV TZ=UTC \
     PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DEVBOX_CONTAINER=1
+    DEVBOX_CONTAINER=1 \
+    NANUGPT_VENV=/opt/nanugpt-venv
 
 # Refresh apt metadata and install requested tooling that is not already provided by the base image.
 RUN set -eux; \
@@ -84,16 +85,20 @@ RUN set -eux; \
 # Upgrade pip tooling and install Python dependencies for nanuGPT and GPU profiling utilities.
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
-    python3 -m pip install --upgrade pip setuptools wheel packaging; \
-    python3 -m pip install --no-cache-dir \
+    python3 -m venv --system-site-packages "${NANUGPT_VENV}"; \
+    "${NANUGPT_VENV}/bin/pip" install --upgrade pip setuptools wheel packaging; \
+    "${NANUGPT_VENV}/bin/pip" install --no-cache-dir \
       numpy pandas scipy \
-      einops wandb mlflow sentencepiece tokenizers tiktoken transformers datasets tqdm matplotlib rich pyarrow orjson tenacity openai \
+      einops wandb mlflow sentencepiece tokenizers tiktoken transformers datasets tqdm matplotlib rich pyarrow==19.0.1 orjson tenacity openai \
       accelerate torch-tb-profiler nvitop; \
     if [ "${TARGETARCH}" = "amd64" ] || [ "${TARGETARCH}" = "arm64" ]; then \
-      python3 -m pip install --no-cache-dir flash-attn --no-build-isolation || echo "flash-attn skipped on ${TARGETARCH}"; \
+      "${NANUGPT_VENV}/bin/pip" install --no-cache-dir flash-attn --no-build-isolation || echo "flash-attn skipped on ${TARGETARCH}"; \
     else \
       echo "flash-attn unsupported on ${TARGETARCH}"; \
     fi
+
+ENV VIRTUAL_ENV=/opt/nanugpt-venv
+ENV PATH=/opt/nanugpt-venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 WORKDIR /workspace
 
@@ -127,6 +132,9 @@ RUN set -eux; \
     cat <<'EOS' >/etc/profile.d/00-gpu-devbox.sh
 #!/bin/bash
 if [[ $- == *i* ]]; then
+  if [[ -n "${VIRTUAL_ENV:-}" && -f "${VIRTUAL_ENV}/bin/activate" ]]; then
+    . "${VIRTUAL_ENV}/bin/activate"
+  fi
   if [[ -z "${GPU_DEVBOX_WELCOMED:-}" ]]; then
     export GPU_DEVBOX_WELCOMED=1
     /usr/local/bin/gpu-devbox-greeting || true
