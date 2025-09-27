@@ -99,7 +99,7 @@ WORKDIR /workspace
 
 # Provide a friendly greeting and environment bootstrap when entering the container interactively.
 RUN set -eux; \
-    cat <<'EOS' >/usr/local/bin/gpu-devbox-greeting; \
+    cat <<'EOS' >/usr/local/bin/gpu-devbox-greeting
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Welcome to GPU devbox!"
@@ -121,8 +121,10 @@ if command -v nvtop >/dev/null 2>&1; then
   echo "Tip: run 'nvtop' for live GPU telemetry."
 fi
 EOS
-    && chmod +x /usr/local/bin/gpu-devbox-greeting; \
-    cat <<'EOS' >/etc/profile.d/00-gpu-devbox.sh; \
+RUN chmod +x /usr/local/bin/gpu-devbox-greeting
+
+RUN set -eux; \
+    cat <<'EOS' >/etc/profile.d/00-gpu-devbox.sh
 #!/bin/bash
 if [[ $- == *i* ]]; then
   if [[ -z "${GPU_DEVBOX_WELCOMED:-}" ]]; then
@@ -134,7 +136,7 @@ if [[ $- == *i* ]]; then
   fi
 fi
 EOS
-    && chmod +x /etc/profile.d/00-gpu-devbox.sh
+RUN chmod +x /etc/profile.d/00-gpu-devbox.sh
 
 # Reuse repo dotfiles for consistent shell experience.
 COPY ../../.bashrc /root/.bashrc
