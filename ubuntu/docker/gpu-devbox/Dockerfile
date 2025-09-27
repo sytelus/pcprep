@@ -138,15 +138,12 @@ fi
 EOS
 RUN chmod +x /etc/profile.d/00-gpu-devbox.sh
 
-# Reuse repo dotfiles for consistent shell experience.
-COPY ../../.bashrc /root/.bashrc
-COPY ../../.bash_aliases /root/.bash_aliases
-COPY ../../.inputrc /root/.inputrc
-COPY ../../.tmux.conf /root/.tmux.conf
+# Reuse repo dotfiles for consistent shell experience (leave base .bashrc untouched).
+COPY ubuntu/.bash_aliases /root/.bash_aliases
+COPY ubuntu/.inputrc /root/.inputrc
+COPY ubuntu/.tmux.conf /root/.tmux.conf
 RUN set -eux; \
     mkdir -p /etc/skel; \
-    cp -a /root/.bashrc /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/; \
-    echo "alias ll='ls -alF'" >> /root/.bash_aliases; \
-    echo "alias la='ls -A'" >> /root/.bash_aliases
+    cp -a /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/
 
 CMD ["/bin/bash", "-l"]
