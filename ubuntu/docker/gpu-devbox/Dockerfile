@@ -88,9 +88,61 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m venv --system-site-packages "${NANUGPT_VENV}"; \
     "${NANUGPT_VENV}/bin/pip" install --upgrade pip setuptools wheel packaging; \
     "${NANUGPT_VENV}/bin/pip" install --no-cache-dir \
-      numpy pandas scipy \
-      einops wandb mlflow sentencepiece tokenizers tiktoken transformers datasets tqdm matplotlib rich pyarrow==19.0.1 orjson tenacity openai \
-      accelerate trl tf-keras tensorboard torch-tb-profiler nvitop; \
+      accelerate \
+      azure-identity \
+      azure-keyvault-secrets \
+      azure-storage-blob \
+      datasets \
+      deepspeed \
+      einops \
+      evaluate \
+      huggingface-hub \
+      ipython \
+      lightning \
+      lm-eval \
+      matplotlib \
+      math-verify[antlr4_9_3] \
+      mlflow \
+      natsort \
+      nbsphinx \
+      numpy \
+      omegaconf \
+      openai \
+      orjson \
+      pandas \
+      peft \
+      pre-commit \
+      pyarrow==19.0.1 \
+      pydata-sphinx-theme \
+      pylatexenc \
+      pytest \
+      pyzmq \
+      ray \
+      redis \
+      rich \
+      safetensors \
+      scipy \
+      sentencepiece \
+      sphinx \
+      sphinx-book-theme \
+      sphinx-copybutton \
+      sphinx-togglebutton \
+      tenacity \
+      tensorboard \
+      tf-keras \
+      tiktoken \
+      tokenizers \
+      torch-tb-profiler \
+      torchao \
+      transformer-engine[pytorch] \
+      transformers \
+      trl \
+      tqdm \
+      typer \
+      typing-extensions \
+      vllm \
+      wandb \
+      nvitop; \
     if [ "${TARGETARCH}" = "amd64" ] || [ "${TARGETARCH}" = "arm64" ]; then \
       FLASH_ATTN_SPECS=("flash-attn>=1,<2" "flash-attn>=2,<3" "flash-attn>=3,<4"); \
       FLASH_ATTN_LABELS=("1" "2" "3"); \
