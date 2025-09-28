@@ -294,9 +294,6 @@ shopt -s lithist              # keep line breaks and indentation
 # assume all dirs to be safe for git
 export GIT_TEST_ASSUME_ALL_SAFE=1
 
-# reset terminal state to avoid "mouse reporting mode" if client drops ssh
-tput rmcup
-
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
 

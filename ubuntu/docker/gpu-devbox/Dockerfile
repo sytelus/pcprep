@@ -90,9 +90,26 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     "${NANUGPT_VENV}/bin/pip" install --no-cache-dir \
       numpy pandas scipy \
       einops wandb mlflow sentencepiece tokenizers tiktoken transformers datasets tqdm matplotlib rich pyarrow==19.0.1 orjson tenacity openai \
-      accelerate torch-tb-profiler nvitop; \
+      accelerate trl tf-keras tensorboard torch-tb-profiler nvitop; \
     if [ "${TARGETARCH}" = "amd64" ] || [ "${TARGETARCH}" = "arm64" ]; then \
-      "${NANUGPT_VENV}/bin/pip" install --no-cache-dir flash-attn --no-build-isolation || echo "flash-attn skipped on ${TARGETARCH}"; \
+      FLASH_ATTN_SPECS=("flash-attn>=1,<2" "flash-attn>=2,<3" "flash-attn>=3,<4"); \
+      FLASH_ATTN_LABELS=("1" "2" "3"); \
+      FLASH_ATTN_SUCCESS=0; \
+      for idx in "${!FLASH_ATTN_SPECS[@]}"; do \
+        SPEC="${FLASH_ATTN_SPECS[$idx]}"; \
+        LABEL="${FLASH_ATTN_LABELS[$idx]}"; \
+        if "${NANUGPT_VENV}/bin/pip" install --no-cache-dir "${SPEC}" --no-build-isolation; then \
+          FLASH_ATTN_SUCCESS=$((FLASH_ATTN_SUCCESS+1)); \
+          if [ "${LABEL}" != "3" ]; then \
+            echo "flash-attn v${LABEL} installed; attempting next major release for coexistence check."; \
+          fi; \
+        else \
+          echo "flash-attn v${LABEL} install failed (spec: ${SPEC})."; \
+        fi; \
+      done; \
+      if [ "${FLASH_ATTN_SUCCESS}" -eq 0 ]; then \
+        echo "flash-attn install unavailable for ${TARGETARCH}."; \
+      fi; \
     else \
       echo "flash-attn unsupported on ${TARGETARCH}"; \
     fi
