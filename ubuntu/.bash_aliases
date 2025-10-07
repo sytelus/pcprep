@@ -1,44 +1,56 @@
-alias airros='cd ~/vso/msresearch/Theseus/catkin_ws/src/air_ros/src/'
-alias airmain='cd ~/vso/msresearch/Theseus/main/'
-alias airrt='cd ~/vso/msresearch/Theseus/'
-alias airrosmak='pushd . && cd ~/vso/msresearch/Theseus/catkin_ws/ && catkin_make --pkg air_ros && popd'
-alias aircat='cd ~/vso/msresearch/Theseus/catkin_ws/'
-alias airsim='cd ~/GitHubSrc/AirSim'
-alias unreal='cd ~/GitHubSrc/UnrealEngine'
-alias blocks='cd ~/GitHubSrc/AirSim/Unreal/Environments/Blocks'
-alias catmak='pushd . && cd ~/vso/msresearch/Theseus/catkin_ws/ && catkin_make && popd'
+# alias airros='cd ~/vso/msresearch/Theseus/catkin_ws/src/air_ros/src/'
+# alias airmain='cd ~/vso/msresearch/Theseus/main/'
+# alias airrt='cd ~/vso/msresearch/Theseus/'
+# alias airrosmak='pushd . && cd ~/vso/msresearch/Theseus/catkin_ws/ && catkin_make --pkg air_ros && popd'
+# alias aircat='cd ~/vso/msresearch/Theseus/catkin_ws/'
+# alias airsim='cd ~/GitHubSrc/AirSim'
+# alias unreal='cd ~/GitHubSrc/UnrealEngine'
+# alias blocks='cd ~/GitHubSrc/AirSim/Unreal/Environments/Blocks'
+# alias catmak='pushd . && cd ~/vso/msresearch/Theseus/catkin_ws/ && catkin_make && popd'
+
+# git aliases
 alias grevertall='git reset --hard && git reset --hard origin/master && git clean -f -d'
-alias grevertfile='function _grevertf() { git checkout -- "$1"; } ; _grevertf'
+grevertfile() { function _grevertf() { git checkout -- "$1"; } ; _grevertf ; }
 alias gdiff='git diff'
 alias gstat='git status'
 alias gstatall='mgitstatus -e'
 alias gpush='git push'
 alias gpull='git pull'
-alias gcommit='function _f() { git add -A; git commit -m "$1"; }; _f'
+gcommit() { function _f() { git add -A; git commit -m "$1"; }; _f ; }
 alias gpullr='git pull --rebase'
-alias gtag='function _f() { git tag -a "$1" -m "$2"; git push --tags; }; _f'
+gtag() { function _f() { git tag -a "$1" -m "$2"; git push --tags; }; _f ; }
 alias glog='git log --pretty=oneline -n 5'
 alias gcln='git clean -fdx'
-alias gbra='function _f() { git checkout -b "$1"; }; _f'
-alias gdelbra='function _f() { git push origin -delete "$1" && git branch -d "$1"; }; _f'
+gbra() { function _f() { git checkout -b "$1"; }; _f ; }
+gdelbra() { function _f() { git push origin -delete "$1" && git branch -d "$1"; }; _f ; }
 alias gconf='git diff --name-only --diff-filter=U'
 alias grem='git remote -v'
 alias gchk='git checkout'
+
+# WSL root
 alias bashrt='cd /mnt/c/Users/$USER/AppData/Local/lxss/rootfs'
-alias ue4='~/GitHubSrc/UnrealEngine/Engine/Binaries/Linux/UE4Editor'
-alias findstr='function _f() { eval grep -ri --include=\*.{"$1"} "$2" ./; }; _f'
+# alias ue4='~/GitHubSrc/UnrealEngine/Engine/Binaries/Linux/UE4Editor'
+
+findstr() { function _f() { eval grep -ri --include=\*.{"$1"} "$2" ./; }; _f ; }
+
 alias clshard='reset; stty sane; tput rs1; setterm -reset; tput rmcup; tput reset'
 alias cls='tput reset'
 alias pu='pushd .'
 alias po='popd'
+
 alias tmuxx='tmux attach -t 0'
 alias ipconfig='nmcli dev show'
+
+# NVIDIA driver reset (useful after driver crash)
 alias nvreset='sudo rmmod nvidia_uvm;sudo rmmod nvidia;sudo modprobe nvidia;sudo modprobe nvidia_uvm;'
-alias smv='function _f() { rsync -az --remove-source-files "$@"; }; _f'
+
+# move files and remove source
+smv() { function _f() { rsync -az --remove-source-files "$@"; }; _f ; }
+
+## Docker aliases
 alias dockerclean='docker rm $(docker ps --filter status=exited -q) ; docker rm $(docker ps --filter status=created -q)'
 alias dockerls='docker container ls'
 alias dockersize='docker ps --all --size'
-alias rundocker='rundocker.sh'
 alias version='lsb_release -a'
 alias freespace="df -h | grep -vE '^Filesystem|tmpfs|cdrom' | sort -k4hr"
 alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux)'
@@ -47,29 +59,32 @@ alias disks=drives
 # Displays a full, hierarchical snapshot of all running processes.
 alias psex='ps -ef f'
 alias pmy='ps -u $USER -U $USER u'
-alias realview='less +F "$1"'
+realview() { less +F "$1" ; }
 alias torchver="python -c 'import torch; print(torch.__version__)'"
 # remove pass phrase from ssh keys
 alias removepass='find ~/.ssh -type f \( -name 'id_*' -o -name 'sb_*' \) ! -name '*.pub' -exec sh -c 'ssh-keygen -l -f "{}" >/dev/null 2>&1 && echo "Processing: {}" && ssh-keygen -p -f "{}"' \;'
+function treesize {
+  local target="${1:-.}"
+  du -a --max-depth=1 --human-readable --time --exclude='.*' -- "$target" \
+    | sort --human-numeric-sort --reverse
+}
+
+#### slum #####
 # drained nodes in slurm with reason
 alias sdrained='scontrol show --json node | jq -r '"'"'.nodes[] | select(any(.state[]; . == "DRAIN")) | [.hostname, .reason] | join("\t")'"'"''
 # all nodes in slurm with reason
 alias sreason='scontrol show --json node | jq -r '"'"'.nodes[] | select(.reason != "") | [.hostname, (.state | join(",")), .reason] | join("\t")'"'"''
 alias salljobs='squeue -o "%.18i %.8u %.6D %.16S %.8P"'
 alias sjobs='squeue -o "%.7i %.9P %.8j %.8u %.2t %.10M %.6D %R" -u $USER'
-alias skill='[ -n "$1" ] && job_id=$1 || job_id=$(squeue -u $USER -h -o %A | head -n1) && [ -n "$job_id" ] && scancel $job_id && echo "Cancelled job $job_id" || echo "No job found or cancellation failed"'
+skill() { [ -n "$1" ] && job_id=$1 || job_id=$(squeue -u $USER -h -o %A | head -n1) && [ -n "$job_id" ] && scancel $job_id && echo "Cancelled job $job_id" || echo "No job found or cancellation failed" ; }
 alias skillall='read -p "Are you sure you want to cancel all Slurm jobs? (y/N) " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] && scancel -u $USER && echo "All Slurm jobs for user $USER have been cancelled" || echo "Operation cancelled or no jobs found for user $USER"'
-alias sresr='squeue --reservation=$1'
+sresr() { squeue --reservation=$1 ; }
+
+#### kubectl #####
 alias kpods='kubectl get pod'
-alias knodes='kubectl get nodes --no-headers | awk '\''{print $2}'\'' | sort | uniq -c'
+knodes() { kubectl get nodes --no-headers | awk '\''{print $2}'\'' | sort | uniq -c ; }
 alias kjobs='kubectl get vcjob | grep -E "Pending|Running"'
 alias kjobsall='kubectl get vcjob'
-
-function treesize {
-  local target="${1:-.}"
-  du -a --max-depth=1 --human-readable --time --exclude='.*' -- "$target" \
-    | sort --human-numeric-sort --reverse
-}
 function k {
     kubectl "$@"
 }
