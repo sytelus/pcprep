@@ -96,3 +96,19 @@ function kpod {
 function kdel {
     kubectl delete vcjob "$@"
 }
+
+function klog {
+    kubectl logs -f "$@"
+}
+
+function kpods {
+    kubectl get pods | grep ${USERNAME}
+}
+
+function kjob {
+    kubectl get vcjob "$@"
+    kubectl get pods -l volcano.sh/job-name="$@"
+}
+
+rclone-du() { rclone size "$@" ; }
+
