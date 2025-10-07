@@ -90,6 +90,16 @@ AI_MISC_FLAGS=(
   avx_ifma          # AVX IFMA (rare; AVX512_IFMA is more common)
 )
 CRYPTO_ACCEL=(aes sha_ni vpclmulqdq pclmul)
+AMD_EPY_API_FLAGS=(
+  svm             # AMD-V virtualization (Secure Virtual Machine)
+  sev             # Secure Encrypted Virtualization base API
+  sev_es          # SEV Encrypted State (guest register encryption)
+  sev_snp         # SEV Secure Nested Paging (memory integrity)
+  sme             # System Memory Encryption for bare-metal API usage
+  avic            # Advanced Virtual Interrupt Controller (reduces VM exits)
+  pausefilter     # Hardware pause filtering exposed via AMD-V APIs
+  vgif            # Virtual Global Interrupt Flag (fewer VM exits on STI)
+)
 
 print_group "SIMD & Arithmetic" "${SIMD_FLAGS[@]}"
 print_group "AVX-512 Extensions" "${AVX512_FLAGS[@]}"
@@ -97,9 +107,23 @@ print_group "Matrix Engines (AMX)" "${AMX_FLAGS[@]}"
 print_group "AI-leaning Vector Ext." "${AI_MISC_FLAGS[@]}"
 print_group "Related (crypto/bit ops)" "${CRYPTO_ACCEL[@]}"
 
+MODEL_LC="${MODEL,,}"
+AMD_EPY_DETECTED=0
+if [[ "${MODEL_LC}" == *"epyc"* ]]; then
+  AMD_EPY_DETECTED=1
+fi
+
+if [[ $AMD_EPY_DETECTED -eq 1 ]]; then
+  print_group "AMD EPYC Virtualization APIs" "${AMD_EPY_API_FLAGS[@]}"
+fi
+
 # Extra notes for clarity
 echo
 echo "Notes:"
 echo "  • Flags shown are what the OS has enabled. Some CPUs support AVX-512 but firmware/OS may disable it."
 echo "  • AMX_* flags indicate on-die matrix tiles (Intel). AMD currently relies on vector paths (e.g., AVX512_VNNI/BF16) instead."
 echo "  • AVX_VNNI / AVX512_VNNI accelerate INT8 dot-products common in inferencing."
+if [[ $AMD_EPY_DETECTED -eq 1 ]]; then
+  echo "  • AMD EPYC SEV*/SVM flags surface the firmware-backed APIs for confidential VMs (SEV, SEV-ES, SEV-SNP)."
+  echo "  • SME/AVIC/pausefilter/vgif help hypervisors expose AMD-V APIs with fewer VM exits and encrypted memory."
+fi
