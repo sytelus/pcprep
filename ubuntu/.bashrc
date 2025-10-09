@@ -342,4 +342,7 @@ fi
 # bash ~/GitHubSrc/pcprep/ubuntu/ssh_perms.sh
 # start-tmux
 
+# switch to cuda 12.8
+# source /usr/local/bin/use-cuda12.8
+
 echo "REMEMBER: search for __ in .bashrc to complete setup and remove this message!!"
