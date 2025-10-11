@@ -52,7 +52,8 @@ alias cls='tput reset'
 alias pu='pushd .'
 alias po='popd'
 
-alias tmuxx='tmux attach -t 0'
+alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux)'
+alias tmuxx=start-tmux
 alias ipconfig='nmcli dev show'
 
 # NVIDIA driver reset (useful after driver crash)
@@ -169,7 +170,6 @@ function version {
   fi
 }
 alias freespace="df -h | grep -vE '^Filesystem|tmpfs|cdrom' | sort -k4hr"
-alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux)'
 alias drives='df -hT 2>/dev/null | sort -k 3 --human-numeric-sort --reverse'
 alias disks=drives
 # Displays a full, hierarchical snapshot of all running processes.
