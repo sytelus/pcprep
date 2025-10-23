@@ -114,7 +114,7 @@ if [ "$NO_NET" = "0" ]; then
     #curl -sSL https://install.python-poetry.org | python3 -
 
     # pip installs
-    pip install -q nvitop rich
+    pip install -q nvitop rich pytest
 
     bash install_dl_frameworks.sh
 fi
