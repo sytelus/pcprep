@@ -1,0 +1,43 @@
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+.env.*
+pip-wheel-metadata/
+build/
+dist/
+wheelhouse/
+*.egg
+*.egg-info/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+sphinx/_build/
+site/
+ipynb_checkpoints/
+
+# Rust
+/target/
+
+# Tooling
+.idea/
+.cache/
+cache/
+
+# Dataset cache
+data/highpoint/
