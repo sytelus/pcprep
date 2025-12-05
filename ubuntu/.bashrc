@@ -269,6 +269,9 @@ if [ "${skip_host_ssh_agent}" = false ]; then
   export SSH_AUTH_SOCK="$HOME/.ssh/ssh_auth_sock"
 fi
 
+# Disable terminal mouse tracking (prevents garbage on click over SSH)
+printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l' 2>/dev/null
+
 if [ "$IS_CONTAINER" = false ]; then # otherwise use docker settings
     # Use local CUDA version instead of one in /usr/bin
     # If below is not done then nvcc will be found in /usr/bin which is older
