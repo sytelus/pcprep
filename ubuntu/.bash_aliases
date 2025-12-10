@@ -187,7 +187,11 @@ function treesize {
     | sort --human-numeric-sort --reverse
 }
 
-#### slum #####
+
+alias claudeyolo="claude --dangerously-skip-permissions"
+
+
+#### slurm #####
 # drained nodes in slurm with reason
 alias sdrained='scontrol show --json node | jq -r '"'"'.nodes[] | select(any(.state[]; . == "DRAIN")) | [.hostname, .reason] | join("\t")'"'"''
 # all nodes in slurm with reason
