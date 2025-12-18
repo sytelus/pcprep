@@ -1,145 +1,244 @@
-# GPU Devbox (NGC PyTorch 25.08, multi-arch)
+# GPU Devbox (NGC PyTorch 25.11, Multi-arch)
 
-GPU-focused development environment based on `nvcr.io/nvidia/pytorch:25.08-py3` with CUDA 12.6 + PyTorch 2.8, extended with GPU diagnostics, tooling from the request, and Python dependencies required by [nanuGPT](https://github.com/sytelus/nanuGPT). Builds for **linux/amd64** and **linux/arm64** using Docker Buildx.
+GPU-focused development environment based on `nvcr.io/nvidia/pytorch:25.11-py3` with CUDA 12.x + PyTorch, extended with GPU diagnostics, development tooling, and Python dependencies required by [nanuGPT](https://github.com/sytelus/nanuGPT). Builds for **linux/amd64** and **linux/arm64** using Docker Buildx.
 
-Highlights:
-- Uses the official NVIDIA PyTorch container (multi-arch; ships CUDA/NCCL/cuDNN pre-tuned by NVIDIA).
-- Installs the requested CLI/debugging tooling when available for the active architecture, skipping items that are preloaded by the base image or not suited for containers.
-- Creates `/opt/nanugpt-venv` (a virtualenv with `--system-site-packages`) to layer Python deps on top of NVIDIA's stack; interactive shells auto-activate it.
-- Pre-installs `pip` dependencies from `nanuGPT`'s `pyproject.toml` plus GPU-centric helpers (`flash-attn`, `torch-tb-profiler`, `nvitop`, `accelerate`).
-- Provides a shell greeting summarising GPU/CPU status and pointers to profiling tools.
+## Features
+
+- **NVIDIA PyTorch base** - Official NVIDIA container with CUDA/NCCL/cuDNN pre-tuned
+- **Multi-architecture** - Builds for both amd64 (x86_64) and arm64 (aarch64)
+- **Python virtualenv** - `/opt/nanugpt-venv` with `--system-site-packages` to layer deps on NVIDIA's stack
+- **GPU diagnostics** - `nvtop`, `nvitop`, `nvidia-smi`, `torch-tb-profiler`
+- **Development tools** - Comprehensive CLI tooling for development, debugging, and profiling
+- **Shell greeting** - Displays GPU/CPU status and environment info on login
+
+## Quick Start
+
+```bash
+# One-time setup (creates buildx builder with QEMU for cross-arch)
+./setup-builder.sh
+
+# Build for local architecture
+./build_local.sh
+
+# Run with GPU access
+./run.sh -v "$PWD:/workspace"
+
+# Run without GPU (CPU-only mode)
+./run.sh --no-gpu -v "$PWD:/workspace"
+```
 
 ## Prerequisites
 
-- Docker **24+** with Buildx (Docker Desktop and Ubuntu 24.04 ship this).
-- NVIDIA Container Toolkit if you plan to run the image with GPU access on Linux. Docker Desktop on macOS/Windows proxies GPUs automatically.
-- For cross-builds on Linux hosts: the scripts install QEMU via `tonistiigi/binfmt` (requires a privileged container once).
+| Requirement | Details |
+|-------------|---------|
+| Docker | Version 24+ with Buildx (included in Docker Desktop and Ubuntu 24.04+) |
+| NVIDIA Container Toolkit | Required for GPU access on Linux hosts |
+| QEMU (Linux only) | Auto-installed by `setup-builder.sh` for cross-arch builds |
 
-Check host/Docker status:
-
-```bash
-bash ./docker_info.sh
-```
-
-## One-time setup
+Check your environment:
 
 ```bash
-./setup-builder.sh
+./docker_info.sh
 ```
 
-- Creates/bootstraps a `gpu-devbox-builder` Buildx builder.
-- On native Linux installs `binfmt_misc` handlers required for cross-building arm64.
+## Scripts Reference
 
-## Build & run locally (single arch)
+| Script | Purpose |
+|--------|---------|
+| `setup-builder.sh` | One-time setup: creates buildx builder with QEMU for cross-arch builds |
+| `build_local.sh` | Build for host architecture only, loads into local Docker |
+| `build_multiarch.sh` | Build for amd64+arm64 without pushing (caches to `.buildx-cache/`) |
+| `push_multiarch.sh` | Build and push multi-arch image to Docker Hub |
+| `run.sh` | Run container with GPU flags (auto-detects GPU availability) |
+| `verify.sh` | Inspect multi-arch manifest of a pushed image |
+| `docker_info.sh` | Display Docker environment diagnostics |
+| `dockerprune.sh` | Clean up unused Docker resources (destructive!) |
 
-```bash
-./build_local.sh                # builds for the host arch only, loads into classic docker images
-./run.sh -v "$PWD:/workspace"   # drop into the devbox with GPU flags pre-wired
+### Environment Variables
+
+All build scripts support these environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `IMAGE` | `gpu-devbox` / `sytelus/gpu-devbox` | Image name |
+| `TAG` | `local` / `YYYY.MM.DD` | Image tag |
+| `PLATFORMS` | `linux/amd64,linux/arm64` | Target platforms |
+| `BUILD_CONTEXT` | Repository root | Docker build context |
+| `BUILDER` | `gpu-devbox-builder` | Buildx builder name |
+| `DOCKERFILE` | Auto-detected | Path to Dockerfile |
+| `VCS_REF` | Git HEAD short SHA | Version control reference for labels |
+| `CACHE_DIR` | `.buildx-cache` | Build cache directory |
+| `SKIP_LOGIN` | `0` | Set to `1` to skip Docker login (CI mode) |
+
+## Architecture-Specific Availability
+
+### Python Packages
+
+| Package | amd64 | arm64 | Notes |
+|---------|:-----:|:-----:|-------|
+| PyTorch | Yes | Yes | From NVIDIA base image |
+| CUDA/cuDNN | Yes | Yes | From NVIDIA base image |
+| flash-attn | Yes | No | No prebuilt arm64 wheels; source build too slow |
+| vllm | Yes | Partial | May have limited functionality on arm64 |
+| deepspeed | Yes | Yes | |
+| transformer-engine | Yes | Partial | CUDA features may be limited on arm64 |
+| All other pip packages | Yes | Yes | |
+
+### System Packages
+
+| Package Category | amd64 | arm64 | Notes |
+|------------------|:-----:|:-----:|-------|
+| Core CLI tools | Yes | Yes | git-lfs, ripgrep, fzf, etc. |
+| GPU monitoring | Yes | Partial | nvtop may not be available on arm64 |
+| Build tools | Yes | Yes | cmake, clang, meson, etc. |
+| OpenCV/OpenMPI | Yes | Yes | |
+| Fun tools | Yes | Partial | Some X11-dependent tools may be unavailable |
+
+### Packages Skipped on Certain Architectures
+
+The Dockerfile automatically detects and skips packages unavailable for the target architecture. During build, you'll see output like:
+
+```
+Skipped (arch/unavailable): <package-list>
 ```
 
-`run.sh` expands to:
+Common packages that may be skipped on arm64:
+- `nvtop` - GPU monitoring (may not have arm64 package)
+- `xcowsay`, `oneko` - X11-dependent fun tools
+- Some architecture-specific dev libraries
 
-```bash
-docker run --rm -it \
-  --gpus all \
-  --ipc=host \
-  --ulimit memlock=-1 --ulimit stack=67108864 \
-  -v "$PWD:/workspace" \
-  gpu-devbox:local
-```
+## Installed Tooling
 
-The greeting banner prints CUDA/PyTorch versions and reminds you about `nvtop`.
+### GPU & Profiling
 
-## Multi-arch build & push
+- **Monitoring**: `nvtop`, `nvitop` (pip), `nvidia-smi` (base image)
+- **Profiling**: `torch-tb-profiler` (pip), `accelerate` (pip)
+- **System**: `btop`, `htop`, `glances`, `powertop`, `powerstat`
+- **Storage**: `iotop`, `smartmontools`, `nvme-cli`
+- **Network**: `iftop`, `nethogs`, `ifstat`
 
-```bash
-# Build once (keeps artifacts in .buildx-cache/ for later push)
-./build_multiarch.sh
+### Development
 
-# Push to Docker Hub (tags YYYY.MM.DD and latest by default)
-./push_multiarch.sh IMAGE=sytelus/gpu-devbox TAG=2025.09.13
-```
+- **Build**: `cmake`, `meson`, `ccache`, `ninja-build` (base)
+- **Compilers**: `clang`, `clang-format`, `clang-tidy`, `lld`, `lldb`
+- **Debug**: `gdb` (base), `valgrind` (base), `strace`, `ltrace`
+- **VCS**: `git` (base), `git-lfs`, `mercurial`, `subversion`
 
-Notes:
-- Default platforms: `linux/amd64,linux/arm64` (override with `PLATFORMS=...`).
-- `build_multiarch.sh` caches outputs locally (`.buildx-cache` by default). Pushing reuses the cache, so no rebuild is needed.
-- Manifest/provenance/SBOM are emitted by Buildx; verify with `./verify.sh sytelus/gpu-devbox:TAG`.
+### CLI Productivity
 
-## Tooling installed by the Dockerfile
+- **Search**: `ripgrep`, `fd-find` (aliased to `fd`), `fzf`, `plocate`
+- **Files**: `bat` (aliased), `tree`, `ncdu`, `gdu`, `fdupes`
+- **Text**: `jq` (base), `yq`, `moreutils`, `rename`
+- **Archive**: `p7zip-full`, `zstd`, `pigz`, `pbzip2`, `unar`
+- **Network**: `mtr`, `nmap`, `traceroute`, `tcpdump`, `autossh`
 
-Packages are grouped by purpose. Items were only installed when available for the target architecture and absent from the base image.
+### Python Environment
 
-**Core CLI & VCS**: `git-lfs`, `mercurial`, `subversion`, `pass`, `direnv`, `starship`, `micro`, `trash-cli`, `plocate`, `fdupes`, `virt-what`, `sudo`, `rclone`, `lsof`, `pstree`, `vmtouch`, `neofetch`, `screen`.
+The virtualenv at `/opt/nanugpt-venv` includes:
 
-**GPU / profiling / system diagnostics**: `nvtop`, `nvitop` (pip), `torch-tb-profiler` (pip), `accelerate` (pip), `powertop`, `powerstat`, `inxi`, `procinfo`, `htop`, `btop`, `glances`, `sysstat`, `iotop`, `ifstat`, `iftop`, `nethogs`, `hwloc`, `lm-sensors`, `smartmontools`, `nvme-cli`, `acpi`, `ffmpeg`, `ghostscript`, `pdftk-java`.
+- **ML/DL**: transformers, datasets, accelerate, deepspeed, lightning, peft, trl
+- **Eval**: lm-eval, evaluate, math-verify
+- **Data**: numpy, pandas, scipy, pyarrow, orjson
+- **Viz**: matplotlib, tensorboard, wandb, mlflow
+- **Tokenizers**: tiktoken, sentencepiece, tokenizers
+- **Cloud**: azure-identity, azure-storage-blob, huggingface-hub
+- **Utils**: rich, tqdm, typer, omegaconf, tenacity
 
-**Build & HPC tooling**: `cmake`, `meson`, `libopencv-dev`, `libopenmpi-dev`, `freeglut3-dev`, `libx11-dev`, `libxmu-dev`, `libxi-dev`, `libglu1-mesa`, `libglu1-mesa-dev`, `libfreeimage3`, `libfreeimage-dev`, `libffi-dev`, `libsqlite3-dev`, `clang`, `clang-format`, `clang-tidy`, `lld`, `lldb`, `ccache`, `rsync`, `parallel`, `entr`.
+## What's Already in the Base Image
 
-**Everyday CLI productivity**: `ripgrep`, `fd-find` (+ `fd` shim), `bat` (+ `bat` shim), `fzf`, `tldr`, `tree`, `ncdu`, `gdu`, `moreutils`, `rename`, `yq`, `time`, `whois`, `dnsutils`, `autossh`, `mtr`, `nmap`, `traceroute`, `tcpdump`, `net-tools`, `exfat-fuse`, `exfatprogs`, `ntfs-3g`, `sshfs`, `cifs-utils`, `mergerfs`, `p7zip-full`, `zstd`, `pigz`, `pbzip2`, `unar`, `xclip`, `xsel`, `direnv`, `starship`, `fonts-powerline`, `fonts-firacode`.
-
-**Terminal fun (per request)**: `fortune-mod`, `sl`, `espeak`, `figlet`, `sysvbanner`, `cowsay`, `oneko`, `cmatrix`, `toilet`, `pi`, `xcowsay`, `aview`, `bb`, `rig`, `weather-util`.
-
-**Python packages**: `einops`, `wandb`, `mlflow`, `sentencepiece`, `tokenizers`, `tiktoken`, `transformers`, `datasets`, `tqdm`, `matplotlib`, `rich`, `pyarrow==19.0.1`, `orjson`, `tenacity`, `openai`, `numpy`, `pandas`, `scipy`, `accelerate`, `torch-tb-profiler`, `nvitop`, plus a best-effort install of `flash-attn` (`--no-build-isolation`; skips gracefully if wheels are unavailable for the active arch).
-
-During build a `plocate` index is generated so `locate` works out of the box.
-
-## What we did **not** reinstall
-
-The base NVIDIA PyTorch 25.08 image already bundles many requested utilities. We detected these via `dpkg-query` and left them untouched:
+The NVIDIA PyTorch 25.11 base image includes (not reinstalled):
 
 - `git`, `curl`, `wget`, `tar`, `xz-utils`, `bash-completion`
-- `aptitude`, `build-essential`, `g++`, `zlib1g`, `zlib1g-dev`, `bzip2`, `libglib2.0-0`
-- `gcc`, `libstdc++6`, `tmux`, `jq`, `pkg-config`, `ninja-build`
+- `build-essential`, `g++`, `gcc`, `pkg-config`, `ninja-build`
 - `autoconf`, `automake`, `libtool`, `gdb`, `valgrind`
-- `libssl-dev`, `libbz2-dev`, `liblzma-dev`, `numactl`
-- `openssh-client`, `nfs-common`, `zip`, `unzip`, `watch`, `uuid-runtime`
-- NVIDIA tooling such as `nvidia-smi`, CUDA compilers, NCCL, and cuDNN
+- `tmux`, `jq`, `watch`, `zip`, `unzip`
+- `openssh-client`, `nfs-common`, `numactl`
+- NVIDIA tooling: `nvidia-smi`, CUDA compilers, NCCL, cuDNN
 
-Leaving them alone avoids redundant downloads and keeps NVIDIA-tuned components untouched.
-
-## Requested items that were intentionally excluded
+## Intentionally Excluded
 
 | Item | Reason |
 |------|--------|
-| `tlp`, `tlp-rdw` | Require systemd and direct hardware control; inside a container they neither start nor provide benefit, and the post-install scripts can hang headless builds.
-| `linux-tools-generic` | Tightly couples to the host kernel ABI (`linux-tools-<kernel>`). Cross-building for multiple kernel versions is unreliable; better install matching `linux-tools-$(uname -r)` on the host when you need `perf`.
-| `nvidia-smi` | Already included (and maintained) by the NVIDIA base image.
-| `git`, `curl`, `wget`, `keychain`, `zlib1g`, etc. | Present upstream; see prior section.
-| `nfs-comon` | Typo in request; corrected to `nfs-common` (already present upstream).
+| `tlp`, `tlp-rdw` | Require systemd; don't work in containers |
+| `linux-tools-generic` | Kernel-version specific; install on host instead |
+| `perf` | Part of linux-tools; use host's version |
 
-If you need TLP/Linux-tools inside a privileged VM rather than a container, install them after launching the container (or prefer host-level tooling).
+## nanuGPT Integration
 
-## nanuGPT readiness
-
-- Python dependencies mirror `pyproject.toml` of `nanuGPT` plus supporting scientific stack (`numpy/pandas/scipy`) and live inside `/opt/nanugpt-venv`. The venv inherits NVIDIA's system packages (`--system-site-packages`) so CUDA/PyTorch remain the tuned builds from the base image.
-- The NVIDIA base image already ships CUDA 12.6, cuBLAS, cuDNN, NCCL, and PyTorch 2.8 nightly—no extra CUDA setup required.
-- `flash-attn` is attempted on both arches. On `arm64` the build may fall back to source compilation; if it fails a warning is printed but the image build continues.
-- Interactive shells automatically activate the venv; for non-interactive commands use `source /opt/nanugpt-venv/bin/activate` first or prefix with `/opt/nanugpt-venv/bin/python`.
-
-To clone and install nanuGPT inside the container:
+The container is pre-configured for [nanuGPT](https://github.com/sytelus/nanuGPT):
 
 ```bash
+# Inside the container
 git clone https://github.com/sytelus/nanuGPT.git
 cd nanuGPT
 pip install -e .
 ```
 
-## Verification tips
+- Python deps mirror nanuGPT's `pyproject.toml`
+- CUDA/PyTorch from NVIDIA base remain untouched
+- `flash-attn` pre-installed on amd64 (skipped on arm64)
+- Interactive shells auto-activate the venv
 
-- `nvtop` or `nvitop` for live GPU telemetry (requires `--gpus all` at runtime).
-- `torch-tb-profiler` integrates with TensorBoard: `tensorboard --logdir <runs>`.
-- `flash-attn` integrity: `python -c "import flash_attn; print('flash-attn ok')"`.
-- `docker buildx imagetools inspect sytelus/gpu-devbox:TAG` to confirm multi-arch manifest.
+## Verification
+
+```bash
+# Check GPU access
+./run.sh -c "nvidia-smi"
+
+# Verify Python environment
+./run.sh -c "python -c 'import torch; print(torch.cuda.is_available())'"
+
+# Check flash-attn (amd64 only)
+./run.sh -c "python -c 'import flash_attn; print(\"flash-attn OK\")'"
+
+# Verify multi-arch manifest after push
+./verify.sh sytelus/gpu-devbox:latest
+```
 
 ## Troubleshooting
 
-- **`no match for platform`**: rerun `./setup-builder.sh` to create/activate the Buildx builder with QEMU.
-- **`flash-attn` build failures**: the install is opportunistic. If you need it, rerun inside the container with the matching CUDA toolkit and ensure adequate RAM/cores.
-- **`nvtop` requires /dev/nvidia*`**: run `docker run --gpus all ...` or enable the NVIDIA Container Toolkit on Linux.
-- **Arm64 builds slower under emulation**: consider using a native arm64 runner for faster Buildx builds.
+### "no match for platform"
+Run `./setup-builder.sh` to create/activate the buildx builder with QEMU.
 
-## Next steps
+### GPU not detected
+- Ensure NVIDIA Container Toolkit is installed: `nvidia-container-cli info`
+- Run with `--gpus all`: `./run.sh` does this automatically
 
-- Add project-specific dotfiles or mount volumes in `run.sh` (e.g., `RUN_EXTRA_ARGS="-v $HOME/.cache/huggingface:/root/.cache/huggingface" ./run.sh`).
-- Integrate with CI by invoking `build_multiarch.sh` inside your pipeline runner, then `push_multiarch.sh` once authenticated.
-- Extend the `Dockerfile` with additional profiling stacks (Nsight Systems/Compute) if NVIDIA publishes multi-arch packages in the future.
+### flash-attn build failures
+- Only pre-installed on amd64
+- On arm64: source build requires excessive time/memory; skipped by default
+- To build manually: ensure adequate RAM (16GB+) and run `pip install flash-attn --no-build-isolation`
+
+### Slow arm64 builds
+- Cross-compilation via QEMU is slow (~10x native)
+- Use a native arm64 runner for faster builds
+- Consider `PLATFORMS=linux/amd64` for amd64-only builds
+
+### Container health check failing
+- The container includes a health check that verifies PyTorch is importable
+- Check with: `docker inspect --format='{{.State.Health.Status}}' <container>`
+
+## CI/CD Integration
+
+```bash
+# Build and push in CI (skip interactive login)
+SKIP_LOGIN=1 ./push_multiarch.sh
+
+# Or use GitHub Actions with docker/login-action first
+```
+
+## Extending the Image
+
+```dockerfile
+FROM sytelus/gpu-devbox:latest
+
+# Add your packages
+RUN pip install your-package
+
+# Or add system packages
+RUN apt-get update && apt-get install -y your-package && rm -rf /var/lib/apt/lists/*
+```
+
+## License
+
+MIT - See repository root for details.

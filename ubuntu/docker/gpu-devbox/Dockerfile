@@ -76,9 +76,9 @@ RUN set -eux; \
     if command -v batcat >/dev/null 2>&1 && [ ! -e /usr/local/bin/bat ]; then \
       ln -s "$(command -v batcat)" /usr/local/bin/bat; \
     fi; \
-    if command -v plocate-build >/dev/null 2>&1; then \
-      mkdir -p /var/lib/mlocate; \
-      plocate-build /var/lib/mlocate/plocate.db / || true; \
+    if command -v updatedb >/dev/null 2>&1; then \
+      mkdir -p /var/lib/plocate; \
+      updatedb --prunepaths='/proc /sys /dev /run /tmp' || true; \
     fi; \
     rm -rf /var/lib/apt/lists/*; \
     echo "Preinstalled from base image:$PREINSTALLED"; \
@@ -145,27 +145,17 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       vllm \
       wandb \
       nvitop; \
-    if [ "${TARGETARCH}" = "amd64" ] || [ "${TARGETARCH}" = "arm64" ]; then \
-      FLASH_ATTN_SPECS=("flash-attn>=1,<2" "flash-attn>=2,<3" "flash-attn>=3,<4"); \
-      FLASH_ATTN_LABELS=("1" "2" "3"); \
-      FLASH_ATTN_SUCCESS=0; \
-      for idx in "${!FLASH_ATTN_SPECS[@]}"; do \
-        SPEC="${FLASH_ATTN_SPECS[$idx]}"; \
-        LABEL="${FLASH_ATTN_LABELS[$idx]}"; \
-        if "${NANUGPT_VENV}/bin/pip" install --no-cache-dir "${SPEC}" --no-build-isolation; then \
-          FLASH_ATTN_SUCCESS=$((FLASH_ATTN_SUCCESS+1)); \
-          if [ "${LABEL}" != "3" ]; then \
-            echo "flash-attn v${LABEL} installed; attempting next major release for coexistence check."; \
-          fi; \
-        else \
-          echo "flash-attn v${LABEL} install failed (spec: ${SPEC})."; \
-        fi; \
-      done; \
-      if [ "${FLASH_ATTN_SUCCESS}" -eq 0 ]; then \
-        echo "flash-attn install unavailable for ${TARGETARCH}."; \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+      echo "Attempting flash-attn installation on amd64..."; \
+      if "${NANUGPT_VENV}/bin/pip" install --no-cache-dir flash-attn --no-build-isolation; then \
+        echo "flash-attn installed successfully."; \
+      else \
+        echo "flash-attn install failed (wheels may not be available for this CUDA/Python version)."; \
       fi; \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
+      echo "Skipping flash-attn on arm64 (no prebuilt wheels; source build requires excessive time/memory)."; \
     else \
-      echo "flash-attn unsupported on ${TARGETARCH}"; \
+      echo "flash-attn unsupported on ${TARGETARCH}."; \
     fi
 
 ENV VIRTUAL_ENV=/opt/nanugpt-venv
@@ -197,7 +187,7 @@ if command -v nvtop >/dev/null 2>&1; then
   echo "Tip: run 'nvtop' for live GPU telemetry."
 fi
 EOS
-RUN chmod +x /usr/local/bin/gpu-devbox-greeting
+    chmod +x /usr/local/bin/gpu-devbox-greeting
 
 RUN set -eux; \
     cat <<'EOS' >/etc/profile.d/00-gpu-devbox.sh
@@ -215,7 +205,7 @@ if [[ $- == *i* ]]; then
   fi
 fi
 EOS
-RUN chmod +x /etc/profile.d/00-gpu-devbox.sh
+    chmod +x /etc/profile.d/00-gpu-devbox.sh
 
 # Reuse repo dotfiles for consistent shell experience (leave base .bashrc untouched).
 COPY ubuntu/.bash_aliases /root/.bash_aliases
@@ -224,5 +214,9 @@ COPY ubuntu/.tmux.conf /root/.tmux.conf
 RUN set -eux; \
     mkdir -p /etc/skel; \
     cp -a /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/
+
+# Basic health check to verify Python and torch are functional.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import torch; print(f'torch {torch.__version__} OK')" || exit 1
 
 CMD ["/bin/bash", "-l"]
