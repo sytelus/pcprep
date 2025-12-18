@@ -192,9 +192,10 @@ COPY ubuntu/.bash_aliases /root/.bash_aliases
 COPY ubuntu/.inputrc /root/.inputrc
 COPY ubuntu/.tmux.conf /root/.tmux.conf
 
-# Create greeting script, profile setup, and copy dotfiles to skeleton for new users.
-RUN set -eux; \
-    cat <<'EOS' >/usr/local/bin/gpu-devbox-greeting
+# Create greeting script that displays system info on container login.
+RUN <<'EOF'
+set -eux
+cat >/usr/local/bin/gpu-devbox-greeting <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Welcome to GPU devbox!"
@@ -216,8 +217,9 @@ if command -v nvtop >/dev/null 2>&1; then
   echo "Tip: run 'nvtop' for live GPU telemetry."
 fi
 EOS
-    chmod +x /usr/local/bin/gpu-devbox-greeting; \
-    cat <<'EOS' >/etc/profile.d/00-gpu-devbox.sh
+chmod +x /usr/local/bin/gpu-devbox-greeting
+
+cat >/etc/profile.d/00-gpu-devbox.sh <<'EOS'
 #!/bin/bash
 if [[ $- == *i* ]]; then
   if [[ -z "${GPU_DEVBOX_WELCOMED:-}" ]]; then
@@ -229,9 +231,11 @@ if [[ $- == *i* ]]; then
   fi
 fi
 EOS
-    chmod +x /etc/profile.d/00-gpu-devbox.sh; \
-    mkdir -p /etc/skel; \
-    cp -a /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/
+chmod +x /etc/profile.d/00-gpu-devbox.sh
+
+mkdir -p /etc/skel
+cp -a /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/
+EOF
 
 # Basic health check to verify Python and torch are functional.
 HEALTHCHECK --interval=60s --timeout=10s --start-period=5s --retries=3 \
