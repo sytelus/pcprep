@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM nvcr.io/nvidia/pytorch:25.08-py3
+FROM nvcr.io/nvidia/pytorch:25.11-py3
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -11,9 +11,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source="https://github.com/sytelus/pcprep" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.title="gpu-devbox" \
-      org.opencontainers.image.description="NVIDIA PyTorch 25.08 based devbox with multi-arch tooling, GPU diagnostics, and nanuGPT dependencies preinstalled." \
+      org.opencontainers.image.description="NVIDIA PyTorch 25.11 based devbox with multi-arch tooling, GPU diagnostics, and nanuGPT dependencies preinstalled." \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:25.08-py3"
+      org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:25.11-py3"
 
 ENV TZ=UTC \
     LANG=C.UTF-8 \
@@ -56,10 +56,12 @@ RUN set -eux; \
       whois dnsutils time nvtop \
     "; \
     INSTALLABLE=""; PREINSTALLED=""; SKIPPED=""; \
+    INSTALLED_PKGS=$(dpkg-query -W -f='${Package}\n' 2>/dev/null || true); \
+    AVAILABLE_PKGS=$(apt-cache show $PKGS 2>/dev/null | grep '^Package:' | awk '{print $2}' | sort -u || true); \
     for pkg in $PKGS; do \
-      if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'install ok installed'; then \
+      if echo "$INSTALLED_PKGS" | grep -qx "$pkg"; then \
         PREINSTALLED="$PREINSTALLED $pkg"; \
-      elif apt-cache show --no-all-versions "$pkg" >/dev/null 2>&1; then \
+      elif echo "$AVAILABLE_PKGS" | grep -qx "$pkg"; then \
         INSTALLABLE="$INSTALLABLE $pkg"; \
       else \
         SKIPPED="$SKIPPED $pkg"; \
