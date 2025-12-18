@@ -11,34 +11,153 @@ GPU-focused development environment based on `nvcr.io/nvidia/pytorch:25.11-py3` 
 - **Development tools** - Comprehensive CLI tooling for development, debugging, and profiling
 - **Shell greeting** - Displays GPU/CPU status and environment info on login
 
-## Quick Start
-
-```bash
-# One-time setup (creates buildx builder with QEMU for cross-arch)
-./setup-builder.sh
-
-# Build for local architecture
-./build_local.sh
-
-# Run with GPU access
-./run.sh -v "$PWD:/workspace"
-
-# Run without GPU (CPU-only mode)
-./run.sh --no-gpu -v "$PWD:/workspace"
-```
-
 ## Prerequisites
 
 | Requirement | Details |
 |-------------|---------|
 | Docker | Version 24+ with Buildx (included in Docker Desktop and Ubuntu 24.04+) |
-| NVIDIA Container Toolkit | Required for GPU access on Linux hosts |
+| NVIDIA Container Toolkit | Required for GPU access on Linux hosts ([installation guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)) |
 | QEMU (Linux only) | Auto-installed by `setup-builder.sh` for cross-arch builds |
 
-Check your environment:
+Check your Docker environment is ready:
 
 ```bash
 ./docker_info.sh
+```
+
+This will show your Docker version, available builders, disk usage, and whether NVIDIA Container Toolkit is detected.
+
+## One-Time Setup
+
+Before building for the first time, you need to create a Docker Buildx builder that supports multi-architecture builds:
+
+```bash
+./setup-builder.sh
+```
+
+This script:
+- Verifies Docker Buildx is available (requires Docker 24+)
+- On Linux: installs QEMU user-mode emulation via `tonistiigi/binfmt` for cross-architecture builds
+- Creates a builder named `gpu-devbox-builder` using the `docker-container` driver
+- Bootstraps the builder so it's ready to use
+
+You only need to run this once per machine. The builder persists across reboots.
+
+## Build & Run Locally (Single Architecture)
+
+For development and testing, build an image for your current machine's architecture:
+
+```bash
+# Build the image (loads into local Docker)
+./build_local.sh
+
+# Run the container with GPU access
+./run.sh -v "$PWD:/workspace"
+```
+
+The `run.sh` script automatically detects GPU availability. Under the hood, it runs:
+
+```bash
+docker run --rm -it \
+  --gpus all \
+  --ipc=host \
+  --ulimit memlock=-1 \
+  --ulimit stack=67108864 \
+  -v "$PWD:/workspace" \
+  gpu-devbox:local
+```
+
+**What these flags mean:**
+- `--gpus all` - Enable access to all NVIDIA GPUs
+- `--ipc=host` - Share host's IPC namespace (required for PyTorch multiprocessing)
+- `--ulimit memlock=-1` - Unlimited locked memory (needed for CUDA)
+- `--ulimit stack=67108864` - 64MB stack size (prevents stack overflow in deep recursion)
+- `-v "$PWD:/workspace"` - Mount current directory into the container
+
+**Common run.sh usage patterns:**
+
+```bash
+# Basic run with GPU
+./run.sh
+
+# Mount your project directory
+./run.sh -v "$PWD:/workspace"
+
+# Mount multiple directories
+./run.sh -v "$PWD:/workspace" -v "$HOME/.cache/huggingface:/root/.cache/huggingface"
+
+# Run without GPU (CPU-only mode)
+./run.sh --no-gpu
+
+# Run a specific command instead of interactive shell
+./run.sh -c "python train.py"
+
+# Expose Jupyter port
+./run.sh -p 8888:8888
+
+# Custom image/tag
+IMAGE=myimage TAG=mytag ./run.sh
+```
+
+The greeting banner prints CUDA/PyTorch versions and GPU info when you enter the container. It also reminds you about `nvtop` for live GPU monitoring.
+
+## Multi-Architecture Build & Push
+
+To build for both amd64 (x86_64) and arm64 (Apple Silicon, AWS Graviton, etc.):
+
+### Step 1: Build without pushing (for testing)
+
+```bash
+./build_multiarch.sh
+```
+
+This builds for `linux/amd64` and `linux/arm64` and caches the artifacts in `.buildx-cache/`. The image is NOT loaded into local Docker (multi-arch images can't be loaded locally).
+
+### Step 2: Push to Docker Hub
+
+```bash
+# This will prompt for Docker Hub login
+./push_multiarch.sh
+```
+
+Or with custom image name and tag:
+
+```bash
+IMAGE=myusername/gpu-devbox TAG=2025.01.15 ./push_multiarch.sh
+```
+
+This builds and pushes:
+- `myusername/gpu-devbox:2025.01.15`
+- `myusername/gpu-devbox:latest`
+
+### Step 3: Verify the pushed image
+
+```bash
+./verify.sh sytelus/gpu-devbox:latest
+```
+
+This shows the multi-arch manifest and available platforms.
+
+**Notes:**
+- Default platforms: `linux/amd64,linux/arm64` (override with `PLATFORMS=linux/amd64` for amd64-only)
+- Building arm64 on an amd64 machine uses QEMU emulation and is slower (~10x)
+- The cache in `.buildx-cache/` speeds up subsequent builds significantly
+- Manifest, provenance, and SBOM are automatically generated
+
+## Quick Start Summary
+
+```bash
+# 1. One-time setup
+./setup-builder.sh
+
+# 2. Build for local architecture
+./build_local.sh
+
+# 3. Run with GPU access
+./run.sh -v "$PWD:/workspace"
+
+# 4. (Optional) Build and push multi-arch
+./push_multiarch.sh
 ```
 
 ## Scripts Reference
