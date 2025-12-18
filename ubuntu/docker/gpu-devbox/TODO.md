@@ -3,53 +3,14 @@
 This document contains suggested improvements that require review and approval before implementation.
 
 
-## High Priority
+## Approved
 
-### 4. Add Nsight Systems/Compute Support
+(No pending approved items - all have been implemented)
 
-**Description**: Include NVIDIA Nsight profiling tools when available for the architecture.
 
-**Current State**: Not included because NVIDIA doesn't publish multi-arch packages.
+## Risky
 
-**Benefits**:
-- Deep GPU kernel profiling
-- Memory access pattern analysis
-- Performance bottleneck identification
-
-**Implementation Notes**:
-- Monitor NVIDIA's package repository for arm64 support
-- Could add as amd64-only conditional install
-
-**Estimated Effort**: 1 hour (when packages become available)
-
----
-
-### 5. Add Dev Container Support
-
-**Description**: Create `.devcontainer/devcontainer.json` for VS Code Remote Containers / GitHub Codespaces.
-
-**Benefits**:
-- One-click development environment setup
-- Consistent dev environment across team
-- Works with GitHub Codespaces
-
-**Implementation Notes**:
-```json
-{
-  "name": "GPU Devbox",
-  "image": "sytelus/gpu-devbox:latest",
-  "runArgs": ["--gpus", "all"],
-  "customizations": {
-    "vscode": {
-      "extensions": ["ms-python.python", "ms-toolsai.jupyter"]
-    }
-  }
-}
-```
-
-**Estimated Effort**: 1-2 hours
-
----
+These items were approved but moved here due to potential for introducing bugs or unnecessary complexity. They require careful consideration before implementation.
 
 ### 6. Add Layer Caching Optimization
 
@@ -61,25 +22,18 @@ This document contains suggested improvements that require review and approval b
 - Split into: base tools → dev tools → fun tools → Python packages
 - Use `--mount=type=cache` for apt lists
 
+**Why Risky**:
+- Restructuring the Dockerfile layers could break the build process
+- More layers can actually increase image size due to layer overhead
+- The current single-layer approach is simpler and well-tested
+- Cache invalidation behavior may become unpredictable
+
 **Trade-offs**:
 - More layers = slightly larger image
 - More complex Dockerfile
+- Potential for subtle build failures
 
-**Estimated Effort**: 2-3 hours
-
----
-
-### 8. Add ARM64 Native Build Support
-
-**Description**: Document or script building on native ARM64 hardware (e.g., AWS Graviton, Apple Silicon).
-
-**Benefits**:
-- 10x faster ARM64 builds vs QEMU emulation
-- Required for flash-attn on ARM64 (if ever needed)
-
-**Implementation Notes**:
-- Could use GitHub's arm64 runners (when available)
-- Or document self-hosted runner setup
+**Recommendation**: Only implement if build times become a significant bottleneck and thorough testing is performed.
 
 **Estimated Effort**: 2-3 hours
 
@@ -96,35 +50,22 @@ This document contains suggested improvements that require review and approval b
 - Remove apt cache more aggressively
 - Evaluate which "fun" packages are actually used
 
+**Why Risky**:
+- Multi-stage builds add significant complexity for this type of devbox image
+- Removing packages could break functionality that users depend on
+- The base NVIDIA image is already large; savings may be minimal
+- "Fun" packages are specifically requested features
+
 **Trade-offs**:
 - Smaller image vs. having all tools available
-- May complicate Dockerfile
+- May complicate Dockerfile significantly
+- Risk of removing needed dependencies
+
+**Recommendation**: Profile the image first to identify the largest contributors before making changes.
 
 **Estimated Effort**: 3-4 hours
 
 ---
-
-
-
-### 11. Add Shell Configuration Options
-
-**Description**: Support Zsh with Oh My Zsh as an alternative shell.
-
-**Current State**: Bash only with custom aliases.
-
-**Benefits**:
-- Better autocomplete
-- Popular among developers
-- Plugin ecosystem
-
-**Trade-offs**:
-- Larger image
-- More configuration to maintain
-
-**Estimated Effort**: 1-2 hours
-
----
-
 
 
 ## Do NOT Implement
@@ -196,41 +137,6 @@ jobs:
 
 ---
 
-### 12. Add Jupyter Lab Integration
-
-**Description**: Pre-install and configure Jupyter Lab with GPU-aware kernels.
-
-**Benefits**:
-- Interactive notebook development
-- Visualization support
-- Common ML workflow
-
-**Implementation Notes**:
-- Install jupyterlab, ipywidgets
-- Configure for remote access
-- Add to run.sh as optional service mode
-
-**Estimated Effort**: 2-3 hours
-
----
-
-### 10. Add Automatic Base Image Updates
-
-**Description**: Create workflow to detect and test new NVIDIA base image releases.
-
-**Benefits**:
-- Stay current with CUDA/PyTorch updates
-- Get security patches faster
-- Automated testing before adoption
-
-**Implementation Notes**:
-- Use Dependabot for Dockerfile or custom workflow
-- Run basic smoke tests before merging
-
-**Estimated Effort**: 3-4 hours
-
----
-
 ### 7. Add Compose File for Multi-Container Setups
 
 **Description**: Create `docker-compose.yml` for common development scenarios.
@@ -260,8 +166,52 @@ services:
 
 ---
 
+### 10. Add Automatic Base Image Updates
+
+**Description**: Create workflow to detect and test new NVIDIA base image releases.
+
+**Benefits**:
+- Stay current with CUDA/PyTorch updates
+- Get security patches faster
+- Automated testing before adoption
+
+**Implementation Notes**:
+- Use Dependabot for Dockerfile or custom workflow
+- Run basic smoke tests before merging
+
+**Estimated Effort**: 3-4 hours
+
+---
+
+### 12. Add Jupyter Lab Integration
+
+**Description**: Pre-install and configure Jupyter Lab with GPU-aware kernels.
+
+**Benefits**:
+- Interactive notebook development
+- Visualization support
+- Common ML workflow
+
+**Implementation Notes**:
+- Install jupyterlab, ipywidgets
+- Configure for remote access
+- Add to run.sh as optional service mode
+
+**Estimated Effort**: 2-3 hours
+
+---
+
 
 ## Completed Improvements
+
+### Recently Completed (This Session)
+
+- [x] **#4 Nsight Systems/Compute Support** - Added `nsight-systems-cli` and `nsight-compute` packages (amd64 only, auto-skipped on arm64)
+- [x] **#5 Dev Container Support** - Created `.devcontainer/devcontainer.json` for VS Code Remote Containers and GitHub Codespaces
+- [x] **#8 ARM64 Native Build Support** - Added `build_arm64_native.sh` script and documentation for building on native ARM64 hardware
+- [x] **#11 Shell Configuration Options** - Added Zsh package and Oh My Zsh with "agnoster" theme (optional, switch with `chsh -s /bin/zsh`)
+
+### Previously Completed
 
 - [x] Optimized apt-cache package availability check (batched instead of per-package)
 - [x] Fixed plocate database generation (use updatedb instead of incorrect plocate-build syntax)

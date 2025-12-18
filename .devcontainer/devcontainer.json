@@ -1,0 +1,59 @@
+{
+  "name": "GPU Devbox",
+  "image": "sytelus/gpu-devbox:latest",
+
+  // GPU access - requires NVIDIA Container Toolkit on host
+  "runArgs": [
+    "--gpus", "all",
+    "--ipc=host",
+    "--ulimit", "memlock=-1",
+    "--ulimit", "stack=67108864"
+  ],
+
+  // Mount workspace
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+
+  // VS Code customizations
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "ms-toolsai.vscode-jupyter-cell-tags",
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens",
+        "github.copilot",
+        "tamasfe.even-better-toml",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/opt/nanugpt-venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "files.trimTrailingWhitespace": true
+      }
+    }
+  },
+
+  // Environment variables
+  "containerEnv": {
+    "VIRTUAL_ENV": "/opt/nanugpt-venv",
+    "PATH": "/opt/nanugpt-venv/bin:${containerEnv:PATH}"
+  },
+
+  // Post-create command (runs after container is created)
+  "postCreateCommand": "echo 'GPU Devbox ready!' && python -c 'import torch; print(f\"PyTorch {torch.__version__}, CUDA available: {torch.cuda.is_available()}\")'",
+
+  // Features (optional additions)
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  // For GitHub Codespaces: request GPU machine
+  "hostRequirements": {
+    "gpu": "optional"
+  }
+}

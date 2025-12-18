@@ -7,8 +7,10 @@ GPU-focused development environment based on `nvcr.io/nvidia/pytorch:25.11-py3` 
 - **NVIDIA PyTorch base** - Official NVIDIA container with CUDA/NCCL/cuDNN pre-tuned
 - **Multi-architecture** - Builds for both amd64 (x86_64) and arm64 (aarch64)
 - **Python virtualenv** - `/opt/nanugpt-venv` with `--system-site-packages` to layer deps on NVIDIA's stack
-- **GPU diagnostics** - `nvtop`, `nvitop`, `nvidia-smi`, `torch-tb-profiler`
+- **GPU diagnostics** - `nvtop`, `nvitop`, `nvidia-smi`, `torch-tb-profiler`, Nsight Systems/Compute (amd64)
 - **Development tools** - Comprehensive CLI tooling for development, debugging, and profiling
+- **Shell options** - Bash (default) with Oh My Zsh available for Zsh users
+- **VS Code integration** - Dev Container support for VS Code Remote Containers and GitHub Codespaces
 - **Shell greeting** - Displays GPU/CPU status and environment info on login
 
 ## Prerequisites
@@ -167,6 +169,7 @@ This shows the multi-arch manifest and available platforms.
 | `setup-builder.sh` | One-time setup: creates buildx builder with QEMU for cross-arch builds |
 | `build_local.sh` | Build for host architecture only, loads into local Docker |
 | `build_multiarch.sh` | Build for amd64+arm64 without pushing (caches to `.buildx-cache/`) |
+| `build_arm64_native.sh` | Build on native ARM64 hardware (10x faster than QEMU) |
 | `push_multiarch.sh` | Build and push multi-arch image to Docker Hub |
 | `run.sh` | Run container with GPU flags (auto-detects GPU availability) |
 | `verify.sh` | Inspect multi-arch manifest of a pushed image |
@@ -209,8 +212,10 @@ All build scripts support these environment variables:
 |------------------|:-----:|:-----:|-------|
 | Core CLI tools | Yes | Yes | git-lfs, ripgrep, fzf, etc. |
 | GPU monitoring | Yes | Partial | nvtop may not be available on arm64 |
+| Nsight profilers | Yes | No | nsight-systems-cli, nsight-compute (amd64 only) |
 | Build tools | Yes | Yes | cmake, clang, meson, etc. |
 | OpenCV/OpenMPI | Yes | Yes | |
+| Zsh/Oh My Zsh | Yes | Yes | |
 | Fun tools | Yes | Partial | Some X11-dependent tools may be unavailable |
 
 ### Packages Skipped on Certain Architectures
@@ -231,7 +236,8 @@ Common packages that may be skipped on arm64:
 ### GPU & Profiling
 
 - **Monitoring**: `nvtop`, `nvitop` (pip), `nvidia-smi` (base image)
-- **Profiling**: `torch-tb-profiler` (pip), `accelerate` (pip)
+- **NVIDIA Profiling**: `nsight-systems-cli`, `nsight-compute` (amd64 only)
+- **PyTorch Profiling**: `torch-tb-profiler` (pip), `accelerate` (pip)
 - **System**: `btop`, `htop`, `glances`, `powertop`, `powerstat`
 - **Storage**: `iotop`, `smartmontools`, `nvme-cli`
 - **Network**: `iftop`, `nethogs`, `ifstat`
@@ -312,6 +318,81 @@ pip install -e .
 
 # Verify multi-arch manifest after push
 ./verify.sh sytelus/gpu-devbox:latest
+```
+
+## ARM64 Native Builds
+
+For significantly faster ARM64 builds, use native ARM64 hardware instead of QEMU emulation:
+
+```bash
+# On Apple Silicon, AWS Graviton, or other ARM64 machines
+./build_arm64_native.sh
+```
+
+This script:
+- Verifies you're on ARM64 hardware
+- Builds natively (10x faster than QEMU emulation)
+- Optionally pushes with `PUSH=1`
+
+**Supported ARM64 platforms:**
+- Apple Silicon Macs (M1/M2/M3/M4)
+- AWS Graviton instances (c7g, m7g, r7g, etc.)
+- Ampere Altra servers
+- NVIDIA Jetson (for GPU workloads)
+
+**Note:** GPU support on ARM64 is limited to NVIDIA Jetson devices. Most ARM64 servers don't have NVIDIA GPUs.
+
+## VS Code / Dev Container Integration
+
+The repository includes Dev Container support for VS Code Remote Containers and GitHub Codespaces.
+
+### Using with VS Code
+
+1. Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Open the repository in VS Code
+3. Click "Reopen in Container" when prompted (or use Command Palette: "Dev Containers: Reopen in Container")
+
+### Using with GitHub Codespaces
+
+1. Click "Code" → "Codespaces" → "Create codespace on main"
+2. The container will be built and configured automatically
+
+**Included VS Code extensions:**
+- Python, Pylance, Jupyter
+- Docker, GitLens
+- GitHub Copilot
+- TOML, YAML support
+
+**Note:** GPU access in Codespaces requires a GPU-enabled machine type (not available in free tier).
+
+## Shell Options
+
+The container includes both Bash (default) and Zsh with Oh My Zsh pre-installed.
+
+### Using Bash (default)
+
+Bash is the default shell with custom aliases from the repository's dotfiles.
+
+### Switching to Zsh
+
+```bash
+# Temporary switch for current session
+zsh
+
+# Permanent switch (requires container restart)
+chsh -s /bin/zsh
+```
+
+**Zsh features:**
+- Oh My Zsh with "agnoster" theme
+- Auto-activates the Python virtualenv
+- Plugin ecosystem available (add to `~/.zshrc`)
+
+**Adding Oh My Zsh plugins:**
+
+```bash
+# Edit ~/.zshrc and modify the plugins line
+plugins=(git docker python pip)
 ```
 
 ## Troubleshooting

@@ -48,12 +48,14 @@ RUN set -eux; \
       meson ccache clang clang-format clang-tidy lld lldb strace ltrace \
       libffi-dev libsqlite3-dev \
       btop glances sysstat iotop ifstat iftop nethogs hwloc lm-sensors smartmontools nvme-cli acpi \
+      nsight-systems-cli nsight-compute \
       autossh mtr nmap traceroute tcpdump net-tools \
       exfatprogs exfat-fuse ntfs-3g sshfs cifs-utils mergerfs lsof pstree \
       p7zip-full zstd pigz pbzip2 unar \
       rclone direnv starship fonts-powerline fonts-firacode \
       ffmpeg ghostscript pdftk-java \
       whois dnsutils time nvtop \
+      zsh \
     "; \
     INSTALLABLE=""; PREINSTALLED=""; SKIPPED=""; \
     INSTALLED_PKGS=$(dpkg-query -W -f='${Package}\n' 2>/dev/null || true); \
@@ -83,6 +85,23 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*; \
     echo "Preinstalled from base image:$PREINSTALLED"; \
     if [ -n "$SKIPPED" ]; then echo "Skipped (arch/unavailable):$SKIPPED"; fi
+
+# Install Oh My Zsh for enhanced shell experience (optional - users can switch with 'chsh -s /bin/zsh').
+RUN set -eux; \
+    if command -v zsh >/dev/null 2>&1; then \
+      export RUNZSH=no CHSH=no KEEP_ZSHRC=yes; \
+      sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || true; \
+      if [ -d /root/.oh-my-zsh ]; then \
+        sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="agnoster"/' /root/.zshrc; \
+        echo 'export PATH="/opt/nanugpt-venv/bin:$PATH"' >> /root/.zshrc; \
+        echo 'source /opt/nanugpt-venv/bin/activate 2>/dev/null || true' >> /root/.zshrc; \
+        cp -r /root/.oh-my-zsh /etc/skel/; \
+        cp /root/.zshrc /etc/skel/; \
+        echo "Oh My Zsh installed. Switch shell with: chsh -s /bin/zsh"; \
+      fi; \
+    else \
+      echo "Zsh not available, skipping Oh My Zsh installation."; \
+    fi
 
 # Upgrade pip tooling and install Python dependencies for nanuGPT and GPU profiling utilities.
 RUN --mount=type=cache,target=/root/.cache/pip \
