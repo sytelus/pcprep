@@ -1,12 +1,15 @@
 # GPU Devbox (NGC PyTorch 25.11, Multi-arch)
 
-GPU-focused development environment based on `nvcr.io/nvidia/pytorch:25.11-py3` with CUDA 12.x + PyTorch, extended with GPU diagnostics, development tooling, and Python dependencies required by [nanuGPT](https://github.com/sytelus/nanuGPT). Builds for **linux/amd64** and **linux/arm64** using Docker Buildx.
+GPU-focused development environment based on `nvcr.io/nvidia/pytorch:25.11-py3` with CUDA 12.x + PyTorch, extended with GPU diagnostics, development tooling, and ML/DL packages. Builds for **linux/amd64** and **linux/arm64** using Docker Buildx.
+
+See [REQUIREMENTS.md](REQUIREMENTS.md) for design decisions and package management philosophy.
 
 ## Features
 
 - **NVIDIA PyTorch base** - Official NVIDIA container with CUDA/NCCL/cuDNN pre-tuned
 - **Multi-architecture** - Builds for both amd64 (x86_64) and arm64 (aarch64)
-- **Python virtualenv** - `/opt/nanugpt-venv` with `--system-site-packages` to layer deps on NVIDIA's stack
+- **No virtual environment** - Packages install directly into base image's Python for simplicity
+- **Base image protection** - Constraints prevent downgrading any NVIDIA base image packages
 - **GPU diagnostics** - `nvtop`, `nvitop`, `nvidia-smi`, `torch-tb-profiler`, Nsight Systems/Compute (amd64)
 - **Development tools** - Comprehensive CLI tooling for development, debugging, and profiling
 - **Shell options** - Bash (default) with Oh My Zsh available for Zsh users
@@ -192,6 +195,12 @@ All build scripts support these environment variables:
 | `CACHE_DIR` | `.buildx-cache` | Build cache directory |
 | `SKIP_LOGIN` | `0` | Set to `1` to skip Docker login (CI mode) |
 
+**Build arguments** (pass with `--build-arg`):
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `INSTALL_VLLM` | `false` | Set to `true` to install vllm (may conflict with base image torch) |
+
 ## Architecture-Specific Availability
 
 ### Python Packages
@@ -201,7 +210,7 @@ All build scripts support these environment variables:
 | PyTorch | Yes | Yes | From NVIDIA base image |
 | CUDA/cuDNN | Yes | Yes | From NVIDIA base image |
 | flash-attn | Yes | No | No prebuilt arm64 wheels; source build too slow |
-| vllm | Yes | Partial | May have limited functionality on arm64 |
+| vllm | Optional | Optional | Disabled by default (conflicts with base image torch); enable with `--build-arg INSTALL_VLLM=true` |
 | deepspeed | Yes | Yes | |
 | transformer-engine | Yes | Partial | CUDA features may be limited on arm64 |
 | All other pip packages | Yes | Yes | |
@@ -257,17 +266,18 @@ Common packages that may be skipped on arm64:
 - **Archive**: `p7zip-full`, `zstd`, `pigz`, `pbzip2`, `unar`
 - **Network**: `mtr`, `nmap`, `traceroute`, `tcpdump`, `autossh`
 
-### Python Environment
+### Python Packages
 
-The virtualenv at `/opt/nanugpt-venv` includes:
+Additional packages installed directly into the base image's Python:
 
 - **ML/DL**: transformers, datasets, accelerate, deepspeed, lightning, peft, trl
 - **Eval**: lm-eval, evaluate, math-verify
-- **Data**: numpy, pandas, scipy, pyarrow, orjson
 - **Viz**: matplotlib, tensorboard, wandb, mlflow
 - **Tokenizers**: tiktoken, sentencepiece, tokenizers
 - **Cloud**: azure-identity, azure-storage-blob, huggingface-hub
 - **Utils**: rich, tqdm, typer, omegaconf, tenacity
+
+Base image packages (torch, numpy, scipy, pandas, etc.) are protected from downgrades via constraints.
 
 ## What's Already in the Base Image
 
@@ -287,22 +297,6 @@ The NVIDIA PyTorch 25.11 base image includes (not reinstalled):
 | `tlp`, `tlp-rdw` | Require systemd; don't work in containers |
 | `linux-tools-generic` | Kernel-version specific; install on host instead |
 | `perf` | Part of linux-tools; use host's version |
-
-## nanuGPT Integration
-
-The container is pre-configured for [nanuGPT](https://github.com/sytelus/nanuGPT):
-
-```bash
-# Inside the container
-git clone https://github.com/sytelus/nanuGPT.git
-cd nanuGPT
-pip install -e .
-```
-
-- Python deps mirror nanuGPT's `pyproject.toml`
-- CUDA/PyTorch from NVIDIA base remain untouched
-- `flash-attn` pre-installed on amd64 (skipped on arm64)
-- Interactive shells auto-activate the venv
 
 ## Verification
 
@@ -385,7 +379,6 @@ chsh -s /bin/zsh
 
 **Zsh features:**
 - Oh My Zsh with "agnoster" theme
-- Auto-activates the Python virtualenv
 - Plugin ecosystem available (add to `~/.zshrc`)
 
 **Adding Oh My Zsh plugins:**
@@ -432,11 +425,17 @@ SKIP_LOGIN=1 ./push_multiarch.sh
 ```dockerfile
 FROM sytelus/gpu-devbox:latest
 
-# Add your packages
+# Add your Python packages (installs directly into system Python)
 RUN pip install your-package
 
 # Or add system packages
 RUN apt-get update && apt-get install -y your-package && rm -rf /var/lib/apt/lists/*
+```
+
+**Note:** The base image constraint file at `/opt/base-image-constraints.txt` lists all NVIDIA base image packages. You can reference it to avoid conflicts:
+
+```dockerfile
+RUN pip install --constraint /opt/base-image-constraints.txt your-package
 ```
 
 ## License

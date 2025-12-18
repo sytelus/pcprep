@@ -11,7 +11,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source="https://github.com/sytelus/pcprep" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.title="gpu-devbox" \
-      org.opencontainers.image.description="NVIDIA PyTorch 25.11 based devbox with multi-arch tooling, GPU diagnostics, and nanuGPT dependencies preinstalled." \
+      org.opencontainers.image.description="NVIDIA PyTorch 25.11 based devbox with multi-arch tooling, GPU diagnostics, and ML/DL packages preinstalled." \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:25.11-py3"
 
@@ -21,8 +21,7 @@ ENV TZ=UTC \
     PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DEVBOX_CONTAINER=1 \
-    NANUGPT_VENV=/opt/nanugpt-venv
+    DEVBOX_CONTAINER=1
 
 # Refresh apt metadata and install requested tooling that is not already provided by the base image.
 RUN set -eux; \
@@ -93,8 +92,6 @@ RUN set -eux; \
       sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || true; \
       if [ -d /root/.oh-my-zsh ]; then \
         sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="agnoster"/' /root/.zshrc; \
-        echo 'export PATH="/opt/nanugpt-venv/bin:$PATH"' >> /root/.zshrc; \
-        echo 'source /opt/nanugpt-venv/bin/activate 2>/dev/null || true' >> /root/.zshrc; \
         cp -r /root/.oh-my-zsh /etc/skel/; \
         cp /root/.zshrc /etc/skel/; \
         echo "Oh My Zsh installed. Switch shell with: chsh -s /bin/zsh"; \
@@ -103,12 +100,23 @@ RUN set -eux; \
       echo "Zsh not available, skipping Oh My Zsh installation."; \
     fi
 
-# Upgrade pip tooling and install Python dependencies for nanuGPT and GPU profiling utilities.
+# Build args for optional packages that may have version conflicts with base image.
+# Set to "true" to enable; disabled by default until newer base images resolve conflicts.
+ARG INSTALL_VLLM="false"
+
+# Install additional Python packages for ML/DL development directly into the base image.
+# Generates constraints from base image packages to prevent any downgrades.
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
-    python3 -m venv --system-site-packages "${NANUGPT_VENV}"; \
-    "${NANUGPT_VENV}/bin/pip" install --upgrade pip setuptools wheel packaging; \
-    "${NANUGPT_VENV}/bin/pip" install --no-cache-dir \
+    # Generate constraints from ALL packages in base image to prevent downgrades
+    echo "=== Generating constraints from base image packages ===" ; \
+    pip freeze > /opt/base-image-constraints.txt ; \
+    echo "Base image has $(wc -l < /opt/base-image-constraints.txt) packages" ; \
+    # Upgrade pip tooling
+    pip install --upgrade pip setuptools wheel packaging; \
+    # Install packages with constraints to prevent base image package downgrades
+    pip install --no-cache-dir \
+      --constraint /opt/base-image-constraints.txt \
       accelerate \
       azure-identity \
       azure-keyvault-secrets \
@@ -126,14 +134,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       mlflow \
       natsort \
       nbsphinx \
-      numpy \
       omegaconf \
       openai \
       orjson \
       pandas \
       peft \
       pre-commit \
-      pyarrow==19.0.1 \
       pydata-sphinx-theme \
       pylatexenc \
       pytest \
@@ -142,7 +148,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       redis \
       rich \
       safetensors \
-      scipy \
       sentencepiece \
       sphinx \
       sphinx-book-theme \
@@ -161,12 +166,20 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       tqdm \
       typer \
       typing-extensions \
-      vllm \
       wandb \
       nvitop; \
+    # Optional: vllm (disabled by default - has strict torch version requirements)
+    if [ "${INSTALL_VLLM}" = "true" ]; then \
+      echo "Installing vllm (INSTALL_VLLM=true)..."; \
+      pip install --no-cache-dir --constraint /opt/base-image-constraints.txt vllm || \
+        echo "WARNING: vllm installation failed due to version conflicts"; \
+    else \
+      echo "Skipping vllm (set INSTALL_VLLM=true to enable)"; \
+    fi; \
+    # Architecture-specific installations
     if [ "${TARGETARCH}" = "amd64" ]; then \
       echo "Attempting flash-attn installation on amd64..."; \
-      if "${NANUGPT_VENV}/bin/pip" install --no-cache-dir flash-attn --no-build-isolation; then \
+      if pip install --no-cache-dir --constraint /opt/base-image-constraints.txt flash-attn --no-build-isolation; then \
         echo "flash-attn installed successfully."; \
       else \
         echo "flash-attn install failed (wheels may not be available for this CUDA/Python version)."; \
@@ -176,9 +189,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     else \
       echo "flash-attn unsupported on ${TARGETARCH}."; \
     fi
-
-ENV VIRTUAL_ENV=/opt/nanugpt-venv
-ENV PATH=/opt/nanugpt-venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 WORKDIR /workspace
 
@@ -212,9 +222,6 @@ RUN set -eux; \
     cat <<'EOS' >/etc/profile.d/00-gpu-devbox.sh
 #!/bin/bash
 if [[ $- == *i* ]]; then
-  if [[ -n "${VIRTUAL_ENV:-}" && -f "${VIRTUAL_ENV}/bin/activate" ]]; then
-    . "${VIRTUAL_ENV}/bin/activate"
-  fi
   if [[ -z "${GPU_DEVBOX_WELCOMED:-}" ]]; then
     export GPU_DEVBOX_WELCOMED=1
     /usr/local/bin/gpu-devbox-greeting || true
