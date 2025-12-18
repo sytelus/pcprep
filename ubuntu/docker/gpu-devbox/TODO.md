@@ -8,6 +8,56 @@ This document contains suggested improvements that require review and approval b
 (No pending approved items - all have been implemented)
 
 
+## Future Considerations
+
+These items may be worth implementing when conditions change.
+
+### 13. Re-test vllm with Newer Base Images
+
+**Description**: Periodically test if vllm installs without conflicts when NVIDIA releases new PyTorch containers.
+
+**Current State**: vllm is disabled by default (`INSTALL_VLLM=false`) due to torch version conflicts.
+
+**Action**: When a new `nvcr.io/nvidia/pytorch:XX.YY-py3` is released, test:
+```bash
+docker buildx build --build-arg INSTALL_VLLM=true ...
+```
+
+If successful, consider flipping the default to `true`.
+
+**Trigger**: New NVIDIA PyTorch container release
+
+---
+
+### 14. Monitor flash-attn ARM64 Wheel Availability
+
+**Description**: flash-attn currently skips ARM64 due to lack of prebuilt wheels.
+
+**Current State**: Only installed on amd64; arm64 skipped with informational message.
+
+**Action**: Periodically check if flash-attn releases arm64 wheels:
+```bash
+pip index versions flash-attn --platform linux_aarch64
+```
+
+**Trigger**: flash-attn release announcements
+
+---
+
+### 15. Extract Common Build Script Functions
+
+**Description**: Build scripts share duplicated code for Dockerfile path resolution, VCS_REF, etc.
+
+**Current State**: Each script (`build_local.sh`, `build_multiarch.sh`, `push_multiarch.sh`, `build_arm64_native.sh`) has identical ~15 lines for setup.
+
+**Potential Approach**: Create `_build_common.sh` that exports common variables/functions.
+
+**Why Not Done Now**: Adds indirection and complexity; current duplication is manageable. Per REQUIREMENTS.md principle #2 (Simplicity over complexity).
+
+**Recommendation**: Only implement if scripts grow significantly or bugs from inconsistency occur.
+
+---
+
 ## Risky
 
 These items were approved but moved here due to potential for introducing bugs or unnecessary complexity. They require careful consideration before implementation.
@@ -204,14 +254,24 @@ services:
 
 ## Completed Improvements
 
-### Recently Completed (This Session)
+### Code Review Session (Latest)
+
+- [x] **Fixed PIP_NO_CACHE_DIR conflict** - Removed `PIP_NO_CACHE_DIR=1` from ENV which was disabling the pip cache mount (`--mount=type=cache`), wasting build optimization
+- [x] **Merged apt RUN commands** - Combined two apt-get RUN commands into one, saving a layer and reducing build time
+- [x] **Merged greeting/profile RUN commands** - Combined three RUN commands (greeting script, profile script, skel copy) into one layer
+- [x] **Fixed build_arm64_native.sh bug** - `--load` and `--push` can't be used together in buildx; now properly uses one or the other based on PUSH flag
+- [x] **Removed virtual environment** - Simplified to install packages directly into base image Python per REQUIREMENTS.md
+- [x] **Added dynamic constraints** - `pip freeze` captures base image packages at build time to prevent downgrades
+- [x] **Made vllm optional** - Added `INSTALL_VLLM` build arg (default: false) for packages with version conflicts
+
+### Previously Completed (Dev Container Session)
 
 - [x] **#4 Nsight Systems/Compute Support** - Added `nsight-systems-cli` and `nsight-compute` packages (amd64 only, auto-skipped on arm64)
 - [x] **#5 Dev Container Support** - Created `.devcontainer/devcontainer.json` for VS Code Remote Containers and GitHub Codespaces
 - [x] **#8 ARM64 Native Build Support** - Added `build_arm64_native.sh` script and documentation for building on native ARM64 hardware
 - [x] **#11 Shell Configuration Options** - Added Zsh package and Oh My Zsh with "agnoster" theme (optional, switch with `chsh -s /bin/zsh`)
 
-### Previously Completed
+### Previously Completed (Original)
 
 - [x] Optimized apt-cache package availability check (batched instead of per-package)
 - [x] Fixed plocate database generation (use updatedb instead of incorrect plocate-build syntax)

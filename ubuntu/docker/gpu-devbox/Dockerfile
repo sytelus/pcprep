@@ -18,21 +18,16 @@ LABEL org.opencontainers.image.source="https://github.com/sytelus/pcprep" \
 ENV TZ=UTC \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
-    PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEVBOX_CONTAINER=1
 
-# Refresh apt metadata and install requested tooling that is not already provided by the base image.
+# Install system packages: base tools, locale setup, and toolbox packages.
+# Skips packages already in the base image or unavailable on target architecture.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends ca-certificates locales software-properties-common gnupg; \
     locale-gen en_US.UTF-8; \
-    rm -rf /var/lib/apt/lists/*
-
-# Install toolbox packages (skip ones already in the base image or missing on this arch).
-RUN set -eux; \
-    apt-get update; \
     PKGS=" \
       git-lfs \
       xclip xsel trash-cli \
@@ -192,7 +187,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 WORKDIR /workspace
 
-# Provide a friendly greeting and environment bootstrap when entering the container interactively.
+# Reuse repo dotfiles for consistent shell experience (leave base .bashrc untouched).
+COPY ubuntu/.bash_aliases /root/.bash_aliases
+COPY ubuntu/.inputrc /root/.inputrc
+COPY ubuntu/.tmux.conf /root/.tmux.conf
+
+# Create greeting script, profile setup, and copy dotfiles to skeleton for new users.
 RUN set -eux; \
     cat <<'EOS' >/usr/local/bin/gpu-devbox-greeting
 #!/usr/bin/env bash
@@ -216,9 +216,7 @@ if command -v nvtop >/dev/null 2>&1; then
   echo "Tip: run 'nvtop' for live GPU telemetry."
 fi
 EOS
-    chmod +x /usr/local/bin/gpu-devbox-greeting
-
-RUN set -eux; \
+    chmod +x /usr/local/bin/gpu-devbox-greeting; \
     cat <<'EOS' >/etc/profile.d/00-gpu-devbox.sh
 #!/bin/bash
 if [[ $- == *i* ]]; then
@@ -231,13 +229,7 @@ if [[ $- == *i* ]]; then
   fi
 fi
 EOS
-    chmod +x /etc/profile.d/00-gpu-devbox.sh
-
-# Reuse repo dotfiles for consistent shell experience (leave base .bashrc untouched).
-COPY ubuntu/.bash_aliases /root/.bash_aliases
-COPY ubuntu/.inputrc /root/.inputrc
-COPY ubuntu/.tmux.conf /root/.tmux.conf
-RUN set -eux; \
+    chmod +x /etc/profile.d/00-gpu-devbox.sh; \
     mkdir -p /etc/skel; \
     cp -a /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/
 

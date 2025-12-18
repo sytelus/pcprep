@@ -73,13 +73,15 @@ if docker buildx version >/dev/null 2>&1; then
         --platform "linux/arm64"
         --build-arg VCS_REF="${VCS_REF}"
         --progress=plain
-        --load
         -t "${IMAGE}:${TAG}"
     )
 
+    # Can't use --load and --push together; choose one based on PUSH flag
     if [[ "${PUSH}" == "1" ]]; then
         BUILD_CMD+=(--push)
         echo "Will push after build..."
+    else
+        BUILD_CMD+=(--load)
     fi
 
     BUILD_CMD+=("${BUILD_CONTEXT}")
