@@ -100,7 +100,13 @@ RUN set -eux; \
 ARG INSTALL_VLLM="false"
 
 # Install additional Python packages for ML/DL development directly into the base image.
-# Generates constraints from base image packages to prevent any downgrades.
+# Strategy for future NVIDIA base image compatibility:
+# 1. Generate constraints from base image to prevent downgrades
+# 2. Filter out local/editable installs that won't resolve in build context
+# 3. Core packages in main pip install (should work across base image versions)
+# 4. Packages with complex deps (lm-eval, evaluate, mlflow) installed separately with graceful failure
+# 5. Packages needing torch at build time (torchao, flash-attn) use --no-build-isolation
+# 6. Packages already in base image (transformer-engine) are skipped
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
     # Generate constraints from ALL packages in base image to prevent downgrades
@@ -120,14 +126,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       datasets \
       deepspeed \
       einops \
-      evaluate \
       huggingface-hub \
       ipython \
       lightning \
-      lm-eval \
       matplotlib \
       math-verify[antlr4_9_3] \
-      mlflow \
       natsort \
       nbsphinx \
       omegaconf \
@@ -155,7 +158,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       tiktoken \
       tokenizers \
       torch-tb-profiler \
-      transformer-engine[pytorch] \
       transformers \
       trl \
       tqdm \
@@ -170,6 +172,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     else \
       echo "WARNING: torchao installation failed (may need compatible torch version)."; \
     fi; \
+    # Optional packages with complex dependency chains - install separately to avoid blocking core packages
+    # These may fail on some base image versions due to dependency conflicts
+    echo "Installing optional packages (lm-eval, evaluate, mlflow)..."; \
+    for pkg in lm-eval evaluate mlflow; do \
+      if pip install --no-cache-dir --constraint /opt/base-image-constraints.txt "$pkg" 2>/dev/null; then \
+        echo "$pkg installed successfully."; \
+      else \
+        echo "WARNING: $pkg installation failed (dependency conflicts with base image)."; \
+      fi; \
+    done; \
     # Optional: vllm (disabled by default - has strict torch version requirements)
     if [ "${INSTALL_VLLM}" = "true" ]; then \
       echo "Installing vllm (INSTALL_VLLM=true)..."; \
