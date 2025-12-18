@@ -56,6 +56,4 @@ docker buildx build \
   "${BUILD_CONTEXT}"
 
 echo ">> Multi-arch image pushed: ${IMAGE}:${TAG} and ${IMAGE}:latest"
-echo ">> To verify:
-
-./verify.sh ${IMAGE}:${TAG}"
+echo ">> To verify: ./verify.sh ${IMAGE}:${TAG}"

@@ -1,10 +1,10 @@
 # CPU Devbox (Ubuntu 24.04, multi-arch)
 
-A terminal-first development box for **amd64** and **arm64** with Azure CLI + AzCopy, Git + Git LFS + GitHub CLI, kubectl/Helm, zsh, micro, Miniconda (base auto-activated), and a broad toolbox.
+A terminal-first development box for **amd64** and **arm64** with Azure CLI + AzCopy, Git + Git LFS + GitHub CLI, kubectl, zsh, micro, Miniconda (base auto-activated), and a broad toolbox.
 
 - **Greeting on start:** prints `Welcome to CPU devbox!` plus CPU, RAM, kernel, and key tool versions.
 - **Conda base** is auto-activated in interactive shells.
-- **Packages from `tools.txt`** are included opportunistically per architecture. :contentReference[oaicite:1]{index=1}
+- **Packages from `tools.txt`** are included opportunistically per architecture.
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ Build the image for **your current machine’s architecture** and load it into t
 
 ```bash
 # IMAGE and TAG are optional here
-IMAGE=cpu-devbox TAG=local build-local.sh
+IMAGE=cpu-devbox TAG=local ./build_local.sh
 ./run.sh                     # launches the image; you should see the welcome banner
 ```
 ## Platforms & architecture notes
@@ -56,7 +56,7 @@ If you need to change platforms:
 PLATFORMS=linux/amd64 \
 IMAGE=docker.io/<user>/cpu-devbox \
 TAG=2025.09.13 \
-./build-multiarch.sh
+./build_multiarch.sh
 ```
 
 The multi-arch script enables:
@@ -73,3 +73,31 @@ You can inspect these with `docker buildx imagetools inspect <image:tag>` and co
 - **Azure CLI / AzCopy availability**: Microsoft currently publishes packages for amd64 and arm64. The Dockerfile logs a skip if a tool is missing for the active architecture.
 - **Conda heavy packages (TF/PT)**: These install via conda-forge on amd64/arm64 when available; otherwise the build logs a skip.
 - **SSH/GPG agent setup**: Inside the container we skip auto-starting host agents to avoid read-only filesystem errors. If you need an agent, start it manually once inside the devbox.
+
+## Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `setup-builder.sh` | One-time setup: creates a BuildKit builder with QEMU cross-arch support |
+| `build_local.sh` | Builds image for the current host architecture and loads it locally |
+| `build_multiarch.sh` | Builds multi-arch image (amd64 + arm64) without pushing; caches to `.buildx-cache` |
+| `push_multiarch.sh` | Builds and pushes multi-arch image to Docker Hub |
+| `run.sh` | Runs the locally-built image interactively |
+| `verify.sh` | Inspects a pushed image's manifest (usage: `./verify.sh <image:tag>`) |
+| `docker_info.sh` | Displays Docker version, disk usage, and BuildX info |
+| `dockerprune.sh` | Prunes all unused Docker data (images, containers, volumes) — **destructive** |
+| `docker-move-data.sh` | Moves Docker's data-root to a new location (e.g., larger disk) |
+
+### Environment Variables
+
+All build scripts support these overrides:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `IMAGE` | `sytelus/cpu-devbox` or `cpu-devbox` | Image name |
+| `TAG` | `YYYY.MM.DD` or `local` | Image tag |
+| `PLATFORMS` | `linux/amd64,linux/arm64` | Target platforms (multi-arch only) |
+| `BUILDER` | `cpu-devbox-builder` | BuildX builder name |
+| `BUILD_CONTEXT` | Repository root | Docker build context directory |
+| `DOCKERFILE` | Auto-detected | Path to Dockerfile relative to context |
+| `CACHE_DIR` | `.buildx-cache` | Local cache directory (multi-arch only) |

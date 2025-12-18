@@ -86,7 +86,7 @@ NOTE: Docker Buildx may print 'No output specified...' when using the container 
       push_multiarch.sh can publish it without rebuilding.
 
 To push:
-./push_multiarch.sh IMAGE=${IMAGE} TAG=${TAG} PLATFORMS=${PLATFORMS} BUILDER=${BUILDER}
+IMAGE=${IMAGE} TAG=${TAG} PLATFORMS=${PLATFORMS} BUILDER=${BUILDER} ./push_multiarch.sh
 
 To test locally on one architecture:
 IMAGE=${IMAGE} TAG=${TAG} ./build_local.sh && ./run.sh

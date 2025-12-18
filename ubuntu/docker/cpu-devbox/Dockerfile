@@ -122,15 +122,8 @@ RUN set -eux; \
     if apt-cache show kubectl >/dev/null 2>&1; then apt-get install -y kubectl; else echo "kubectl not available for this architecture; skipping"; fi; \
     rm -rf /var/lib/apt/lists/*
 
-# # ---- Helm apt repo (Buildkite-hosted helm-linux repo) ----
-# RUN set -eux; \
-#     apt-get update; \
-#     apt-get install -y --no-install-recommends curl gpg apt-transport-https; \
-#     curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | tee /usr/share/keyrings/helm.gpg >/dev/null; \
-#     echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" > /etc/apt/sources.list.d/helm-stable-debian.list; \
-#     apt-get update; \
-#     if apt-cache show helm >/dev/null 2>&1; then apt-get install -y helm; else echo "helm not available for this arch; skipping"; fi; \
-#     rm -rf /var/lib/apt/lists/*
+# NOTE: Helm installation is disabled to reduce image size. Uncomment and adapt
+# the block below if you need Helm (uses Buildkite-hosted helm-linux repo).
 
 # ---- zsh (do not set default), micro editor already installed via apt above ----
 RUN set -eux; \
@@ -229,11 +222,11 @@ echo "Host: ${host} | Arch: ${arch} | Kernel: ${kernel} | Cores: ${cores} | RAM:
 # Helpful versions if present
 command -v az >/dev/null 2>&1 && az version 2>/dev/null | sed -n 's/.*"azure-cli": "\(.*\)".*/Azure CLI: \1/p'
 command -v gh >/dev/null 2>&1 && gh --version | head -n1
-command -v kubectl >/dev/null 2>&1 && kubectl version --client --short 2>/dev/null || true
+command -v kubectl >/dev/null 2>&1 && kubectl version --client 2>/dev/null | head -n1 || true
 command -v helm >/dev/null 2>&1 && helm version --short 2>/dev/null || true
 python -V 2>/dev/null || true
 EOF
-RUN chmod +x /usr/local/bin/devbox-greeting
+    chmod +x /usr/local/bin/devbox-greeting
 
 # Default to login shell so /etc/bash.bashrc runs (activates conda + greeting)
 CMD ["/bin/bash", "-l"]

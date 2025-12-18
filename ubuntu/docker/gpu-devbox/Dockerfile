@@ -154,7 +154,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       tiktoken \
       tokenizers \
       torch-tb-profiler \
-      torchao \
       transformer-engine[pytorch] \
       transformers \
       trl \
@@ -163,6 +162,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       typing-extensions \
       wandb \
       nvitop; \
+    # Install torchao separately with --no-build-isolation so it can access base image torch
+    echo "Installing torchao (requires existing torch)..."; \
+    if pip install --no-cache-dir --constraint /opt/base-image-constraints.txt torchao --no-build-isolation; then \
+      echo "torchao installed successfully."; \
+    else \
+      echo "WARNING: torchao installation failed (may need compatible torch version)."; \
+    fi; \
     # Optional: vllm (disabled by default - has strict torch version requirements)
     if [ "${INSTALL_VLLM}" = "true" ]; then \
       echo "Installing vllm (INSTALL_VLLM=true)..."; \
