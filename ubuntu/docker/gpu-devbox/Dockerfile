@@ -104,9 +104,10 @@ ARG INSTALL_VLLM="false"
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
     # Generate constraints from ALL packages in base image to prevent downgrades
+    # Filter out: local/editable installs (file://), direct URLs (@), editable (-e), and path refs
     echo "=== Generating constraints from base image packages ===" ; \
-    pip freeze > /opt/base-image-constraints.txt ; \
-    echo "Base image has $(wc -l < /opt/base-image-constraints.txt) packages" ; \
+    pip freeze | grep -v -E '@ |^-e |^file:|^\.' > /opt/base-image-constraints.txt ; \
+    echo "Base image has $(wc -l < /opt/base-image-constraints.txt) packages (excluding local/URL installs)" ; \
     # Upgrade pip tooling
     pip install --upgrade pip setuptools wheel packaging; \
     # Install packages with constraints to prevent base image package downgrades
