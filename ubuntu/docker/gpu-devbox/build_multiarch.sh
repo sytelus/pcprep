@@ -19,6 +19,11 @@ BUILD_CONTEXT="${BUILD_CONTEXT:-${DEFAULT_CONTEXT}}"
 BUILD_CONTEXT=$(cd "${BUILD_CONTEXT}" && pwd)
 BUILDER="${BUILDER:-gpu-devbox-builder}"
 
+# Set up logging
+LOG_DIR="${LOG_DIR:-${SCRIPT_DIR}/logs}"
+mkdir -p "${LOG_DIR}"
+LOG_FILE="${LOG_DIR}/build_$(date +%Y%m%d_%H%M%S).log"
+
 # Get VCS reference for image labeling
 VCS_REF="${VCS_REF:-$(git -C "${BUILD_CONTEXT}" rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
 
@@ -54,7 +59,12 @@ echo "   Cache dir:  ${CACHE_DIR_ABS}"
 echo "   Context:    ${BUILD_CONTEXT}"
 echo "   Dockerfile: ${DOCKERFILE}"
 echo "   VCS_REF:    ${VCS_REF}"
+echo "   Log file:   ${LOG_FILE}"
 echo ""
+
+# Start logging (tee to both console and file)
+exec > >(tee -a "${LOG_FILE}") 2>&1
+echo "=== Build started at $(date) ==="
 
 pushd "${BUILD_CONTEXT}" >/dev/null
 trap 'popd >/dev/null' EXIT
@@ -78,13 +88,26 @@ build_cmd+=(--cache-to "type=local,dest=${CACHE_DIR_ABS},mode=max")
 build_cmd+=(-t "${IMAGE}:${TAG}")
 build_cmd+=("${BUILD_CONTEXT}")
 
-"${build_cmd[@]}"
+"${build_cmd[@]}" || BUILD_EXIT_CODE=$?
+BUILD_EXIT_CODE=${BUILD_EXIT_CODE:-0}
 
 echo ""
-echo "Multi-arch build completed (artifacts cached via buildx)."
+echo "=== Build finished at $(date) ==="
 echo ""
-echo "To push:"
-echo "  IMAGE=${IMAGE} TAG=${TAG} ./push_multiarch.sh"
+if [ ${BUILD_EXIT_CODE} -eq 0 ]; then
+    echo "Multi-arch build completed (artifacts cached via buildx)."
+    echo ""
+    echo "To push:"
+    echo "  IMAGE=${IMAGE} TAG=${TAG} ./push_multiarch.sh"
+    echo ""
+    echo "To test locally with GPU:"
+    echo "  ./build_local.sh && ./run.sh"
+else
+    echo "Build FAILED with exit code ${BUILD_EXIT_CODE}"
+fi
 echo ""
-echo "To test locally with GPU:"
-echo "  ./build_local.sh && ./run.sh"
+echo "=========================================="
+echo "Build log saved to: ${LOG_FILE}"
+echo "=========================================="
+
+exit ${BUILD_EXIT_CODE}

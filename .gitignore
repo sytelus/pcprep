@@ -58,6 +58,7 @@ build/
 *.log
 *.cache
 nohup.out
+logs/
 
 # ---- General IDE / OS ----
 *.DS_Store
