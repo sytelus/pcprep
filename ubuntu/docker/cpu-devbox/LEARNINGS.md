@@ -295,6 +295,26 @@ docker buildx build --push ...
 
 ---
 
+## Pip and Python Package Management
+
+### 15. Pip PIP_CONSTRAINT Deprecation Warning
+
+**Problem:** Starting with pip 26.2, the `--constraint` flag will no longer affect build-time dependencies. This causes a deprecation warning during package installation:
+```
+DEPRECATION: Setting PIP_CONSTRAINT will not affect build constraints in the future...
+```
+
+**Solution:** Set the feature flag to opt-in to the new behavior early and silence the warning:
+```dockerfile
+ENV PIP_USE_FEATURE=build-constraint
+```
+
+**Why it works:** This tells pip you accept the new behavior where constraints only affect runtime dependencies, not build dependencies.
+
+**Date:** December 2025
+
+---
+
 ## Contributing
 
 When you discover a new learning:

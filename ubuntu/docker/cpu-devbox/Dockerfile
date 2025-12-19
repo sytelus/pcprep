@@ -132,7 +132,10 @@ RUN set -eux; \
 # ---- Miniconda/Miniforge installation (multi-arch) ----
 ENV CONDA_DIR=/opt/conda \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_ROOT_USER_ACTION=ignore
+    PIP_ROOT_USER_ACTION=ignore \
+    # Opt-in to pip 26.2 behavior: --constraint only affects runtime deps, not build deps.
+    # Silences deprecation warning about PIP_CONSTRAINT affecting build dependencies.
+    PIP_USE_FEATURE=build-constraint
 ENV PATH="${CONDA_DIR}/bin:${PATH}"
 
 RUN set -eux; \

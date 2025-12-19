@@ -285,6 +285,44 @@ When NVIDIA releases new PyTorch containers, test these packages:
 
 ---
 
+## Environment Variables and Base Image Quirks
+
+### 16. NVIDIA Base Image PS1 Unbound Variable Error
+
+**Problem:** NVIDIA PyTorch base images have `/etc/bash.bashrc` with `set -u` (nounset) that references `PS1` before it's defined. During non-interactive RUN commands, `PS1` isn't set, causing:
+```
+/etc/bash.bashrc: line 9: PS1: unbound variable
+```
+
+**Solution:** Set a default `PS1` in the Dockerfile's ENV block before any RUN commands:
+```dockerfile
+ENV PS1='\\u@\\h:\\w\\$ '
+```
+
+**Why it works:** The ENV sets `PS1` globally, so when `/etc/bash.bashrc` runs during RUN commands, the variable exists.
+
+**Date:** December 2025
+
+---
+
+### 17. Pip PIP_CONSTRAINT Deprecation Warning
+
+**Problem:** Starting with pip 26.2, the `--constraint` flag will no longer affect build-time dependencies. This causes a deprecation warning:
+```
+DEPRECATION: Setting PIP_CONSTRAINT will not affect build constraints in the future...
+```
+
+**Solution:** Set the feature flag to opt-in to the new behavior early and silence the warning:
+```dockerfile
+ENV PIP_USE_FEATURE=build-constraint
+```
+
+**Why it works:** This tells pip you accept the new behavior where constraints only affect runtime dependencies, not build dependencies.
+
+**Date:** December 2025
+
+---
+
 ## Contributing
 
 When you discover a new learning:
