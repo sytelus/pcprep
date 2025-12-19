@@ -20,7 +20,13 @@ ENV TZ=UTC \
     LC_ALL=C.UTF-8 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DEVBOX_CONTAINER=1
+    DEVBOX_CONTAINER=1 \
+    # Workaround: NVIDIA base image's /etc/bash.bashrc uses 'set -u' and references PS1
+    # before it's defined. Setting a default prevents "unbound variable" errors in RUN commands.
+    PS1='\\u@\\h:\\w\\$ ' \
+    # Opt-in to pip 26.2 behavior: --constraint only affects runtime deps, not build deps.
+    # Silences the deprecation warning about PIP_CONSTRAINT.
+    PIP_USE_FEATURE=build-constraint
 
 # Install system packages: base tools, locale setup, and toolbox packages.
 # Skips packages already in the base image or unavailable on target architecture.
