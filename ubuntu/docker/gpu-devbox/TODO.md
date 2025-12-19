@@ -254,6 +254,10 @@ services:
 
 ## Completed Improvements
 
+### Build Log Analysis Session
+
+- [x] **Fixed pip resolver backtracking timeout** - Added 5-minute timeout to optional package installations (lm-eval, evaluate, mlflow) to prevent pip from backtracking for hours. The lm-eval package was causing 29+ hours of wasted build time on arm64 due to pip trying many incompatible versions before failing.
+
 ### Code Review Session (Latest)
 
 - [x] **Fixed PIP_NO_CACHE_DIR conflict** - Removed `PIP_NO_CACHE_DIR=1` from ENV which was disabling the pip cache mount (`--mount=type=cache`), wasting build optimization

@@ -207,8 +207,9 @@ RUN set -eux; \
     git config --global core.autocrlf input
 
 # ---- Friendly greeting script shown at interactive start ----
-RUN set -eux; \
-    cat >/usr/local/bin/devbox-greeting <<'EOF'
+RUN <<'EOF'
+set -eux
+cat >/usr/local/bin/devbox-greeting <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Welcome to CPU devbox!"
@@ -225,8 +226,13 @@ command -v gh >/dev/null 2>&1 && gh --version | head -n1
 command -v kubectl >/dev/null 2>&1 && kubectl version --client 2>/dev/null | head -n1 || true
 command -v helm >/dev/null 2>&1 && helm version --short 2>/dev/null || true
 python -V 2>/dev/null || true
+EOS
+chmod +x /usr/local/bin/devbox-greeting
 EOF
-    chmod +x /usr/local/bin/devbox-greeting
+
+# Basic health check to verify Python and conda are functional.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; print(f'Python {sys.version_info.major}.{sys.version_info.minor} OK')" || exit 1
 
 # Default to login shell so /etc/bash.bashrc runs (activates conda + greeting)
 CMD ["/bin/bash", "-l"]

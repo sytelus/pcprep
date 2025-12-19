@@ -174,12 +174,14 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     fi; \
     # Optional packages with complex dependency chains - install separately to avoid blocking core packages
     # These may fail on some base image versions due to dependency conflicts
+    # IMPORTANT: Use timeout to prevent pip resolver from backtracking for hours (lm-eval can take 29+ hours on arm64!)
     echo "Installing optional packages (lm-eval, evaluate, mlflow)..."; \
     for pkg in lm-eval evaluate mlflow; do \
-      if pip install --no-cache-dir --constraint /opt/base-image-constraints.txt "$pkg" 2>/dev/null; then \
+      echo "Attempting to install $pkg (5 min timeout)..."; \
+      if timeout 300 pip install --no-cache-dir --constraint /opt/base-image-constraints.txt "$pkg" 2>&1 | tail -20; then \
         echo "$pkg installed successfully."; \
       else \
-        echo "WARNING: $pkg installation failed (dependency conflicts with base image)."; \
+        echo "WARNING: $pkg installation failed or timed out (dependency conflicts with base image)."; \
       fi; \
     done; \
     # Optional: vllm (disabled by default - has strict torch version requirements)

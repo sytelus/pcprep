@@ -80,9 +80,9 @@ You can inspect these with `docker buildx imagetools inspect <image:tag>` and co
 |--------|-------------|
 | `setup-builder.sh` | One-time setup: creates a BuildKit builder with QEMU cross-arch support |
 | `build_local.sh` | Builds image for the current host architecture and loads it locally |
-| `build_multiarch.sh` | Builds multi-arch image (amd64 + arm64) without pushing; caches to `.buildx-cache` |
+| `build_multiarch.sh` | Builds multi-arch image (amd64 + arm64) without pushing; logs to `logs/` |
 | `push_multiarch.sh` | Builds and pushes multi-arch image to Docker Hub |
-| `run.sh` | Runs the locally-built image interactively |
+| `run.sh` | Runs the locally-built image interactively (supports `-v`, `-p`, etc.) |
 | `verify.sh` | Inspects a pushed image's manifest (usage: `./verify.sh <image:tag>`) |
 | `docker_info.sh` | Displays Docker version, disk usage, and BuildX info |
 | `dockerprune.sh` | Prunes all unused Docker data (images, containers, volumes) — **destructive** |
@@ -101,3 +101,16 @@ All build scripts support these overrides:
 | `BUILD_CONTEXT` | Repository root | Docker build context directory |
 | `DOCKERFILE` | Auto-detected | Path to Dockerfile relative to context |
 | `CACHE_DIR` | `.buildx-cache` | Local cache directory (multi-arch only) |
+| `LOG_DIR` | `./logs` | Build log directory (multi-arch only) |
+| `VCS_REF` | Git HEAD SHA | Version control reference for image labels |
+| `SKIP_LOGIN` | `0` | Set to `1` to skip Docker login (CI environments) |
+| `RUN_EXTRA_ARGS` | (empty) | Additional arguments to pass to `docker run` |
+
+## Documentation
+
+| File | Description |
+|------|-------------|
+| [README.md](README.md) | This file - quick start and usage guide |
+| [REQUIREMENTS.md](REQUIREMENTS.md) | Design philosophy and package decisions |
+| [TODO.md](TODO.md) | Future improvements and completed changes |
+| [LEARNINGS.md](LEARNINGS.md) | Lessons learned and best practices |
