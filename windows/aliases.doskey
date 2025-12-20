@@ -32,3 +32,4 @@ copynewfiles=robocopy $1 $2 /E /Z /DCOPY:DATE /V /FP /ETA /W:0 /R:0
 mirfiles=robocopy $1 $2 /MIR /E /Z /DCOPY:DATE /V /FP /ETA /W:0 /R:0
 gsrc=cd /d "d:\GitHubSrc\"
 bashrt=cd /d "%LOCALAPPDATA%\lxss\rootfs"
+claudeyolo=claude --dangerously-skip-permissions
