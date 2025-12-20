@@ -100,7 +100,7 @@ fi
 
 # pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece
 echo "Installing HF and other packages..."
-pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece
+pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece lightning
 
 # Verify installation
 python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
