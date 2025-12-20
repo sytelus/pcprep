@@ -1,0 +1,301 @@
+# GPU Devbox - Future Improvements
+
+This document contains suggested improvements that require review and approval before implementation.
+
+
+## Approved
+
+(No pending approved items - all have been implemented)
+
+
+## Future Considerations
+
+These items may be worth implementing when conditions change.
+
+### 13. Re-test vllm with Newer Base Images
+
+**Description**: Periodically test if vllm installs without conflicts when NVIDIA releases new PyTorch containers.
+
+**Current State**: vllm is disabled by default (`INSTALL_VLLM=false`) due to torch version conflicts.
+
+**Action**: When a new `nvcr.io/nvidia/pytorch:XX.YY-py3` is released, test:
+```bash
+docker buildx build --build-arg INSTALL_VLLM=true ...
+```
+
+If successful, consider flipping the default to `true`.
+
+**Trigger**: New NVIDIA PyTorch container release
+
+---
+
+### 14. Monitor flash-attn ARM64 Wheel Availability
+
+**Description**: flash-attn currently skips ARM64 due to lack of prebuilt wheels.
+
+**Current State**: Only installed on amd64; arm64 skipped with informational message.
+
+**Action**: Periodically check if flash-attn releases arm64 wheels:
+```bash
+pip index versions flash-attn --platform linux_aarch64
+```
+
+**Trigger**: flash-attn release announcements
+
+---
+
+### 15. Extract Common Build Script Functions
+
+**Description**: Build scripts share duplicated code for Dockerfile path resolution, VCS_REF, etc.
+
+**Current State**: Each script (`build_local.sh`, `build_multiarch.sh`, `push_multiarch.sh`, `build_arm64_native.sh`) has identical ~15 lines for setup.
+
+**Potential Approach**: Create `_build_common.sh` that exports common variables/functions.
+
+**Why Not Done Now**: Adds indirection and complexity; current duplication is manageable. Per REQUIREMENTS.md principle #2 (Simplicity over complexity).
+
+**Recommendation**: Only implement if scripts grow significantly or bugs from inconsistency occur.
+
+---
+
+## Risky
+
+These items were approved but moved here due to potential for introducing bugs or unnecessary complexity. They require careful consideration before implementation.
+
+### 6. Add Layer Caching Optimization
+
+**Description**: Restructure Dockerfile to maximize layer cache reuse.
+
+**Current State**: Single large RUN command for apt packages means any package change invalidates the entire layer.
+
+**Potential Approach**:
+- Split into: base tools → dev tools → fun tools → Python packages
+- Use `--mount=type=cache` for apt lists
+
+**Why Risky**:
+- Restructuring the Dockerfile layers could break the build process
+- More layers can actually increase image size due to layer overhead
+- The current single-layer approach is simpler and well-tested
+- Cache invalidation behavior may become unpredictable
+
+**Trade-offs**:
+- More layers = slightly larger image
+- More complex Dockerfile
+- Potential for subtle build failures
+
+**Recommendation**: Only implement if build times become a significant bottleneck and thorough testing is performed.
+
+**Estimated Effort**: 2-3 hours
+
+---
+
+### 9. Add Image Size Optimization
+
+**Description**: Analyze and reduce image size.
+
+**Current State**: Image likely 15-20GB+ due to NVIDIA base + all packages.
+
+**Potential Optimizations**:
+- Multi-stage build to exclude build-only dependencies
+- Remove apt cache more aggressively
+- Evaluate which "fun" packages are actually used
+
+**Why Risky**:
+- Multi-stage builds add significant complexity for this type of devbox image
+- Removing packages could break functionality that users depend on
+- The base NVIDIA image is already large; savings may be minimal
+- "Fun" packages are specifically requested features
+
+**Trade-offs**:
+- Smaller image vs. having all tools available
+- May complicate Dockerfile significantly
+- Risk of removing needed dependencies
+
+**Recommendation**: Profile the image first to identify the largest contributors before making changes.
+
+**Estimated Effort**: 3-4 hours
+
+---
+
+
+## Do NOT Implement
+
+### 1. Add GitHub Actions CI/CD Pipeline
+
+**Description**: Create a `.github/workflows/docker-build.yml` to automate multi-arch builds and pushes on release tags.
+
+**Benefits**:
+- Automated builds on push/release
+- Consistent build environment
+- Automatic vulnerability scanning via GitHub's container scanning
+
+**Implementation Notes**:
+```yaml
+# Suggested workflow structure
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+      - uses: docker/build-push-action@v5
+```
+
+**Estimated Effort**: 2-3 hours
+
+---
+
+### 2. Add Container Security Scanning
+
+**Description**: Integrate Trivy or Snyk for vulnerability scanning during builds.
+
+**Benefits**:
+- Identify CVEs in base image and installed packages
+- Block builds with critical vulnerabilities
+- Security compliance reporting
+
+**Implementation Notes**:
+- Can use `aquasecurity/trivy-action` in GitHub Actions
+- Or add `trivy image --exit-code 1 --severity CRITICAL` to build scripts
+
+**Estimated Effort**: 1-2 hours
+
+---
+
+### 3. Pin Python Package Versions
+
+**Description**: Create a `requirements.txt` or `requirements.lock` with pinned versions for reproducible builds.
+
+**Current State**: Most packages use latest versions which can cause build failures when upstream releases break.
+
+**Benefits**:
+- Reproducible builds
+- Prevent unexpected breakages from upstream updates
+- Easier debugging of version conflicts
+
+**Trade-offs**:
+- Requires periodic updates to get new features/fixes
+- May miss security patches if not updated regularly
+
+**Estimated Effort**: 2-3 hours (initial) + ongoing maintenance
+
+---
+
+### 7. Add Compose File for Multi-Container Setups
+
+**Description**: Create `docker-compose.yml` for common development scenarios.
+
+**Use Cases**:
+- GPU devbox + Redis for distributed training
+- GPU devbox + TensorBoard service
+- GPU devbox + Jupyter Lab exposed
+
+**Example**:
+```yaml
+services:
+  devbox:
+    image: sytelus/gpu-devbox:latest
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+  tensorboard:
+    image: tensorflow/tensorflow
+    command: tensorboard --logdir=/logs --bind_all
+    ports: ["6006:6006"]
+```
+
+**Estimated Effort**: 1-2 hours
+
+---
+
+### 10. Add Automatic Base Image Updates
+
+**Description**: Create workflow to detect and test new NVIDIA base image releases.
+
+**Benefits**:
+- Stay current with CUDA/PyTorch updates
+- Get security patches faster
+- Automated testing before adoption
+
+**Implementation Notes**:
+- Use Dependabot for Dockerfile or custom workflow
+- Run basic smoke tests before merging
+
+**Estimated Effort**: 3-4 hours
+
+---
+
+### 12. Add Jupyter Lab Integration
+
+**Description**: Pre-install and configure Jupyter Lab with GPU-aware kernels.
+
+**Benefits**:
+- Interactive notebook development
+- Visualization support
+- Common ML workflow
+
+**Implementation Notes**:
+- Install jupyterlab, ipywidgets
+- Configure for remote access
+- Add to run.sh as optional service mode
+
+**Estimated Effort**: 2-3 hours
+
+---
+
+
+## Completed Improvements
+
+### Build Log Analysis Session
+
+- [x] **Fixed pip resolver backtracking timeout** - Added 5-minute timeout to optional package installations (lm-eval, evaluate, mlflow) to prevent pip from backtracking for hours. The lm-eval package was causing 29+ hours of wasted build time on arm64 due to pip trying many incompatible versions before failing.
+
+### Code Review Session (Latest)
+
+- [x] **Fixed PIP_NO_CACHE_DIR conflict** - Removed `PIP_NO_CACHE_DIR=1` from ENV which was disabling the pip cache mount (`--mount=type=cache`), wasting build optimization
+- [x] **Merged apt RUN commands** - Combined two apt-get RUN commands into one, saving a layer and reducing build time
+- [x] **Merged greeting/profile RUN commands** - Combined three RUN commands (greeting script, profile script, skel copy) into one layer
+- [x] **Fixed build_arm64_native.sh bug** - `--load` and `--push` can't be used together in buildx; now properly uses one or the other based on PUSH flag
+- [x] **Removed virtual environment** - Simplified to install packages directly into base image Python per REQUIREMENTS.md
+- [x] **Added dynamic constraints** - `pip freeze` captures base image packages at build time to prevent downgrades
+- [x] **Made vllm optional** - Added `INSTALL_VLLM` build arg (default: false) for packages with version conflicts
+
+### Previously Completed (Dev Container Session)
+
+- [x] **#4 Nsight Systems/Compute Support** - Added `nsight-systems-cli` and `nsight-compute` packages (amd64 only, auto-skipped on arm64)
+- [x] **#5 Dev Container Support** - Created `.devcontainer/devcontainer.json` for VS Code Remote Containers and GitHub Codespaces
+- [x] **#8 ARM64 Native Build Support** - Added `build_arm64_native.sh` script and documentation for building on native ARM64 hardware
+- [x] **#11 Shell Configuration Options** - Added Zsh package and Oh My Zsh with "agnoster" theme (optional, switch with `chsh -s /bin/zsh`)
+
+### Previously Completed (Original)
+
+- [x] Optimized apt-cache package availability check (batched instead of per-package)
+- [x] Fixed plocate database generation (use updatedb instead of incorrect plocate-build syntax)
+- [x] Fixed flash-attn installation logic (simplified to latest version only)
+- [x] Combined RUN chmod commands with heredocs (reduced layers)
+- [x] Added HEALTHCHECK to Dockerfile
+- [x] Improved run.sh to handle no-GPU scenarios gracefully
+- [x] Added VCS_REF to all build scripts for image labeling
+- [x] Simplified relative path calculation (use realpath with Python fallback)
+- [x] Improved error handling in docker_info.sh
+- [x] Enhanced verify.sh with platform and label inspection
+- [x] Added SKIP_LOGIN option to push_multiarch.sh for CI
+- [x] Updated README.md with architecture-specific availability tables
+- [x] Added comprehensive environment variable documentation
+
+---
+
+## How to Propose Changes
+
+1. Open an issue describing the improvement
+2. Reference the item number from this document
+3. Discuss implementation approach
+4. Submit PR with changes

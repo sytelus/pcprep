@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM nvcr.io/nvidia/pytorch:25.08-py3
+FROM nvcr.io/nvidia/pytorch:25.11-py3
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -11,29 +11,29 @@ ARG DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source="https://github.com/sytelus/pcprep" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.title="gpu-devbox" \
-      org.opencontainers.image.description="NVIDIA PyTorch 25.08 based devbox with multi-arch tooling, GPU diagnostics, and nanuGPT dependencies preinstalled." \
+      org.opencontainers.image.description="NVIDIA PyTorch 25.11 based devbox with multi-arch tooling, GPU diagnostics, and ML/DL packages preinstalled." \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:25.08-py3"
+      org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:25.11-py3"
 
 ENV TZ=UTC \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
-    PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEVBOX_CONTAINER=1 \
-    NANUGPT_VENV=/opt/nanugpt-venv
+    # Workaround: NVIDIA base image's /etc/bash.bashrc uses 'set -u' and references PS1
+    # before it's defined. Setting a default prevents "unbound variable" errors in RUN commands.
+    PS1='\\u@\\h:\\w\\$ ' \
+    # Opt-in to pip 26.2 behavior: --constraint only affects runtime deps, not build deps.
+    # Silences the deprecation warning about PIP_CONSTRAINT.
+    PIP_USE_FEATURE=build-constraint
 
-# Refresh apt metadata and install requested tooling that is not already provided by the base image.
+# Install system packages: base tools, locale setup, and toolbox packages.
+# Skips packages already in the base image or unavailable on target architecture.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends ca-certificates locales software-properties-common gnupg; \
     locale-gen en_US.UTF-8; \
-    rm -rf /var/lib/apt/lists/*
-
-# Install toolbox packages (skip ones already in the base image or missing on this arch).
-RUN set -eux; \
-    apt-get update; \
     PKGS=" \
       git-lfs \
       xclip xsel trash-cli \
@@ -48,18 +48,22 @@ RUN set -eux; \
       meson ccache clang clang-format clang-tidy lld lldb strace ltrace \
       libffi-dev libsqlite3-dev \
       btop glances sysstat iotop ifstat iftop nethogs hwloc lm-sensors smartmontools nvme-cli acpi \
+      nsight-systems-cli nsight-compute \
       autossh mtr nmap traceroute tcpdump net-tools \
       exfatprogs exfat-fuse ntfs-3g sshfs cifs-utils mergerfs lsof pstree \
       p7zip-full zstd pigz pbzip2 unar \
       rclone direnv starship fonts-powerline fonts-firacode \
       ffmpeg ghostscript pdftk-java \
       whois dnsutils time nvtop \
+      zsh \
     "; \
     INSTALLABLE=""; PREINSTALLED=""; SKIPPED=""; \
+    INSTALLED_PKGS=$(dpkg-query -W -f='${Package}\n' 2>/dev/null || true); \
+    AVAILABLE_PKGS=$(apt-cache show $PKGS 2>/dev/null | grep '^Package:' | awk '{print $2}' | sort -u || true); \
     for pkg in $PKGS; do \
-      if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'install ok installed'; then \
+      if echo "$INSTALLED_PKGS" | grep -qx "$pkg"; then \
         PREINSTALLED="$PREINSTALLED $pkg"; \
-      elif apt-cache show --no-all-versions "$pkg" >/dev/null 2>&1; then \
+      elif echo "$AVAILABLE_PKGS" | grep -qx "$pkg"; then \
         INSTALLABLE="$INSTALLABLE $pkg"; \
       else \
         SKIPPED="$SKIPPED $pkg"; \
@@ -74,20 +78,53 @@ RUN set -eux; \
     if command -v batcat >/dev/null 2>&1 && [ ! -e /usr/local/bin/bat ]; then \
       ln -s "$(command -v batcat)" /usr/local/bin/bat; \
     fi; \
-    if command -v plocate-build >/dev/null 2>&1; then \
-      mkdir -p /var/lib/mlocate; \
-      plocate-build /var/lib/mlocate/plocate.db / || true; \
+    if command -v updatedb >/dev/null 2>&1; then \
+      mkdir -p /var/lib/plocate; \
+      updatedb --prunepaths='/proc /sys /dev /run /tmp' || true; \
     fi; \
     rm -rf /var/lib/apt/lists/*; \
     echo "Preinstalled from base image:$PREINSTALLED"; \
     if [ -n "$SKIPPED" ]; then echo "Skipped (arch/unavailable):$SKIPPED"; fi
 
-# Upgrade pip tooling and install Python dependencies for nanuGPT and GPU profiling utilities.
+# Install Oh My Zsh for enhanced shell experience (optional - users can switch with 'chsh -s /bin/zsh').
+RUN set -eux; \
+    if command -v zsh >/dev/null 2>&1; then \
+      export RUNZSH=no CHSH=no KEEP_ZSHRC=yes; \
+      sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || true; \
+      if [ -d /root/.oh-my-zsh ]; then \
+        sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="agnoster"/' /root/.zshrc; \
+        cp -r /root/.oh-my-zsh /etc/skel/; \
+        cp /root/.zshrc /etc/skel/; \
+        echo "Oh My Zsh installed. Switch shell with: chsh -s /bin/zsh"; \
+      fi; \
+    else \
+      echo "Zsh not available, skipping Oh My Zsh installation."; \
+    fi
+
+# Build args for optional packages that may have version conflicts with base image.
+# Set to "true" to enable; disabled by default until newer base images resolve conflicts.
+ARG INSTALL_VLLM="false"
+
+# Install additional Python packages for ML/DL development directly into the base image.
+# Strategy for future NVIDIA base image compatibility:
+# 1. Generate constraints from base image to prevent downgrades
+# 2. Filter out local/editable installs that won't resolve in build context
+# 3. Core packages in main pip install (should work across base image versions)
+# 4. Packages with complex deps (lm-eval, evaluate, mlflow) installed separately with graceful failure
+# 5. Packages needing torch at build time (torchao, flash-attn) use --no-build-isolation
+# 6. Packages already in base image (transformer-engine) are skipped
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
-    python3 -m venv --system-site-packages "${NANUGPT_VENV}"; \
-    "${NANUGPT_VENV}/bin/pip" install --upgrade pip setuptools wheel packaging; \
-    "${NANUGPT_VENV}/bin/pip" install --no-cache-dir \
+    # Generate constraints from ALL packages in base image to prevent downgrades
+    # Filter out: local/editable installs (file://), direct URLs (@), editable (-e), and path refs
+    echo "=== Generating constraints from base image packages ===" ; \
+    pip freeze | grep -v -E '@ |^-e |^file:|^\.' > /opt/base-image-constraints.txt ; \
+    echo "Base image has $(wc -l < /opt/base-image-constraints.txt) packages (excluding local/URL installs)" ; \
+    # Upgrade pip tooling
+    pip install --upgrade pip setuptools wheel packaging; \
+    # Install packages with constraints to prevent base image package downgrades
+    pip install --no-cache-dir \
+      --constraint /opt/base-image-constraints.txt \
       accelerate \
       azure-identity \
       azure-keyvault-secrets \
@@ -95,24 +132,19 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       datasets \
       deepspeed \
       einops \
-      evaluate \
       huggingface-hub \
       ipython \
       lightning \
-      lm-eval \
       matplotlib \
       math-verify[antlr4_9_3] \
-      mlflow \
       natsort \
       nbsphinx \
-      numpy \
       omegaconf \
       openai \
       orjson \
       pandas \
       peft \
       pre-commit \
-      pyarrow==19.0.1 \
       pydata-sphinx-theme \
       pylatexenc \
       pytest \
@@ -121,7 +153,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       redis \
       rich \
       safetensors \
-      scipy \
       sentencepiece \
       sphinx \
       sphinx-book-theme \
@@ -133,47 +164,65 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       tiktoken \
       tokenizers \
       torch-tb-profiler \
-      torchao \
-      transformer-engine[pytorch] \
       transformers \
       trl \
       tqdm \
       typer \
       typing-extensions \
-      vllm \
       wandb \
       nvitop; \
-    if [ "${TARGETARCH}" = "amd64" ] || [ "${TARGETARCH}" = "arm64" ]; then \
-      FLASH_ATTN_SPECS=("flash-attn>=1,<2" "flash-attn>=2,<3" "flash-attn>=3,<4"); \
-      FLASH_ATTN_LABELS=("1" "2" "3"); \
-      FLASH_ATTN_SUCCESS=0; \
-      for idx in "${!FLASH_ATTN_SPECS[@]}"; do \
-        SPEC="${FLASH_ATTN_SPECS[$idx]}"; \
-        LABEL="${FLASH_ATTN_LABELS[$idx]}"; \
-        if "${NANUGPT_VENV}/bin/pip" install --no-cache-dir "${SPEC}" --no-build-isolation; then \
-          FLASH_ATTN_SUCCESS=$((FLASH_ATTN_SUCCESS+1)); \
-          if [ "${LABEL}" != "3" ]; then \
-            echo "flash-attn v${LABEL} installed; attempting next major release for coexistence check."; \
-          fi; \
-        else \
-          echo "flash-attn v${LABEL} install failed (spec: ${SPEC})."; \
-        fi; \
-      done; \
-      if [ "${FLASH_ATTN_SUCCESS}" -eq 0 ]; then \
-        echo "flash-attn install unavailable for ${TARGETARCH}."; \
-      fi; \
+    # Install torchao separately with --no-build-isolation so it can access base image torch
+    echo "Installing torchao (requires existing torch)..."; \
+    if pip install --no-cache-dir --constraint /opt/base-image-constraints.txt torchao --no-build-isolation; then \
+      echo "torchao installed successfully."; \
     else \
-      echo "flash-attn unsupported on ${TARGETARCH}"; \
+      echo "WARNING: torchao installation failed (may need compatible torch version)."; \
+    fi; \
+    # Optional packages with complex dependency chains - install separately to avoid blocking core packages
+    # These may fail on some base image versions due to dependency conflicts
+    # IMPORTANT: Use timeout to prevent pip resolver from backtracking for hours (lm-eval can take 29+ hours on arm64!)
+    echo "Installing optional packages (lm-eval, evaluate, mlflow)..."; \
+    for pkg in lm-eval evaluate mlflow; do \
+      echo "Attempting to install $pkg (5 min timeout)..."; \
+      if timeout 300 pip install --no-cache-dir --constraint /opt/base-image-constraints.txt "$pkg" 2>&1 | tail -20; then \
+        echo "$pkg installed successfully."; \
+      else \
+        echo "WARNING: $pkg installation failed or timed out (dependency conflicts with base image)."; \
+      fi; \
+    done; \
+    # Optional: vllm (disabled by default - has strict torch version requirements)
+    if [ "${INSTALL_VLLM}" = "true" ]; then \
+      echo "Installing vllm (INSTALL_VLLM=true)..."; \
+      pip install --no-cache-dir --constraint /opt/base-image-constraints.txt vllm || \
+        echo "WARNING: vllm installation failed due to version conflicts"; \
+    else \
+      echo "Skipping vllm (set INSTALL_VLLM=true to enable)"; \
+    fi; \
+    # Architecture-specific installations
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+      echo "Attempting flash-attn installation on amd64..."; \
+      if pip install --no-cache-dir --constraint /opt/base-image-constraints.txt flash-attn --no-build-isolation; then \
+        echo "flash-attn installed successfully."; \
+      else \
+        echo "flash-attn install failed (wheels may not be available for this CUDA/Python version)."; \
+      fi; \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
+      echo "Skipping flash-attn on arm64 (no prebuilt wheels; source build requires excessive time/memory)."; \
+    else \
+      echo "flash-attn unsupported on ${TARGETARCH}."; \
     fi
-
-ENV VIRTUAL_ENV=/opt/nanugpt-venv
-ENV PATH=/opt/nanugpt-venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 WORKDIR /workspace
 
-# Provide a friendly greeting and environment bootstrap when entering the container interactively.
-RUN set -eux; \
-    cat <<'EOS' >/usr/local/bin/gpu-devbox-greeting
+# Reuse repo dotfiles for consistent shell experience (leave base .bashrc untouched).
+COPY ubuntu/.bash_aliases /root/.bash_aliases
+COPY ubuntu/.inputrc /root/.inputrc
+COPY ubuntu/.tmux.conf /root/.tmux.conf
+
+# Create greeting script that displays system info on container login.
+RUN <<'EOF'
+set -eux
+cat >/usr/local/bin/gpu-devbox-greeting <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Welcome to GPU devbox!"
@@ -195,15 +244,11 @@ if command -v nvtop >/dev/null 2>&1; then
   echo "Tip: run 'nvtop' for live GPU telemetry."
 fi
 EOS
-RUN chmod +x /usr/local/bin/gpu-devbox-greeting
+chmod +x /usr/local/bin/gpu-devbox-greeting
 
-RUN set -eux; \
-    cat <<'EOS' >/etc/profile.d/00-gpu-devbox.sh
+cat >/etc/profile.d/00-gpu-devbox.sh <<'EOS'
 #!/bin/bash
 if [[ $- == *i* ]]; then
-  if [[ -n "${VIRTUAL_ENV:-}" && -f "${VIRTUAL_ENV}/bin/activate" ]]; then
-    . "${VIRTUAL_ENV}/bin/activate"
-  fi
   if [[ -z "${GPU_DEVBOX_WELCOMED:-}" ]]; then
     export GPU_DEVBOX_WELCOMED=1
     /usr/local/bin/gpu-devbox-greeting || true
@@ -213,14 +258,14 @@ if [[ $- == *i* ]]; then
   fi
 fi
 EOS
-RUN chmod +x /etc/profile.d/00-gpu-devbox.sh
+chmod +x /etc/profile.d/00-gpu-devbox.sh
 
-# Reuse repo dotfiles for consistent shell experience (leave base .bashrc untouched).
-COPY ubuntu/.bash_aliases /root/.bash_aliases
-COPY ubuntu/.inputrc /root/.inputrc
-COPY ubuntu/.tmux.conf /root/.tmux.conf
-RUN set -eux; \
-    mkdir -p /etc/skel; \
-    cp -a /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/
+mkdir -p /etc/skel
+cp -a /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/
+EOF
+
+# Basic health check to verify Python and torch are functional.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import torch; print(f'torch {torch.__version__} OK')" || exit 1
 
 CMD ["/bin/bash", "-l"]

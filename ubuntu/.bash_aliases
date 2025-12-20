@@ -217,12 +217,13 @@ function sresr {
 }
 
 #### kubectl #####
-alias kpods='kubectl get pod'
+alias kpods='kubectl get pods -L created-by-name,submitter'
+alias kquota='kubectl describe resourcequota bonete61-compute-quota'
 function knodes {
     kubectl get nodes --no-headers | awk '{print $2}' | sort | uniq -c
 }
-alias kjobs='kubectl get vcjob | grep -E "Pending|Running"'
-alias kjobsall='kubectl get vcjob'
+alias kjobs='kubectl get vcjob -L created-by-name,submitter | grep -E "Pending|Running"'
+alias kjobsall='kubectl get vcjob -L created-by-name,submitter'
 function k {
     kubectl "$@"
 }
@@ -240,11 +241,11 @@ function klog {
 }
 
 function kpods {
-    kubectl get pods | grep ${USERNAME}
+    kubectl get pods -L created-by-name,submitter | grep ${USERNAME}
 }
 
 function kjob {
-    kubectl get vcjob "$@"
+    kubectl get vcjob --show-labels "$@"
     kubectl get pods -l volcano.sh/job-name="$@"
 }
 

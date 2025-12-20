@@ -1,19 +1,39 @@
 #!/usr/bin/env bash
+# Display Docker environment information for debugging and diagnostics.
+set -euo pipefail
 
-echo "=========== Docker plugin =========== "
-docker --version
+echo "=========== Docker Version ==========="
+if ! docker --version; then
+    echo "ERROR: Docker is not installed or not accessible." >&2
+    exit 1
+fi
 
-echo "=========== Docker dir =========== "
-docker info | sed -n 's/ *Docker Root Dir: //p'
+echo ""
+echo "=========== Docker Root Directory ==========="
+docker info 2>/dev/null | sed -n 's/ *Docker Root Dir: //p' || echo "Unable to determine"
 
-echo "=========== Docker Disk Usage =========== "
-docker system df
+echo ""
+echo "=========== Docker Disk Usage ==========="
+docker system df 2>/dev/null || echo "Unable to get disk usage"
 
-echo "=========== BuildX plugin =========== "
-docker buildx version
+echo ""
+echo "=========== BuildX Plugin ==========="
+if docker buildx version >/dev/null 2>&1; then
+    docker buildx version
+else
+    echo "WARNING: Docker Buildx not available. Install Docker 24+ or the buildx plugin."
+fi
 
-echo "=========== Available Builders =========== "
-docker buildx ls
+echo ""
+echo "=========== Available Builders ==========="
+docker buildx ls 2>/dev/null || echo "No builders available"
 
-echo "=========== BuildX Info =========== "
-docker info | grep -i buildx
+echo ""
+echo "=========== NVIDIA Container Toolkit ==========="
+if command -v nvidia-container-cli >/dev/null 2>&1; then
+    nvidia-container-cli info 2>/dev/null || echo "NVIDIA Container Toolkit installed but not functional"
+elif docker info 2>/dev/null | grep -qi nvidia; then
+    echo "NVIDIA runtime detected in Docker"
+else
+    echo "NVIDIA Container Toolkit not detected (required for GPU access)"
+fi
