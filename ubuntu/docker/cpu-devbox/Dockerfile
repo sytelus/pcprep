@@ -61,31 +61,56 @@ RUN set -eux; \
       #pandoc imagemagick httpie aria2 neovim emacs-nox mosh colordiff wireshark-common
     "; \
     # Filter to install only packages that exist in current apt index
+    # Use batch apt-cache query (much faster than per-package queries)
     INSTALLABLE=""; SKIPPED=""; \
-    for p in $PKGS; do \
-      if apt-cache show --no-all-versions "$p" >/dev/null 2>&1; then INSTALLABLE="$INSTALLABLE $p"; else SKIPPED="$SKIPPED $p"; fi; \
+    AVAILABLE_PKGS=$(apt-cache show $PKGS 2>/dev/null | grep '^Package:' | awk '{print $2}' | sort -u || true); \
+    for pkg in $PKGS; do \
+      if echo "$AVAILABLE_PKGS" | grep -qx "$pkg"; then \
+        INSTALLABLE="$INSTALLABLE $pkg"; \
+      else \
+        SKIPPED="$SKIPPED $pkg"; \
+      fi; \
     done; \
     echo "Installing packages:" $INSTALLABLE; \
-    apt-get install -y --no-install-recommends $INSTALLABLE || true; \
+    if [ -n "$INSTALLABLE" ]; then \
+      apt-get install -y --no-install-recommends $INSTALLABLE; \
+    fi; \
     if [ -n "$SKIPPED" ]; then echo "Skipped (not available for this arch/repo): $SKIPPED"; fi; \
     # Create friendly symlinks for fd/bat (Debian names are fdfind/batcat)
     if command -v fdfind >/dev/null 2>&1 && [ ! -e /usr/local/bin/fd ]; then ln -s "$(command -v fdfind)" /usr/local/bin/fd; fi; \
     if command -v batcat >/dev/null 2>&1 && [ ! -e /usr/local/bin/bat ]; then ln -s "$(command -v batcat)" /usr/local/bin/bat; fi; \
+    # Initialize plocate database if installed
+    if command -v updatedb >/dev/null 2>&1; then \
+      mkdir -p /var/lib/plocate; \
+      updatedb --prunepaths='/proc /sys /dev /run /tmp' || true; \
+    fi; \
     rm -rf /var/lib/apt/lists/*
 
-# ---- Azure CLI (official repo for Ubuntu/Debian; supports amd64 & arm64) ----
-# Docs: Microsoft Learn shows azure-cli.sources with noble support and keyring usage.
+# ---- External repos: Azure CLI, GitHub CLI, kubectl (single apt-get update for speed) ----
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     mkdir -p /etc/apt/keyrings; \
+    # Azure CLI repo
     curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /etc/apt/keyrings/microsoft.gpg; \
     chmod go+r /etc/apt/keyrings/microsoft.gpg; \
     AZ_DIST="$(lsb_release -cs)"; \
     printf "Types: deb\nURIs: https://packages.microsoft.com/repos/azure-cli/\nSuites: %s\nComponents: main\nArchitectures: %s\nSigned-by: /etc/apt/keyrings/microsoft.gpg\n" "$AZ_DIST" "$ARCH" > /etc/apt/sources.list.d/azure-cli.sources; \
+    # GitHub CLI repo
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null; \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
+    echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list; \
+    # Kubernetes kubectl repo
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
+    chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
+    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list; \
+    # Single apt-get update for all repos, then install all packages
     apt-get update; \
-    if apt-cache show azure-cli >/dev/null 2>&1; then apt-get install -y azure-cli; else echo "Azure CLI not available for $ARCH; skipping"; fi; \
+    EXTERNAL_PKGS=""; \
+    for pkg in azure-cli gh kubectl zsh; do \
+      if apt-cache show "$pkg" >/dev/null 2>&1; then EXTERNAL_PKGS="$EXTERNAL_PKGS $pkg"; fi; \
+    done; \
+    if [ -n "$EXTERNAL_PKGS" ]; then apt-get install -y $EXTERNAL_PKGS; fi; \
     rm -rf /var/lib/apt/lists/*
-# (Ref: Microsoft docs confirm Ubuntu 24.04 + amd64/arm64 and the azure-cli.sources format.)
 
 # ---- AzCopy (x86_64 & ARM64 tarballs). Skip on other arches. ----
 RUN set -eux; \
@@ -102,32 +127,8 @@ RUN set -eux; \
       rm -rf "$tmpdir"; \
     else echo "AzCopy not published for $TARGETARCH; skipping."; fi
 
-# ---- GitHub CLI (gh) official apt repo ----
-RUN set -eux; \
-    mkdir -p -m 755 /etc/apt/keyrings; \
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null; \
-    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list; \
-    apt-get update; \
-    if apt-cache show gh >/dev/null 2>&1; then apt-get install -y gh; else echo "GitHub CLI not available for this arch; skipping"; fi; \
-    rm -rf /var/lib/apt/lists/*
-
-# ---- Kubernetes kubectl apt repo (pkgs.k8s.io v1.34 stable) ----
-RUN set -eux; \
-    mkdir -p /etc/apt/keyrings; \
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
-    chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
-    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list; \
-    apt-get update; \
-    if apt-cache show kubectl >/dev/null 2>&1; then apt-get install -y kubectl; else echo "kubectl not available for this architecture; skipping"; fi; \
-    rm -rf /var/lib/apt/lists/*
-
 # NOTE: Helm installation is disabled to reduce image size. Uncomment and adapt
 # the block below if you need Helm (uses Buildkite-hosted helm-linux repo).
-
-# ---- zsh (do not set default), micro editor already installed via apt above ----
-RUN set -eux; \
-    if ! command -v zsh >/dev/null 2>&1; then apt-get update && apt-get install -y --no-install-recommends zsh && rm -rf /var/lib/apt/lists/*; fi
 
 # ---- Install Rust (cargo) and zellij terminal multiplexer ----
 RUN set -eux; \
@@ -169,27 +170,26 @@ RUN set -eux; \
     "$CONDA_DIR/bin/conda" install -y -n base --override-channels -c conda-forge pip python=3.12; \
     "$CONDA_DIR/bin/conda" clean -afy
 
-# ---- Python stack in base env (CPU‑only). We try conda-forge first; skip if unavailable on arch. ----
+# ---- Python stack in base env (CPU‑only). Batch install for speed. ----
 # Packages requested (deduped): rich pandas scikit-learn matplotlib jupyter tensorflow tensorboard keras pytorch transformers datasets wandb
 # accelerate einops tokenizers sentencepiece evaluate mlflow natsort omegaconf pebble pre-commit pygtrie pytest typing-extensions tiktoken tqdm
-RUN set -eux; \
-    COMMON_PKGS="rich pandas scikit-learn matplotlib jupyter tensorboard keras transformers datasets wandb accelerate einops tokenizers sentencepiece evaluate mlflow natsort omegaconf pebble pre-commit pygtrie pytest typing-extensions tiktoken tqdm"; \
-    # Install common pkgs from conda-forge where available (fallback to pip for stragglers)
-    for pkg in $COMMON_PKGS; do \
-      if "$CONDA_DIR/bin/conda" search -c conda-forge --json "$pkg" >/dev/null 2>&1; then \
-        "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge "$pkg" || "$CONDA_DIR/bin/pip" install --no-cache-dir "$pkg"; \
-      else \
-        "$CONDA_DIR/bin/pip" install --no-cache-dir "$pkg"; \
-      fi; \
-    done; \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eux; \
+    # Batch install via conda (single dependency resolution is MUCH faster than per-package)
+    # These packages are reliably available on conda-forge for both amd64/arm64
+    CONDA_PKGS="rich pandas scikit-learn matplotlib jupyter tensorboard tqdm pytest typing-extensions"; \
+    echo "Installing conda packages: $CONDA_PKGS"; \
+    "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge $CONDA_PKGS; \
+    # Remaining packages install faster via pip (avoids slow conda search/resolve per package)
+    PIP_PKGS="keras transformers datasets wandb accelerate einops tokenizers sentencepiece evaluate mlflow natsort omegaconf pebble pre-commit pygtrie tiktoken"; \
+    echo "Installing pip packages: $PIP_PKGS"; \
+    "$CONDA_DIR/bin/pip" install --no-cache-dir $PIP_PKGS; \
     # TensorFlow & PyTorch (CPU): attempt via conda-forge on amd64/arm64; skip if unavailable
     if [ "$TARGETARCH" = "amd64" ] || [ "$TARGETARCH" = "arm64" ]; then \
       "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge tensorflow || echo "tensorflow not available; skipped"; \
       # For pytorch, conda-forge provides CPU builds; if resolution fails, try pytorch channel (amd64)
       "$CONDA_DIR/bin/conda" install -y -n base -c conda-forge pytorch || \
       "$CONDA_DIR/bin/conda" install -y -n base -c pytorch -c conda-forge pytorch cpuonly || echo "pytorch not available; skipped"; \
-    else \
-      echo "Skipping tensorflow/pytorch on $TARGETARCH"; \
     fi; \
     "$CONDA_DIR/bin/conda" clean -afy
 
