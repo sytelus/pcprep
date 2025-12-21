@@ -168,16 +168,23 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       sphinx-book-theme \
       sphinx-copybutton \
       sphinx-togglebutton \
+      fsspec \
+      pillow \
+      psutil \
       tenacity \
       tensorboard \
       tf-keras \
       tiktoken \
       tokenizers \
+      tomli \
       torch-tb-profiler \
+      torchdata \
+      torchft \
       transformers \
       trl \
       tqdm \
       typer \
+      tyro \
       typing-extensions \
       wandb \
       nvitop; \
