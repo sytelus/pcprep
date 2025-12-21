@@ -87,22 +87,26 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # ---- External repos: Azure CLI, GitHub CLI, kubectl (single apt-get update for speed) ----
+# Note: Use temp files instead of pipes for GPG operations to avoid "broken pipe" errors under QEMU emulation
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     mkdir -p /etc/apt/keyrings; \
-    # Azure CLI repo
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /etc/apt/keyrings/microsoft.gpg; \
+    # Azure CLI repo (download to temp file first to avoid pipe issues under QEMU)
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc -o /tmp/microsoft.asc; \
+    gpg --dearmor < /tmp/microsoft.asc > /etc/apt/keyrings/microsoft.gpg; \
     chmod go+r /etc/apt/keyrings/microsoft.gpg; \
     AZ_DIST="$(lsb_release -cs)"; \
     printf "Types: deb\nURIs: https://packages.microsoft.com/repos/azure-cli/\nSuites: %s\nComponents: main\nArchitectures: %s\nSigned-by: /etc/apt/keyrings/microsoft.gpg\n" "$AZ_DIST" "$ARCH" > /etc/apt/sources.list.d/azure-cli.sources; \
     # GitHub CLI repo
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null; \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
     chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
     echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list; \
     # Kubernetes kubectl repo
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key -o /tmp/kubernetes.key; \
+    gpg --dearmor < /tmp/kubernetes.key > /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
     chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
     echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list; \
+    rm -f /tmp/microsoft.asc /tmp/kubernetes.key; \
     # Single apt-get update for all repos, then install all packages
     apt-get update; \
     EXTERNAL_PKGS=""; \
