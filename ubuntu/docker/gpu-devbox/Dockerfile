@@ -45,7 +45,7 @@ RUN set -eux; \
       freeglut3-dev libx11-dev libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 libfreeimage-dev \
       vmtouch neofetch powerstat screen \
       ripgrep fd-find bat fzf tldr tree ncdu gdu moreutils rename yq parallel entr rsync \
-      meson ccache clang clang-format clang-tidy lld lldb strace ltrace \
+      gcc meson ccache clang clang-format clang-tidy lld lldb strace ltrace \
       libffi-dev libsqlite3-dev \
       btop glances sysstat iotop ifstat iftop nethogs hwloc lm-sensors smartmontools nvme-cli acpi \
       nsight-systems-cli nsight-compute \
@@ -158,6 +158,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       pydata-sphinx-theme \
       pylatexenc \
       pytest \
+      pytest-cov \
       pyzmq \
       ray \
       redis \
