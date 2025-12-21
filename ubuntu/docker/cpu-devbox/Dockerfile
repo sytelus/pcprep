@@ -129,6 +129,15 @@ RUN set -eux; \
 RUN set -eux; \
     if ! command -v zsh >/dev/null 2>&1; then apt-get update && apt-get install -y --no-install-recommends zsh && rm -rf /var/lib/apt/lists/*; fi
 
+# ---- Install Rust (cargo) and zellij terminal multiplexer ----
+RUN set -eux; \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal; \
+    . "$HOME/.cargo/env"; \
+    cargo install zellij --locked; \
+    # Make cargo available for all users
+    cp -r /root/.cargo /etc/skel/; \
+    echo "Rust $(rustc --version) and zellij installed."
+
 # ---- Miniconda/Miniforge installation (multi-arch) ----
 ENV CONDA_DIR=/opt/conda \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -197,6 +206,7 @@ RUN set -eux; \
     echo '' >> /etc/bash.bashrc; \
     echo '# --- CPU devbox bootstrap ---' >> /etc/bash.bashrc; \
     echo 'if [ -n "$PS1" ]; then' >> /etc/bash.bashrc; \
+    echo '  if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; fi' >> /etc/bash.bashrc; \
     echo '  if [ -f "'"$CONDA_DIR"'/etc/profile.d/conda.sh" ]; then . "'"$CONDA_DIR"'/etc/profile.d/conda.sh"; conda activate base; fi' >> /etc/bash.bashrc; \
     echo '  if [ -z "${DEVBOX_WELCOMED:-}" ]; then export DEVBOX_WELCOMED=1; /usr/local/bin/devbox-greeting || true; fi' >> /etc/bash.bashrc; \
     echo 'fi' >> /etc/bash.bashrc

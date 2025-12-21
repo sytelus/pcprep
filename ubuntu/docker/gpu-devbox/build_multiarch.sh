@@ -3,7 +3,7 @@
 # Usage: ./build_multiarch.sh
 #   Environment variables:
 #     IMAGE         - Image name (default: sytelus/gpu-devbox)
-#     TAG           - Image tag (default: YYYY.MM.DD)
+#     TAG           - Image tag (default: 25.11-py3, matching base NVIDIA image)
 #     PLATFORMS     - Target platforms (default: linux/amd64,linux/arm64)
 #     BUILD_CONTEXT - Build context directory (default: repo root)
 #     BUILDER       - Buildx builder name (default: gpu-devbox-builder)
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 IMAGE=${IMAGE:-"sytelus/gpu-devbox"}
-TAG="${TAG:-$(date +%Y.%m.%d)}"
+TAG="${TAG:-25.11-py3}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 DEFAULT_CONTEXT=$(cd "${SCRIPT_DIR}/../../.." && pwd)

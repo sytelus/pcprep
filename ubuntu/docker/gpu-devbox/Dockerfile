@@ -101,6 +101,16 @@ RUN set -eux; \
       echo "Zsh not available, skipping Oh My Zsh installation."; \
     fi
 
+# Install Rust (cargo) and zellij terminal multiplexer.
+RUN set -eux; \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal; \
+    . "$HOME/.cargo/env"; \
+    cargo install zellij --locked; \
+    # Make cargo and zellij available system-wide
+    cp -r /root/.cargo /etc/skel/; \
+    echo 'source "$HOME/.cargo/env"' >> /etc/profile.d/00-gpu-devbox.sh; \
+    echo "Rust $(rustc --version) and zellij installed."
+
 # Build args for optional packages that may have version conflicts with base image.
 # Set to "true" to enable; disabled by default until newer base images resolve conflicts.
 ARG INSTALL_VLLM="false"
