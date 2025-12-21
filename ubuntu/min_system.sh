@@ -105,6 +105,9 @@ if sudo -n true 2>/dev/null; then
         sudo apt update
         sudo apt install zsh -y
         # chsh -s $(which zsh) # make zsh default shell
+
+        # install rust
+        bash install_rust.sh
     else
         echo "Skipping network-dependent installations due to NO_NET being set"
     fi
@@ -117,6 +120,11 @@ if [ -n "${NO_NET}" ]; then
     pushd "$HOME/.local/bin"
     curl https://getmic.ro | MICRO_DESTDIR="$HOME/.local" sh
     popd
+
+    # Install Zellij using Cargo
+    # (Note: This compiles Zellij from source, so it might take 2-5 minutes)
+    echo "Compiling and installing Zellij (this may take a few minutes)..."
+    cargo install zellij --locked
 
     # Install rusage (only available for x86_64)
     if [ "$ARCH" = "x86_64" ]; then
