@@ -2,22 +2,20 @@
 
 set -eu -o pipefail  # fail if any command failes, -o xtrace to log all commands, -o xtrace
 
-# 1. Update system and install build dependencies
-# (build-essential is often needed by Cargo to compile dependencies)
-echo "Installing dependencies..."
-sudo apt update && sudo apt upgrade -y
+# 1. Update package lists ONLY (do not upgrade installed packages)
+echo "Updating package lists..."
+sudo apt update
+
+# 2. Install ONLY the build tools needed for Cargo
+# (build-essential, pkg-config, and libssl-dev are required to compile Zellij)
+echo "Installing build dependencies..."
 sudo apt install -y curl build-essential pkg-config libssl-dev
 
-# 2. Remove any old system-level Rust/Cargo to avoid version conflicts
-echo "Removing old system Rust/Cargo..."
-sudo apt remove -y cargo rustc
-sudo apt autoremove -y
-
-# 3. Install the latest stable Rust toolchain (Non-interactive mode)
-echo "Installing Rust via rustup..."
+# 3. Install Rust via rustup
+echo "Installing Rust..."
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
-# 4. Configure the current shell session to use the new Cargo immediately
-# (This loads the path for the current run so the script doesn't fail)
+# 4. Activate Rust for this script
 source "$HOME/.cargo/env"
+
 
