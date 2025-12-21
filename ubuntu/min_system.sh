@@ -123,8 +123,11 @@ if [ -n "${NO_NET}" ]; then
 
     # Install Zellij using Cargo
     # (Note: This compiles Zellij from source, so it might take 2-5 minutes)
-    echo "Compiling and installing Zellij (this may take a few minutes)..."
-    cargo install zellij --locked
+    echo "Installing Zellij..."
+    curl -LO https://github.com/zellij-org/zellij/releases/latest/download/zellij-x86_64-unknown-linux-musl.tar.gz
+    tar -xvf zellij-x86_64-unknown-linux-musl.tar.gz
+    mkdir -p ~/.local/bin
+    mv zellij ~/.local/bin/
 
     # Install rusage (only available for x86_64)
     if [ "$ARCH" = "x86_64" ]; then
