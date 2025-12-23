@@ -178,7 +178,12 @@ alias pmy='ps -u $USER -U $USER u'
 function realview {
   less +F "$1"
 }
-alias torchver="python -c 'import torch; print(torch.__version__)'"
+alias cpx='rsync -avh --info=progress2'
+# cpz ~/dir1/ user@myserver.com:~/dir2/
+alias cpz='rsync -avhz --info=progress2'
+alias mvx='rsync -avh --remove-source-files --info=progress2'
+# show torch version
+alias torchver="python -c 'import torch; print(torch.__version__)';nvcc --version"
 # remove pass phrase from ssh keys
 alias removepass='find ~/.ssh -type f \( -name 'id_*' -o -name 'sb_*' \) ! -name '*.pub' -exec sh -c 'ssh-keygen -l -f "{}" >/dev/null 2>&1 && echo "Processing: {}" && ssh-keygen -p -f "{}"' \;'
 function treesize {
