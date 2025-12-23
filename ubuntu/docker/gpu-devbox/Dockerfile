@@ -114,6 +114,11 @@ RUN set -eux; \
 # Build args for optional packages that may have version conflicts with base image.
 # Set to "true" to enable; disabled by default until newer base images resolve conflicts.
 ARG INSTALL_VLLM="false"
+# WARNING: The NVIDIA base image contains specially optimized PyTorch compiled with
+# Transformer Engine, Apex, custom CUDA kernels, and other NVIDIA-specific extensions.
+# Replacing it with nightly may break these integrations and lose performance optimizations.
+# Only enable this if you specifically need bleeding-edge PyTorch features.
+ARG INSTALL_PYTORCH_NIGHTLY="false"
 
 # Install additional Python packages for ML/DL development directly into the base image.
 # Strategy for future NVIDIA base image compatibility:
@@ -180,7 +185,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       tomli \
       torch-tb-profiler \
       torchdata \
-      torchft \
       transformers \
       trl \
       tqdm \
@@ -195,6 +199,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       echo "torchao installed successfully."; \
     else \
       echo "WARNING: torchao installation failed (may need compatible torch version)."; \
+    fi; \
+    # Install torchft from GitHub (not available on PyPI)
+    echo "Installing torchft from GitHub..."; \
+    if pip install --no-cache-dir git+https://github.com/pytorch/torchft.git; then \
+      echo "torchft installed successfully."; \
+    else \
+      echo "WARNING: torchft installation failed (may require specific torch version or build deps)."; \
     fi; \
     # Optional packages with complex dependency chains - install separately to avoid blocking core packages
     # These may fail on some base image versions due to dependency conflicts
@@ -228,6 +239,31 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       echo "Skipping flash-attn on arm64 (no prebuilt wheels; source build requires excessive time/memory)."; \
     else \
       echo "flash-attn unsupported on ${TARGETARCH}."; \
+    fi; \
+    # Optional: Install PyTorch nightly (disabled by default - see WARNING above)
+    if [ "${INSTALL_PYTORCH_NIGHTLY}" = "true" ]; then \
+      echo "=== Installing PyTorch nightly (INSTALL_PYTORCH_NIGHTLY=true) ===" ; \
+      echo "WARNING: This replaces NVIDIA's optimized PyTorch build!"; \
+      CUDA_VERSION=$(python3 -c "import torch; print(torch.version.cuda.replace('.', ''))" 2>/dev/null || echo ""); \
+      if [ -n "$CUDA_VERSION" ]; then \
+        # Map CUDA version to available nightly index (cu124, cu126, cu128, cu130, etc.)
+        case "$CUDA_VERSION" in \
+          121|122|123|124) CUDA_TAG="cu124";; \
+          125|126) CUDA_TAG="cu126";; \
+          127|128|129) CUDA_TAG="cu128";; \
+          130|131|132) CUDA_TAG="cu130";; \
+          *) CUDA_TAG="cu${CUDA_VERSION}";; \
+        esac; \
+        echo "Detected CUDA ${CUDA_VERSION}, using PyTorch nightly index: ${CUDA_TAG}"; \
+        pip install --no-cache-dir --pre torch torchvision torchaudio \
+          --index-url "https://download.pytorch.org/whl/nightly/${CUDA_TAG}" || \
+          echo "WARNING: PyTorch nightly installation failed, keeping base image version"; \
+        python3 -c "import torch; print(f'PyTorch {torch.__version__} with CUDA {torch.version.cuda}')"; \
+      else \
+        echo "WARNING: Could not detect CUDA version, skipping PyTorch nightly upgrade"; \
+      fi; \
+    else \
+      echo "Keeping NVIDIA's optimized PyTorch (set INSTALL_PYTORCH_NIGHTLY=true to override)"; \
     fi
 
 WORKDIR /workspace

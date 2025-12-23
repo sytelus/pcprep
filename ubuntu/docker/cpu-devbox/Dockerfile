@@ -87,36 +87,74 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # ---- External repos: Azure CLI, GitHub CLI, kubectl (single apt-get update for speed) ----
-# Note: Use temp files instead of pipes for GPG operations to avoid "broken pipe" errors under QEMU emulation
+# Note: QEMU ARM64 emulation has severe SSL/network issues. This block is fault-tolerant:
+# - Uses wget as fallback when curl fails
+# - Each repo setup is optional (won't fail the build)
+# - zsh is installed from Ubuntu repos as fallback
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     mkdir -p /etc/apt/keyrings; \
-    # Azure CLI repo (download to temp file first to avoid pipe issues under QEMU)
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc -o /tmp/microsoft.asc; \
-    gpg --dearmor < /tmp/microsoft.asc > /etc/apt/keyrings/microsoft.gpg; \
-    chmod go+r /etc/apt/keyrings/microsoft.gpg; \
-    AZ_DIST="$(lsb_release -cs)"; \
-    printf "Types: deb\nURIs: https://packages.microsoft.com/repos/azure-cli/\nSuites: %s\nComponents: main\nArchitectures: %s\nSigned-by: /etc/apt/keyrings/microsoft.gpg\n" "$AZ_DIST" "$ARCH" > /etc/apt/sources.list.d/azure-cli.sources; \
-    # GitHub CLI repo
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
-    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
-    echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list; \
-    # Kubernetes kubectl repo
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key -o /tmp/kubernetes.key; \
-    gpg --dearmor < /tmp/kubernetes.key > /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
-    chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
-    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list; \
-    rm -f /tmp/microsoft.asc /tmp/kubernetes.key; \
-    # Single apt-get update for all repos, then install all packages
-    apt-get update; \
+    # Helper function: try curl first, fall back to wget, with retries and timeouts
+    fetch_url() { \
+      url="$1"; dest="$2"; \
+      echo "Fetching $url -> $dest"; \
+      if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 120 "$url" -o "$dest" 2>/dev/null; then \
+        return 0; \
+      elif wget -q --timeout=30 --tries=3 --waitretry=5 -O "$dest" "$url" 2>/dev/null; then \
+        return 0; \
+      else \
+        echo "WARNING: Failed to fetch $url"; \
+        return 1; \
+      fi; \
+    }; \
+    # Azure CLI repo (optional - may fail under QEMU)
+    if fetch_url "https://packages.microsoft.com/keys/microsoft.asc" "/tmp/microsoft.asc"; then \
+      gpg --dearmor < /tmp/microsoft.asc > /etc/apt/keyrings/microsoft.gpg 2>/dev/null || true; \
+      if [ -s /etc/apt/keyrings/microsoft.gpg ]; then \
+        chmod go+r /etc/apt/keyrings/microsoft.gpg; \
+        AZ_DIST="$(lsb_release -cs)"; \
+        printf "Types: deb\nURIs: https://packages.microsoft.com/repos/azure-cli/\nSuites: %s\nComponents: main\nArchitectures: %s\nSigned-by: /etc/apt/keyrings/microsoft.gpg\n" "$AZ_DIST" "$ARCH" > /etc/apt/sources.list.d/azure-cli.sources; \
+        echo "Azure CLI repo configured"; \
+      fi; \
+      rm -f /tmp/microsoft.asc; \
+    else \
+      echo "Skipping Azure CLI repo (download failed)"; \
+    fi; \
+    # GitHub CLI repo (optional)
+    if fetch_url "https://cli.github.com/packages/githubcli-archive-keyring.gpg" "/etc/apt/keyrings/githubcli-archive-keyring.gpg"; then \
+      if [ -s /etc/apt/keyrings/githubcli-archive-keyring.gpg ]; then \
+        chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
+        echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list; \
+        echo "GitHub CLI repo configured"; \
+      fi; \
+    else \
+      echo "Skipping GitHub CLI repo (download failed)"; \
+    fi; \
+    # Kubernetes kubectl repo (optional)
+    if fetch_url "https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key" "/tmp/kubernetes.key"; then \
+      gpg --dearmor < /tmp/kubernetes.key > /etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null || true; \
+      if [ -s /etc/apt/keyrings/kubernetes-apt-keyring.gpg ]; then \
+        chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg; \
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list; \
+        echo "Kubernetes repo configured"; \
+      fi; \
+      rm -f /tmp/kubernetes.key; \
+    else \
+      echo "Skipping Kubernetes repo (download failed)"; \
+    fi; \
+    # Update and install whatever packages are available
+    apt-get update || true; \
     EXTERNAL_PKGS=""; \
     for pkg in azure-cli gh kubectl zsh; do \
       if apt-cache show "$pkg" >/dev/null 2>&1; then EXTERNAL_PKGS="$EXTERNAL_PKGS $pkg"; fi; \
     done; \
-    if [ -n "$EXTERNAL_PKGS" ]; then apt-get install -y $EXTERNAL_PKGS; fi; \
+    if [ -n "$EXTERNAL_PKGS" ]; then \
+      echo "Installing:$EXTERNAL_PKGS"; \
+      apt-get install -y $EXTERNAL_PKGS || true; \
+    fi; \
     rm -rf /var/lib/apt/lists/*
 
-# ---- AzCopy (x86_64 & ARM64 tarballs). Skip on other arches. ----
+# ---- AzCopy (x86_64 & ARM64 tarballs). Skip on other arches. Fault-tolerant for QEMU. ----
 RUN set -eux; \
     case "$TARGETARCH" in \
       amd64) AZCOPY_URL="https://aka.ms/downloadazcopy-v10-linux";; \
@@ -125,23 +163,35 @@ RUN set -eux; \
     esac; \
     if [ -n "$AZCOPY_URL" ]; then \
       tmpdir="$(mktemp -d)"; \
-      curl -fsSL "$AZCOPY_URL" -o "$tmpdir/azcopy.tgz"; \
-      tar -xzf "$tmpdir/azcopy.tgz" -C "$tmpdir"; \
-      install "$tmpdir"/azcopy_linux_*/azcopy /usr/local/bin/azcopy; \
+      echo "Downloading AzCopy from $AZCOPY_URL"; \
+      if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 300 "$AZCOPY_URL" -o "$tmpdir/azcopy.tgz" 2>/dev/null || \
+         wget -q --timeout=30 --tries=3 --waitretry=5 -O "$tmpdir/azcopy.tgz" "$AZCOPY_URL" 2>/dev/null; then \
+        tar -xzf "$tmpdir/azcopy.tgz" -C "$tmpdir"; \
+        install "$tmpdir"/azcopy_linux_*/azcopy /usr/local/bin/azcopy; \
+        echo "AzCopy installed successfully"; \
+      else \
+        echo "WARNING: AzCopy download failed (QEMU network issues); skipping."; \
+      fi; \
       rm -rf "$tmpdir"; \
     else echo "AzCopy not published for $TARGETARCH; skipping."; fi
 
 # NOTE: Helm installation is disabled to reduce image size. Uncomment and adapt
 # the block below if you need Helm (uses Buildkite-hosted helm-linux repo).
 
-# ---- Install Rust (cargo) and zellij terminal multiplexer ----
+# ---- Install Rust (cargo) and zellij terminal multiplexer (optional - may fail under QEMU) ----
 RUN set -eux; \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal; \
-    . "$HOME/.cargo/env"; \
-    cargo install zellij --locked; \
-    # Make cargo available for all users
-    cp -r /root/.cargo /etc/skel/; \
-    echo "Rust $(rustc --version) and zellij installed."
+    echo "Installing Rust and zellij..."; \
+    if curl --proto '=https' --tlsv1.2 -sSf --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 120 https://sh.rustup.rs -o /tmp/rustup.sh 2>/dev/null || \
+       wget -q --timeout=30 --tries=3 -O /tmp/rustup.sh https://sh.rustup.rs 2>/dev/null; then \
+      sh /tmp/rustup.sh -y --default-toolchain stable --profile minimal; \
+      rm -f /tmp/rustup.sh; \
+      . "$HOME/.cargo/env"; \
+      cargo install zellij --locked; \
+      cp -r /root/.cargo /etc/skel/; \
+      echo "Rust $(rustc --version) and zellij installed."; \
+    else \
+      echo "WARNING: Rust installation failed (QEMU network issues); skipping Rust and zellij."; \
+    fi
 
 # ---- Miniconda/Miniforge installation (multi-arch) ----
 ENV CONDA_DIR=/opt/conda \
@@ -158,7 +208,14 @@ RUN set -eux; \
       arm64) CONDA_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh";; \
       *)     echo "Unknown TARGETARCH=$TARGETARCH"; exit 1;; \
     esac; \
-    curl -fsSL "$CONDA_URL" -o /tmp/conda.sh; \
+    echo "Downloading Miniforge from $CONDA_URL"; \
+    if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 60 --max-time 600 "$CONDA_URL" -o /tmp/conda.sh 2>/dev/null || \
+       wget -q --timeout=60 --tries=3 --waitretry=10 -O /tmp/conda.sh "$CONDA_URL" 2>/dev/null; then \
+      echo "Download successful, installing Miniforge..."; \
+    else \
+      echo "ERROR: Failed to download Miniforge. Build cannot continue."; \
+      exit 1; \
+    fi; \
     bash /tmp/conda.sh -b -p "$CONDA_DIR"; \
     rm -f /tmp/conda.sh; \
     rm -rf "$CONDA_DIR/etc/conda"; \

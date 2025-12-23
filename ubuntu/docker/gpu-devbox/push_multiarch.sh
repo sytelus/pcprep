@@ -8,10 +8,23 @@
 #     BUILD_CONTEXT - Build context directory (default: repo root)
 #     BUILDER       - Buildx builder name (default: gpu-devbox-builder)
 #     SKIP_LOGIN    - Set to "1" to skip docker login (for CI environments)
+#     INSTALL_PYTORCH_NIGHTLY - Set to "true" to install PyTorch nightly (adds -nightly suffix to tag)
+#     INSTALL_VLLM  - Set to "true" to install vLLM
 set -euo pipefail
 
 IMAGE="${IMAGE:-sytelus/gpu-devbox}"
-TAG="${TAG:-$(date +%Y.%m.%d)}"
+BASE_TAG="${TAG:-$(date +%Y.%m.%d)}"
+INSTALL_PYTORCH_NIGHTLY="${INSTALL_PYTORCH_NIGHTLY:-false}"
+INSTALL_VLLM="${INSTALL_VLLM:-false}"
+
+# Auto-add -nightly suffix if PyTorch nightly is enabled
+if [ "${INSTALL_PYTORCH_NIGHTLY}" = "true" ]; then
+    TAG="${BASE_TAG}-nightly"
+    LATEST_TAG="latest-nightly"
+else
+    TAG="${BASE_TAG}"
+    LATEST_TAG="latest"
+fi
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 DEFAULT_CONTEXT=$(cd "${SCRIPT_DIR}/../../.." && pwd)
@@ -39,11 +52,13 @@ if [[ "${SKIP_LOGIN:-0}" != "1" ]]; then
 fi
 
 echo ""
-echo ">> Building & pushing ${IMAGE}:${TAG} and ${IMAGE}:latest"
+echo ">> Building & pushing ${IMAGE}:${TAG} and ${IMAGE}:${LATEST_TAG}"
 echo "   Platforms:  ${PLATFORMS}"
 echo "   Context:    ${BUILD_CONTEXT}"
 echo "   Dockerfile: ${DOCKERFILE}"
 echo "   VCS_REF:    ${VCS_REF}"
+echo "   INSTALL_PYTORCH_NIGHTLY: ${INSTALL_PYTORCH_NIGHTLY}"
+echo "   INSTALL_VLLM: ${INSTALL_VLLM}"
 echo ""
 
 pushd "${BUILD_CONTEXT}" >/dev/null
@@ -53,17 +68,19 @@ docker buildx build \
     --file "${DOCKERFILE}" \
     --builder "${BUILDER}" \
     --build-arg VCS_REF="${VCS_REF}" \
+    --build-arg INSTALL_PYTORCH_NIGHTLY="${INSTALL_PYTORCH_NIGHTLY}" \
+    --build-arg INSTALL_VLLM="${INSTALL_VLLM}" \
     --platform "${PLATFORMS}" \
     --progress=plain \
     --provenance=true \
     --sbom=true \
     -t "${IMAGE}:${TAG}" \
-    -t "${IMAGE}:latest" \
+    -t "${IMAGE}:${LATEST_TAG}" \
     --push \
     "${BUILD_CONTEXT}"
 
 echo ""
-echo ">> Multi-arch image pushed: ${IMAGE}:${TAG} and ${IMAGE}:latest"
+echo ">> Multi-arch image pushed: ${IMAGE}:${TAG} and ${IMAGE}:${LATEST_TAG}"
 echo ""
 echo "To verify:"
 echo "  ./verify.sh ${IMAGE}:${TAG}"

@@ -8,10 +8,21 @@
 #     BUILD_CONTEXT - Build context directory (default: repo root)
 #     BUILDER       - Buildx builder name (default: gpu-devbox-builder)
 #     CACHE_DIR     - Build cache directory (default: .buildx-cache)
+#     INSTALL_PYTORCH_NIGHTLY - Set to "true" to install PyTorch nightly (adds -nightly suffix to tag)
+#     INSTALL_VLLM  - Set to "true" to install vLLM
 set -euo pipefail
 
 IMAGE=${IMAGE:-"sytelus/gpu-devbox"}
-TAG="${TAG:-25.11-py3}"
+BASE_TAG="${TAG:-25.11-py3}"
+INSTALL_PYTORCH_NIGHTLY="${INSTALL_PYTORCH_NIGHTLY:-false}"
+INSTALL_VLLM="${INSTALL_VLLM:-false}"
+
+# Auto-add -nightly suffix if PyTorch nightly is enabled
+if [ "${INSTALL_PYTORCH_NIGHTLY}" = "true" ]; then
+    TAG="${BASE_TAG}-nightly"
+else
+    TAG="${BASE_TAG}"
+fi
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 DEFAULT_CONTEXT=$(cd "${SCRIPT_DIR}/../../.." && pwd)
@@ -60,6 +71,8 @@ echo "   Context:    ${BUILD_CONTEXT}"
 echo "   Dockerfile: ${DOCKERFILE}"
 echo "   VCS_REF:    ${VCS_REF}"
 echo "   Log file:   ${LOG_FILE}"
+echo "   INSTALL_PYTORCH_NIGHTLY: ${INSTALL_PYTORCH_NIGHTLY}"
+echo "   INSTALL_VLLM: ${INSTALL_VLLM}"
 echo ""
 
 # Start logging (tee to both console and file)
@@ -74,6 +87,8 @@ build_cmd=(
     --file "${DOCKERFILE}"
     --builder "${BUILDER}"
     --build-arg VCS_REF="${VCS_REF}"
+    --build-arg INSTALL_PYTORCH_NIGHTLY="${INSTALL_PYTORCH_NIGHTLY}"
+    --build-arg INSTALL_VLLM="${INSTALL_VLLM}"
     --platform "${PLATFORMS}"
     --progress=plain
     --provenance=true

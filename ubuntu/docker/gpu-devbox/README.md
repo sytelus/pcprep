@@ -149,6 +149,70 @@ This shows the multi-arch manifest and available platforms.
 - The cache in `.buildx-cache/` speeds up subsequent builds significantly
 - Manifest, provenance, and SBOM are automatically generated
 
+## PyTorch Nightly Builds
+
+By default, the image uses NVIDIA's specially optimized PyTorch from the base image. If you need bleeding-edge PyTorch features, you can optionally install PyTorch nightly instead.
+
+> **⚠️ WARNING:** The NVIDIA base image contains PyTorch that is:
+> - Compiled from source with NVIDIA-specific optimizations
+> - Tightly integrated with Transformer Engine, Apex, and custom CUDA kernels
+> - Tuned for optimal performance with NCCL and cuDNN
+>
+> Replacing it with pip-installed nightly may break these integrations and reduce performance. Only enable this if you specifically need bleeding-edge PyTorch features.
+
+### Build with PyTorch Nightly
+
+**Build only (no push):**
+
+```bash
+INSTALL_PYTORCH_NIGHTLY=true ./build_multiarch.sh
+```
+
+This creates: `sytelus/gpu-devbox:25.11-py3-nightly`
+
+**Build and push:**
+
+```bash
+INSTALL_PYTORCH_NIGHTLY=true ./push_multiarch.sh
+```
+
+This pushes:
+- `sytelus/gpu-devbox:2025.12.21-nightly`
+- `sytelus/gpu-devbox:latest-nightly`
+
+**With custom tag:**
+
+```bash
+INSTALL_PYTORCH_NIGHTLY=true TAG=25.11-py3 ./push_multiarch.sh
+```
+
+This pushes:
+- `sytelus/gpu-devbox:25.11-py3-nightly`
+- `sytelus/gpu-devbox:latest-nightly`
+
+### CUDA Version Detection
+
+The build automatically detects the CUDA version from the base image and installs the matching PyTorch nightly:
+
+| CUDA Version | PyTorch Index |
+|--------------|---------------|
+| 12.1 - 12.4 | `cu124` |
+| 12.5 - 12.6 | `cu126` |
+| 12.7 - 12.9 | `cu128` |
+| 13.0 - 13.2 | `cu130` |
+
+### Standard Build (Recommended)
+
+For most use cases, use the standard build which keeps NVIDIA's optimized PyTorch:
+
+```bash
+./push_multiarch.sh
+```
+
+This pushes:
+- `sytelus/gpu-devbox:2025.12.21`
+- `sytelus/gpu-devbox:latest`
+
 ## Quick Start Summary
 
 ```bash
@@ -194,11 +258,14 @@ All build scripts support these environment variables:
 | `VCS_REF` | Git HEAD short SHA | Version control reference for labels |
 | `CACHE_DIR` | `.buildx-cache` | Build cache directory |
 | `SKIP_LOGIN` | `0` | Set to `1` to skip Docker login (CI mode) |
+| `INSTALL_PYTORCH_NIGHTLY` | `false` | Set to `true` to install PyTorch nightly (adds `-nightly` suffix to tag) |
+| `INSTALL_VLLM` | `false` | Set to `true` to install vLLM |
 
 **Build arguments** (pass with `--build-arg`):
 
 | Argument | Default | Description |
 |----------|---------|-------------|
+| `INSTALL_PYTORCH_NIGHTLY` | `false` | Replace NVIDIA's optimized PyTorch with nightly build (see warning below) |
 | `INSTALL_VLLM` | `false` | Set to `true` to install vllm (may conflict with base image torch) |
 
 ## Architecture-Specific Availability
@@ -207,10 +274,10 @@ All build scripts support these environment variables:
 
 | Package | amd64 | arm64 | Notes |
 |---------|:-----:|:-----:|-------|
-| PyTorch | Yes | Yes | From NVIDIA base image |
+| PyTorch | Yes | Yes | From NVIDIA base image (optimized); nightly available via `INSTALL_PYTORCH_NIGHTLY=true` |
 | CUDA/cuDNN | Yes | Yes | From NVIDIA base image |
 | flash-attn | Yes | No | No prebuilt arm64 wheels; source build too slow |
-| vllm | Optional | Optional | Disabled by default (conflicts with base image torch); enable with `--build-arg INSTALL_VLLM=true` |
+| vllm | Optional | Optional | Disabled by default (conflicts with base image torch); enable with `INSTALL_VLLM=true` |
 | deepspeed | Yes | Yes | |
 | transformer-engine | Yes | Partial | CUDA features may be limited on arm64 |
 | All other pip packages | Yes | Yes | |
@@ -410,6 +477,12 @@ Run `./setup-builder.sh` to create/activate the buildx builder with QEMU.
 ### Container health check failing
 - The container includes a health check that verifies PyTorch is importable
 - Check with: `docker inspect --format='{{.State.Health.Status}}' <container>`
+
+### PyTorch nightly breaks Transformer Engine / Apex
+- This is expected when using `INSTALL_PYTORCH_NIGHTLY=true`
+- NVIDIA's base image packages are tightly coupled with their custom PyTorch build
+- Solution: Use the standard build (without nightly) for production workloads
+- Only use nightly for testing bleeding-edge features
 
 ## CI/CD Integration
 
