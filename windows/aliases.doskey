@@ -33,30 +33,18 @@ mirfiles=robocopy $1 $2 /MIR /E /Z /DCOPY:DATE /V /FP /ETA /W:0 /R:0
 gsrc=cd /d "d:\GitHubSrc\"
 bashrt=cd /d "%LOCALAPPDATA%\lxss\rootfs"
 claudeyolo=claude --dangerously-skip-permissions
-
-# Additional git aliases
 gchk=git checkout $*
 gmaster=git checkout master
 gmain=git checkout main
-
-# Docker aliases
 dockerls=docker container ls
 dockersize=docker ps --all --size
 dockerclean=for /f %i in ('docker ps --filter status=exited -q') do @docker rm %i
-
-# Python/PyTorch
 torchver=python -c "import torch; print(torch.__version__)"
-
-# System info
 drives=wmic logicaldisk get size,freespace,caption
 disks=wmic logicaldisk get size,freespace,caption
 freespace=wmic logicaldisk get caption,freespace,size
-
-# Process listing
 psex=tasklist /v
 pmy=tasklist /fi "username eq %USERNAME%"
-
-# kubectl aliases
 k=kubectl $*
 kpods=kubectl get pods -L created-by-name,submitter
 kjobs=kubectl get vcjob -L created-by-name,submitter
