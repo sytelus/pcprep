@@ -227,7 +227,7 @@ alias kquota='kubectl describe resourcequota bonete61-compute-quota'
 function knodes {
     kubectl get nodes --no-headers | awk '{print $2}' | sort | uniq -c
 }
-alias kjobs='kubectl get vcjob -L created-by-name,submitter | grep -E "Pending|Running"'
+
 alias kjobsall='kubectl get vcjob -L created-by-name,submitter'
 function k {
     kubectl "$@"
@@ -258,3 +258,103 @@ function rclone_du {
   rclone size "$@"
 }
 alias rclone-du=rclone_du
+
+# Unalias to prevent conflicts
+unalias kjobs 2>/dev/null
+
+kjobs() {
+  local current_time=$(date +%s)
+
+  # Fetch structured data
+  local JSONPATH='{range .items[*]}{.metadata.name}|{.status.state.phase}|{.metadata.labels.created-by-name}|{.metadata.labels.submitter}|{.spec.tasks[*].template.spec.priorityClassName}|{.metadata.creationTimestamp}|{.status.state.lastTransitionTime}|{range .spec.tasks[*]}R:{.replicas} Q:{range .template.spec.containers[*]}{.resources.requests.nvidia\.com/gpu},{end};{end}{"\n"}{end}'
+
+  kubectl get vcjob -o jsonpath="$JSONPATH" "$@" | \
+  TZ=UTC awk -v now="$current_time" -F "|" '
+
+    function to_epoch(time_str) {
+        if (time_str == "") return 0
+        gsub(/[-:TZ]/, " ", time_str)
+        return mktime(time_str)
+    }
+
+    BEGIN {
+       # Rank 0 ensures Header is always top
+       print "0|NAME|STATUS|USER|PRIORITY|GPUS|SUBMITTED_HR_AGO|RUNNING_SINCE_HR"
+       run_sum = 0
+       pend_sum = 0
+    }
+
+    $2 ~ /Pending|Running/ {
+
+      # --- 1. User Logic ---
+      user = $4; if (user == "") user = $3; if (user == "") user = "<none>"
+
+      # --- 2. Priority Logic (Pick first value) ---
+      raw_prio = $5
+      gsub(" ", ",", raw_prio)
+      split(raw_prio, p_arr, ",")
+      priority = p_arr[1]
+      if (priority == "") priority = "<none>"
+
+      # --- 3. Time Calculations ---
+      submitted_fmt = "N/A"
+      if ($6 != "") submitted_fmt = sprintf("%.1fh", (now - to_epoch($6)) / 3600)
+
+      running_fmt = "-"
+      if ($2 == "Running" && $7 != "") running_fmt = sprintf("%.1fh", (now - to_epoch($7)) / 3600)
+
+      # --- 4. GPU Calculation ---
+      raw_tasks = $8
+      total_gpus = 0
+      split(raw_tasks, tasks, ";")
+
+      for (i in tasks) {
+         if (tasks[i] == "") continue
+
+         # Default Replicas to 0 (Handles "ghost" workers correctly)
+         reps = 0
+         if (match(tasks[i], /R:([0-9]+)/, r_match)) reps = r_match[1]
+
+         # Parse GPU Request
+         pod_gpus = 0
+         if (match(tasks[i], /Q:([^;]*)/, q_match)) {
+             split(q_match[1], gpus, ",")
+             for (j in gpus) pod_gpus += (gpus[j] + 0)
+         }
+
+         if (reps > 0) total_gpus += (reps * pod_gpus)
+      }
+
+      # --- Accumulate Totals ---
+      if ($2 == "Running") run_sum += total_gpus
+      else pend_sum += total_gpus
+
+      # --- 5. Sorting Logic ---
+      # Priority Rank: high=1, medium=2, low=3, <none>=4
+      if (priority == "high") p_rank = 1
+      else if (priority == "medium") p_rank = 2
+      else if (priority == "low") p_rank = 3
+      else p_rank = 4
+
+      # Status Rank: Running=1, Pending=2
+      if ($2 == "Running") s_rank = 1
+      else s_rank = 2
+
+      # Combined Rank
+      sort_key = p_rank * 10 + s_rank
+
+      print sort_key "|" $1 "|" $2 "|" user "|" priority "|" total_gpus "|" submitted_fmt "|" running_fmt
+    }
+
+    END {
+       # Print Summary Rows (Rank 99 sorts to bottom)
+       print "98|---|---|---|---|---|---|---"
+       print "99|TOTAL_RUNNING|Running|-|-|" run_sum "|- |-"
+       print "99|TOTAL_PENDING|Pending|-|-|" pend_sum "|- |-"
+    }
+  ' | \
+  sort -t "|" -n -k1 | \
+  cut -d "|" -f2- | \
+  column -t -s "|" | \
+  sed -e 's/.*Running.*/\x1b[32m&\x1b[0m/' -e 's/.*Pending.*/\x1b[31m&\x1b[0m/'
+}
