@@ -259,9 +259,6 @@ function rclone_du {
 }
 alias rclone-du=rclone_du
 
-# Unalias to prevent conflicts
-unalias kjobs 2>/dev/null
-
 kjobs() {
   local current_time=$(date +%s)
 

@@ -333,6 +333,8 @@ fi
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536
+
 # within NVidia docker, everything is installed without conda,
 # don't init conda by default or we will pick up wrong torch etc
 if [ "${IS_CONTAINER:-false}" = false ]; then
