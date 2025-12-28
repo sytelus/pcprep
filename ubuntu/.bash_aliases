@@ -38,6 +38,7 @@ function gdelbra {
 alias gconf='git diff --name-only --diff-filter=U'
 alias grem='git remote -v'
 alias gchk='git checkout'
+alias undocommit='git reset --soft HEAD~1'
 
 # WSL root
 alias bashrt='cd /mnt/c/Users/$USER/AppData/Local/lxss/rootfs'
