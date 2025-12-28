@@ -1,16 +1,25 @@
-model = "gpt-5-codex"
-model_reasoning_effort = "high"
+model = "gpt-5.2-codex"
+model_reasoning_effort = "xhigh"
 model_reasoning_summary = "detailed"
+model_verbosity = "high"
 approval_policy="never"
 sandbox_mode="danger-full-access"
 sandbox_workspace_write.network_access = true
 network_access = true
 
-[tools]
-web_search = true
-view_image = true
 
 [shell_environment_policy]
 ignore_default_excludes = true # when false, drops vars whose NAMES contain KEY/SECRET/TOKEN
 inherit="all" # inherit all environment variables from the host environment
+
+[features]
+unified_exec = true             # enable background terminal sessions
+shell_snapshot = true           # speed up repeated commands
+web_search_request = true        # allow the model to request web searches
+# tui2 = true                    # enable the new TUI
+view_image_tool = true         # enable the view image tool
+
+[tui]
+notifications = true
+
 

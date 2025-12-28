@@ -194,6 +194,7 @@ function treesize {
 
 
 alias claudeyolo="claude --dangerously-skip-permissions"
+alias codexyolo="codex --yolo"
 alias z="zellij a #"
 
 #### slurm #####
