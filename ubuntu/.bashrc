@@ -300,6 +300,7 @@ export GIT_TEST_ASSUME_ALL_SAFE=1
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
 
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536
 
 # HuggingFace cache and other locations
 # links allows to use same paths in docker and host
@@ -314,8 +315,7 @@ export HF_DATASETS_CACHE=$CACHE_ROOT/datasets
 export TIKTOKEN_CACHE_DIR=$CACHE_ROOT/tiktoken_cache
 export WANDB_CACHE_DIR=$CACHE_ROOT/wandb_cache
 export OLLAMA_MODELS=$MODELS_ROOT/ollama
-export WANDB_API_KEY=__YOUR_KEY__
-export WANDB_HOST=__YOUR_HOST__
+
 # BIG_DISK is where we would like to store large datasets, models etc
 export BIG_DISK=__YOUR_BIG_DISK__
 # if $BIG_DISK exists
@@ -328,12 +328,30 @@ if [ -d "$BIG_DISK" ]; then
         ln -s $BIG_DISK/misc_caches ~/misc_caches
     fi
 fi
-
-
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
-export CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536
+# Enhanced history search with fzf
+# Check if fzf is available
+if command -v fzf >/dev/null 2>&1; then
+  # Define the fzf_history function
+  fzf_history() {
+    local output
+    output=$(history | fzf --tac --no-sort --query "$READLINE_LINE" --select-1 --exit-0)
+    READLINE_LINE=${output#*[0-9]*  }
+    READLINE_POINT=${#READLINE_LINE}
+  }
+
+  # Bind the function to Ctrl+R
+  bind -x '"\C-r": fzf_history'
+# else
+#   # Fallback to default reverse-search-history if fzf is not available
+#   bind '"\C-r": reverse-search-history'
+fi
+
+bind '"\t":menu-complete'
+set show-all-if-ambiguous on
+set menu-complete-display-prefix on
 
 # within NVidia docker, everything is installed without conda,
 # don't init conda by default or we will pick up wrong torch etc
@@ -344,10 +362,13 @@ if [ "${IS_CONTAINER:-false}" = false ]; then
   :
 fi
 
-# bash ~/GitHubSrc/pcprep/ubuntu/ssh_perms.sh
-# start-tmux
-
-# switch to cuda 12.8
-# source /usr/local/bin/use-cuda12.8
-
 echo "REMEMBER: search for __ in .bashrc to complete setup and remove this message!!"
+
+#-------------------------------------------------------------------------------------------------------------
+#------------------------------ below can be customized, do not copy/paste below -----------------------------
+#-------------------------------------------------------------------------------------------------------------
+
+export WANDB_API_KEY=__YOUR_KEY__
+export WANDB_HOST=__YOUR_HOST__
+
+
