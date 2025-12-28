@@ -115,6 +115,13 @@ else
     echo "Sudo access is not available."
 fi
 
+# install nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.bashrc
+# install a fresh Node (LTS)
+nvm install --lts
+nvm use --lts
+
 # Install micro editor
 if [ -n "${NO_NET}" ]; then
     pushd "$HOME/.local/bin"
