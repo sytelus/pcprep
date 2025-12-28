@@ -115,21 +115,21 @@ else
     echo "Sudo access is not available."
 fi
 
-# install nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-source ~/.bashrc
-# install a fresh Node (LTS)
-nvm install --lts
-nvm use --lts
-
-# Install micro editor
+# requires internet
 if [ -n "${NO_NET}" ]; then
+    # Install micro editor
     pushd "$HOME/.local/bin"
     curl https://getmic.ro | MICRO_DESTDIR="$HOME/.local" sh
     popd
 
-    # Install Zellij using Cargo
-    # (Note: This compiles Zellij from source, so it might take 2-5 minutes)
+    # install nvm
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+    source ~/.bashrc
+    # install a fresh Node (LTS)
+    nvm install --lts
+    nvm use --lts
+
+    # Install Zellij
     echo "Installing Zellij..."
     curl -LO https://github.com/zellij-org/zellij/releases/latest/download/zellij-x86_64-unknown-linux-musl.tar.gz
     tar -xvf zellij-x86_64-unknown-linux-musl.tar.gz
