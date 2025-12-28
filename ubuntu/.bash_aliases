@@ -194,7 +194,7 @@ function treesize {
 
 
 alias claudeyolo="claude --dangerously-skip-permissions"
-alias z=zellij a #
+alias z="zellij a #"
 
 #### slurm #####
 # drained nodes in slurm with reason
