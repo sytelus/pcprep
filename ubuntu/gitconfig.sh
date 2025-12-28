@@ -23,7 +23,7 @@ fi
 # Set global Git configurations using the user's input
 git config --global user.name "$user_name"
 git config --global user.email "$user_email"
-# git config --global url.ssh://git@github.com/.insteadOf https://github.com/
+git config --global url.ssh://git@github.com/.insteadOf https://github.com/
 
 # set default line ending to LF
 git config --global core.eol lf
