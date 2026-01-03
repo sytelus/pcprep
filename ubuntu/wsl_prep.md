@@ -9,8 +9,9 @@ To start from  scratch:
 wsl --uninstall
 wsl --update
 # wsl --install -d Ubuntu-22.04
-wsl --install -d Ubuntu-24.04
+wsl --install -d Ubuntu-24.04 --name u2
 # init distro, enter user name, password and complete the setup
+wsl -s u2 # set u2 as default distro
 wsl
 ```
 
@@ -27,20 +28,15 @@ wsl --manage Ubuntu-22.04 --move e:\wsl_vhd
 wsl -l -v
 ```
 
-## Map folders
 
-Assuming you store your GitHub repos in `D:\GitHubSrc`, you can map it to WSL home directory so they are accessible from WSL at `~/GitHubSrc`:
-
-```bash
-wsl # start wsl
-cd ~ # go to home
-ln -s "/mnt/d/GitHubSrc" "$HOME/GitHubSrc" # create symlink
-```
 
 ## Install stuff
 
 ```bash
 # in wsl
-cd ~/GitHubSrc/pcprep/ubuntu
+mkdir ~/GitHubSrc
+cd ~/GitHubSrc
+git clone https://github.com/sytelus/pcprep
+cd pcprep/ubuntu
 bash prepare_new_box.sh
 ```
