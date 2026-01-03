@@ -37,15 +37,15 @@ else
     cp -f .bashrc ~/.bashrc
 fi
 
-cp -vn .bash_aliases ~/.bash_aliases
-cp -vn .inputrc ~/.inputrc
-cp -vn .tmux.conf ~/.tmux.conf
-cp -vn .codex/config.toml ~/.codex/config.toml
+cp -v --update=none .bash_aliases ~/.bash_aliases
+cp -v --update=none .inputrc ~/.inputrc
+cp -v --update=none .tmux.conf ~/.tmux.conf
+cp -v --update=none .codex/config.toml ~/.codex/config.toml
 
 # skip files that already exists
-cp -vrn .config/ ~/
-cp -vrn .ssh/ ~/
-cp -vrn .local/ ~/
+cp -vr --update=none .config/ ~/
+cp -vr --update=none .ssh/ ~/
+cp -vr --update=none .local/ ~/
 
 
 # create local bin where we can store our apps as sudo is not supported
