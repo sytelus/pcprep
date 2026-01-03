@@ -57,7 +57,7 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
     # share .ssh keys
     mkdir -p ~/.ssh
     if [ -d "/mnt/c/Users/$USER/.ssh" ]; then
-        cp -r /mnt/c/Users/$USER/.ssh ~/.ssh
+        cp -a "/mnt/c/Users/$USER/.ssh/." "$HOME/.ssh/"
     fi
     bash ssh_perms.sh
 
@@ -118,4 +118,3 @@ if [ "$NO_NET" = "0" ]; then
 
     bash install_dl_frameworks.sh
 fi
-
