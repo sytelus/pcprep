@@ -47,10 +47,10 @@ detect_cuda_version() {
         if echo "$INSTALL_PYTORCH" | grep -Eq '^[1-9][0-9]*$' || [ "$low" = "y" ]; then
             :  # Skip prompt
         else
-            read -p "Press Enter to proceed with above (Ctrl+C to terminate)." -n 1 -r
+            read -p "Press Enter to proceed with above for Pytorch installation (Ctrl+C to terminate)." -n 1 -r
         fi
     else
-        read -p "Press Enter to proceed with above (Ctrl+C to terminate)." -n 1 -r
+        read -p "Press Enter to proceed with above for Pytorch installation (Ctrl+C to terminate)." -n 1 -r
     fi
     echo ""
     return 0
