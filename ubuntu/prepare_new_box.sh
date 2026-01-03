@@ -118,3 +118,5 @@ if [ "$NO_NET" = "0" ]; then
 
     bash install_dl_frameworks.sh
 fi
+
+echo "Your new box is ready! Please restart your terminal."
