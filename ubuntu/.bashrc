@@ -331,24 +331,6 @@ fi
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
-# Enhanced history search with fzf
-# Check if fzf is available
-if command -v fzf >/dev/null 2>&1; then
-  # Define the fzf_history function
-  fzf_history() {
-    local output
-    output=$(history | fzf --tac --no-sort --query "$READLINE_LINE" --select-1 --exit-0)
-    READLINE_LINE=${output#*[0-9]*  }
-    READLINE_POINT=${#READLINE_LINE}
-  }
-
-  # Bind the function to Ctrl+R
-  bind -x '"\C-r": fzf_history'
-# else
-#   # Fallback to default reverse-search-history if fzf is not available
-#   bind '"\C-r": reverse-search-history'
-fi
-
 bind '"\t":menu-complete'
 set show-all-if-ambiguous on
 set menu-complete-display-prefix on
@@ -360,6 +342,11 @@ if [ "${IS_CONTAINER:-false}" = false ]; then
 # !! Contents within this block are managed by 'conda init' !!
 # <<< conda initialize <<<
   :
+fi
+
+# if ~/GitHubSrc/ exists then cd there
+if [ -d ~/GitHubSrc/ ]; then
+    cd ~/GitHubSrc/
 fi
 
 echo "REMEMBER: search for __ in .bashrc to complete setup and remove this message!!"
