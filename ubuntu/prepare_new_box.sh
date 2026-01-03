@@ -117,6 +117,12 @@ if [ "$NO_NET" = "0" ]; then
     pip install -q nvitop rich pytest
 
     bash install_dl_frameworks.sh
+
+    # install Claude Code
+    curl -fsSL https://claude.ai/install.sh | bash
+
+    # install Codex CLI
+    npm i -g @openai/codex
 fi
 
 echo "Your new box is ready! Please restart your terminal."

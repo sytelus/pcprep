@@ -40,7 +40,7 @@ fi
 cp -vn .bash_aliases ~/.bash_aliases
 cp -vn .inputrc ~/.inputrc
 cp -vn .tmux.conf ~/.tmux.conf
-
+cp -vn .codex/config.toml ~/.codex/config.toml
 
 # skip files that already exists
 cp -vrn .config/ ~/
