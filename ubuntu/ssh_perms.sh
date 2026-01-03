@@ -3,20 +3,49 @@
 # rerun this file any time to remove passkeys and setup correct perms
 
 # Create .ssh directory if it doesn't exist and set permissions
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
+mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
 
-# Function to set permissions for a key pair
-set_key_permissions() {
-    local private_key="$1"
-    local public_key="${private_key}.pub"
+shopt -s nullglob
 
-    [ -f "$private_key" ] ssh-keygen -p -f "$private_key" -N "" && chmod 600 "$private_key" && echo "Set 600 for $private_key" || echo "Warning: $private_key not found"
-    [ -f "$public_key" ] && chmod 644 "$public_key" && echo "Set 644 for $public_key" || echo "Warning: $public_key not found"
+is_private_key() {
+    local file="$1"
+    head -n 1 "$file" 2>/dev/null | grep -qE '^-----BEGIN .*PRIVATE KEY-----$'
 }
 
-# Set permissions for valid key pairs in .ssh directory
-for private_key in ~/.ssh/*; do
-    [[ -f "$private_key" && ! "$private_key" == *.pub && -f "${private_key}.pub" ]] && set_key_permissions "$private_key"
+set_private_key_permissions() {
+    local private_key="$1"
+
+    if ssh-keygen -p -f "$private_key" -N ""; then
+        echo "Removed passphrase for $private_key"
+    else
+        echo "Warning: failed to update $private_key (passphrase may remain)"
+    fi
+
+    chmod 600 "$private_key"
+    echo "Set 600 for $private_key"
+}
+
+set_public_key_permissions() {
+    local public_key="$1"
+    chmod 644 "$public_key"
+    echo "Set 644 for $public_key"
+}
+
+# Set permissions for public keys
+for public_key in "$HOME/.ssh/"*.pub; do
+    [ -f "$public_key" ] && set_public_key_permissions "$public_key"
+done
+
+# Set permissions for private keys
+for private_key in "$HOME/.ssh/"*; do
+    [ -f "$private_key" ] || continue
+    case "$private_key" in
+        *.pub) continue ;;
+    esac
+
+    if is_private_key "$private_key"; then
+        set_private_key_permissions "$private_key"
+    fi
 done
 
 echo "SSH directory and key permissions have been set up."
