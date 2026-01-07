@@ -22,6 +22,13 @@ function gcommit {
   git add -A
   git commit -m "$1"
 }
+function checkin {
+  local msg="update"
+  if [ "$#" -gt 0 ]; then
+    msg="$*"
+  fi
+  git add -A && git commit -m "$msg" && git push
+}
 alias gpullr='git pull --rebase'
 function gtag {
   git tag -a "$1" -m "$2"
