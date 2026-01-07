@@ -35,7 +35,7 @@ if sudo -n true 2>/dev/null; then
         virt-what sudo zlib1g g++ freeglut3-dev build-essential libx11-dev \
         libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 \
         libfreeimage-dev vmtouch neofetch powerstat powertop nvtop \
-        tmux screen vim nano pv
+        tmux screen vim nano pv pipx
 
     # Install nvidia-prime only on x86_64 architecture
     if [ "$ARCH" = "x86_64" ]; then
