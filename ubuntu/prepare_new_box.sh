@@ -35,6 +35,25 @@ net_ok() {
   return 1
 }
 
+has_cuda_gpu() {
+  # Prefer a direct NVIDIA runtime probe if available.
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    nvidia-smi -L >/dev/null 2>&1 && return 0
+  fi
+
+  # Fall back to PCI device scan.
+  if command -v lspci >/dev/null 2>&1; then
+    lspci | grep -qi 'nvidia' && return 0
+  fi
+
+  # Driver-installed systems expose this path.
+  if [ -d /proc/driver/nvidia/gpus ] && [ -n "$(ls -A /proc/driver/nvidia/gpus 2>/dev/null)" ]; then
+    return 0
+  fi
+
+  return 1
+}
+
 # Check if NO_NET is not set and test internet connectivity
 if [ -z "${NO_NET}" ]; then
     echo "Checking Internet connection..."
@@ -83,13 +102,17 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
         sudo ln -sf "/mnt/c/Program Files/Tailscale/tailscale.exe" /Applications/Tailscale.app/Contents/MacOS/Tailscale
     fi
 else
-    # Check if nvcc is installed
-    if ! command -v /usr/local/cuda/bin/nvcc &> /dev/null && ! command -v nvcc &> /dev/null; then
-        read -p "CUDA not found. Do you want to install CUDA 12.6? (y/N): " install_cuda
-        if [[ $install_cuda =~ ^[Yy]$ ]]; then
-            bash install_cuda12.6.sh
-        else
-            echo "Skipping CUDA installation."
+    if ! has_cuda_gpu; then
+        echo "No CUDA-capable GPU detected. Skipping CUDA installation."
+    else
+        # Check if nvcc is installed
+        if ! command -v /usr/local/cuda/bin/nvcc &> /dev/null && ! command -v nvcc &> /dev/null; then
+            read -p "CUDA not found. Do you want to install CUDA 12.6? (y/N): " install_cuda
+            if [[ $install_cuda =~ ^[Yy]$ ]]; then
+                bash install_cuda12.8.sh
+            else
+                echo "Skipping CUDA installation."
+            fi
         fi
     fi
 fi
