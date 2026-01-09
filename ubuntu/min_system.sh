@@ -125,12 +125,15 @@ if [ -n "${NO_NET}" ]; then
     # install nvm
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
     export NVM_DIR="$HOME/.nvm"
+    # nvm uses unset vars internally, so disable nounset while running it.
+    set +u
     # shellcheck disable=SC1090
     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
     [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
     # install a fresh Node (LTS)
     nvm install --lts
     nvm use --lts
+    set -u
 
     # Install Zellij
     echo "Installing Zellij..."
