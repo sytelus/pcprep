@@ -40,6 +40,7 @@ fi
 cp -v --update=none .bash_aliases ~/.bash_aliases
 cp -v --update=none .inputrc ~/.inputrc
 cp -v --update=none .tmux.conf ~/.tmux.conf
+mkdir -p ~/.codex
 cp -v --update=none .codex/config.toml ~/.codex/config.toml
 
 # skip files that already exists
