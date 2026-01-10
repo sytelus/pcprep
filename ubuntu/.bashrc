@@ -150,7 +150,7 @@ is_wsl() {
 }
 
 skip_host_ssh_agent=false
-if [ -n "${IS_CONTAINER:-}" ]; then
+if [ "${IS_CONTAINER:-false}" = true ]; then
     skip_host_ssh_agent=true
 fi
 
