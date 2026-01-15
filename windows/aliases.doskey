@@ -52,3 +52,9 @@ kjobsall=kubectl get vcjob -L created-by-name,submitter
 kpod=kubectl describe pod $*
 kdel=kubectl delete vcjob $*
 klog=kubectl logs -f $*
+codexyolo=codex --yolo
+undocommit=git reset --soft HEAD~1
+kquota=kubectl describe resourcequota bonete61-compute-quota
+kjob=kubectl get vcjob --show-labels $* ^& kubectl get pods -l volcano.sh/job-name=$*
+knodes=powershell -NoProfile -Command "kubectl get nodes --no-headers | ForEach-Object { ($$_ -split '\s+')[1] } | Group-Object | Sort-Object Count -Descending | ForEach-Object { '{0,5} {1}' -f $$_.Count, $$_.Name }"
+rclone-du=rclone size $*
