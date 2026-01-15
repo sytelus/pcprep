@@ -354,6 +354,7 @@ echo OUT_DIR=$OUT_DIR
 if [ -d ~/GitHubSrc/ ]; then
     if [ "${is_vscode_Shell}" = false ]; then
         cd ~/GitHubSrc/
+         # zellij -c #
     fi
 fi
 
@@ -369,7 +370,4 @@ if [ "${IS_CONTAINER:-false}" = false ]; then
   :
 fi
 
-# if [ "${is_vscode_Shell}" = false ]; then
-#     zellij -c #
-# fi
 
