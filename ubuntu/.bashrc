@@ -149,6 +149,11 @@ is_wsl() {
     esac
 }
 
+is_vscode_shell=false
+if [[ "${TERM_PROGRAM:-}" == "vscode" || -n "${VSCODE_PID:-}" ]]; then
+  is_vscode_shell=true
+fi
+
 skip_host_ssh_agent=false
 if [ "${IS_CONTAINER:-false}" = true ]; then
     skip_host_ssh_agent=true
@@ -272,6 +277,10 @@ fi
 # Disable terminal mouse tracking (prevents garbage on click over SSH)
 printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l' 2>/dev/null
 
+bind '"\t":menu-complete'
+set show-all-if-ambiguous on
+set menu-complete-display-prefix on
+
 if [ "$IS_CONTAINER" = false ]; then # otherwise use docker settings
     # Use local CUDA version instead of one in /usr/bin
     # If below is not done then nvcc will be found in /usr/bin which is older
@@ -296,11 +305,10 @@ shopt -s cmdhist              # save multi-line cmds as one
 shopt -s lithist              # keep line breaks and indentation
 # assume all dirs to be safe for git
 export GIT_TEST_ASSUME_ALL_SAFE=1
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536
 
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
-
-export CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536
 
 # HuggingFace cache and other locations
 # links allows to use same paths in docker and host
@@ -316,8 +324,19 @@ export TIKTOKEN_CACHE_DIR=$CACHE_ROOT/tiktoken_cache
 export WANDB_CACHE_DIR=$CACHE_ROOT/wandb_cache
 export OLLAMA_MODELS=$MODELS_ROOT/ollama
 
+
+#-------------------------------------------------------------------------------------------------------------
+#---------------------------------------------- Custom Stuff -------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------
 # BIG_DISK is where we would like to store large datasets, models etc
 export BIG_DISK=__YOUR_BIG_DISK__
+
+# API keys
+# export WANDB_API_KEY=__YOUR_KEY__
+# export WANDB_HOST=__YOUR_HOST__
+
+#-------------------------------------------------------------------------------------------------------------
+
 # if $BIG_DISK exists
 if [ -d "$BIG_DISK" ]; then
     if [ ! -d "$BIG_DISK/data" ]; then
@@ -331,9 +350,15 @@ fi
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
-bind '"\t":menu-complete'
-set show-all-if-ambiguous on
-set menu-complete-display-prefix on
+# if ~/GitHubSrc/ exists then cd there
+if [ -d ~/GitHubSrc/ ]; then
+    if [ "${is_vscode_Shell}" = false ]; then
+        cd ~/GitHubSrc/
+    fi
+fi
+
+echo "REMEMBER: search for __ in .bashrc to complete setup and remove this message!!"
+
 
 # within NVidia docker, everything is installed without conda,
 # don't init conda by default or we will pick up wrong torch etc
@@ -344,18 +369,7 @@ if [ "${IS_CONTAINER:-false}" = false ]; then
   :
 fi
 
-# if ~/GitHubSrc/ exists then cd there
-if [ -d ~/GitHubSrc/ ]; then
-    cd ~/GitHubSrc/
-fi
-
-echo "REMEMBER: search for __ in .bashrc to complete setup and remove this message!!"
-
-#-------------------------------------------------------------------------------------------------------------
-#------------------------------ below can be customized, do not copy/paste below -----------------------------
-#-------------------------------------------------------------------------------------------------------------
-
-export WANDB_API_KEY=__YOUR_KEY__
-export WANDB_HOST=__YOUR_HOST__
-
+# if [ "${is_vscode_Shell}" = false ]; then
+#     zellij -c #
+# fi
 
