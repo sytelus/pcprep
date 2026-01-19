@@ -7,14 +7,14 @@ gpull=git pull
 gpullr=git pull --rebase
 gdiff=git difftool $*
 gcommit=git add -A :/ ^& git commit -m $*
-gtag=git tag -a $1 -m $2 :/ ^& git push --tags
+gtag=git tag -a $1 -m $2 ^& git push --tags
 gcln=git clean -fdx
-gdelbra=git push origin -delete $* ^& git branch -d $*
+gdelbra=git push origin --delete $* ^& git branch -d $*
 gconf=git diff --name-only --diff-filter=U
 gviewcommits=git log --pretty=oneline  -n 10
 gclean=git clean -fdx
 gcreatebranch=git checkout -b $*
-gdeletebranch=git push origin -delete $* ^& git branch -d $*
+gdeletebranch=git push origin --delete $* ^& git branch -d $*
 gpendingconf=git diff --name-only --diff-filter=U
 gpendingcommits=git log --branches  @{u}..
 gmaster=git checkout master
@@ -68,7 +68,7 @@ smv=robocopy $1 $2 /E /MOV /Z /DCOPY:DATE /V /FP /ETA /W:0 /R:0
 findstr=findstr.exe /s /i /n /c:"$2" *.$1
 realview=powershell -NoProfile -Command "Get-Content -Path '$1' -Wait"
 treesize=powershell -NoProfile -Command "param($$target='.') $$items = Get-ChildItem -LiteralPath $$target -Force | Where-Object { $$_.Name -notmatch '^\.' }; $$result = foreach ($$i in $$items) { if ($$i.PSIsContainer) { $$size = (Get-ChildItem -LiteralPath $$i.FullName -File -Recurse -ErrorAction SilentlyContinue | Measure-Object -Sum Length).Sum } else { $$size = $$i.Length }; [pscustomobject]@{Name=$$i.Name; Size=$$size} }; $$result | Sort-Object Size -Descending | ForEach-Object { '{0,12:N0} {1}' -f $$_.Size, $$_.Name }" $1
-checkin=powershell -NoProfile -Command "$$msg = $$args -join ' '; if (-not $$msg) { $$msg = 'update' }; git add -A; git commit -m $$msg; git push" $*
+checkin=set "GITMSG=$*" ^& powershell -NoProfile -Command "$$msg = $$env:GITMSG; if ($$msg) { $$msg = $$msg.Trim(); $$msg = $$msg.Trim([char]34) }; if (-not $$msg) { $$msg = 'update' }; git add -A; git commit -m $$msg; git push"
 version=powershell -NoProfile -Command "Write-Host '=== Distribution ==='; $$os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue; if ($$os) { Write-Host ('OS: {0} {1}' -f $$os.Caption, $$os.Version) } else { Write-Host 'OS: unknown' }; Write-Host ''; $$pyExe = $$null; $$pyVer = $$null; if (Get-Command python -ErrorAction SilentlyContinue) { $$pyPath = (Get-Command python).Source; if ($$pyPath -notlike '*WindowsApps*') { $$pyExe = 'python'; $$pyVer = python -c 'import sys; print(sys.version)' 2>$$null } } if (-not $$pyExe -and (Get-Command python3 -ErrorAction SilentlyContinue)) { $$pyExe = 'python3'; $$pyVer = python3 -c 'import sys; print(sys.version)' 2>$$null } if ($$pyExe) { if (-not $$pyVer) { $$pyVer = 'unknown' }; $$pyPath = (Get-Command $$pyExe).Source; Write-Host ('Python: {0} ({1})' -f $$pyVer.Trim(), $$pyPath) } else { Write-Host 'Python: not found' } if ($$pyExe) { if ($$pyExe -eq 'python') { $$tver = python -c 'import torch; print(torch.__version__)' 2>$$null } else { $$tver = python3 -c 'import torch; print(torch.__version__)' 2>$$null } if ($$LASTEXITCODE -eq 0 -and $$tver) { Write-Host ('PyTorch: {0}' -f $$tver.Trim()) } else { Write-Host ('PyTorch: not installed for {0}' -f $$pyExe) } } else { Write-Host 'PyTorch: Python interpreter not available' } if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) { $$drv = nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>$$null | Select-Object -First 1; if ($$drv) { Write-Host ('NVIDIA Driver: {0}' -f $$drv.Trim()) } else { Write-Host 'NVIDIA Driver: detected but version unavailable' } } else { Write-Host 'NVIDIA Driver: nvidia-smi not found' } if (Get-Command nvcc -ErrorAction SilentlyContinue) { $$nvccPath = (Get-Command nvcc).Source; $$cudaLine = nvcc --version 2>$$null | Select-String -Pattern 'release' | Select-Object -First 1; if ($$cudaLine) { $$cuda = ($$cudaLine.ToString() -replace '.*release\s+','') -split ',' | Select-Object -First 1 } else { $$cuda = 'unknown' }; Write-Host ('CUDA Toolkit: version {0} (nvcc: {1})' -f $$cuda, $$nvccPath) } else { Write-Host 'CUDA Toolkit: nvcc not found' }"
 removepass=powershell -NoProfile -Command "if (-not (Get-Command ssh-keygen -ErrorAction SilentlyContinue)) { Write-Host 'ssh-keygen not found'; return }; $$ssh = Join-Path $$env:USERPROFILE '.ssh'; if (-not (Test-Path $$ssh)) { Write-Host 'No .ssh directory found'; return }; Get-ChildItem -Path $$ssh -File -ErrorAction SilentlyContinue | Where-Object { ($$_.Name -like 'id_*' -or $$_.Name -like 'sb_*') -and $$_.Extension -ne '.pub' } | ForEach-Object { ssh-keygen -l -f $$_.FullName >$$null 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host ('Processing: {0}' -f $$_.FullName); ssh-keygen -p -f $$_.FullName } }"
 nvreset=powershell -NoProfile -Command "if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) { nvidia-smi --gpu-reset -i 0 2>$$null; if ($$LASTEXITCODE -ne 0) { Write-Host 'nvidia-smi gpu reset failed or unsupported' } } else { Write-Host 'nvidia-smi not found' }"
