@@ -70,3 +70,5 @@ cp -vn sysinfo.sh ~/.local/bin/sysinfo.sh
 cp -vn treesize.sh ~/.local/bin/treesize.sh
 cp -vn measure_flops.py ~/.local/bin/measure_flops.py
 cp -vn kill_vscode_srv.sh ~/.local/bin/kill_vscode_srv.sh
+cp -vn security_status.sh ~/.local/bin/security_status.sh
+cp -vn unban.sh ~/.local/bin/unban.sh
