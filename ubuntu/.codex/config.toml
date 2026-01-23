@@ -22,4 +22,7 @@ view_image_tool = true         # enable the view image tool
 [tui]
 notifications = true
 
+[notice.model_migrations]
+"gpt-5.2" = "gpt-5.2-codex"
+
 

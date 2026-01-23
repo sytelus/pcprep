@@ -1,0 +1,7 @@
+{
+  "alwaysThinkingEnabled": true,
+  "sessionTTLDays": 999999,
+  "cleanupPeriodDays": 999999,
+  "includeCoAuthoredBy": true,
+  "enableAllProjectMcpServers": true
+}
