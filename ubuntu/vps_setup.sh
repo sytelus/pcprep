@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
+RUN_ID="$(date +%Y%m%d_%H%M%S)"
 SSH_PORT_OLD=22
 SSH_PORT_NEW=443
-BACKUP_DIR="/root/vps_setup_backup_$(date +%Y%m%d_%H%M%S)"
+BACKUP_DIR="/root/vps_setup_backup_${RUN_ID}"
+LOG_FILE="/var/log/vps_setup_${RUN_ID}.log"
 SSH_ALLOWED_USER="${SSH_ALLOWED_USER:-}"
 ALLOWED_USER=""
 
@@ -16,9 +18,36 @@ FAIL2BAN_RECIDIVE_FINDTIME="${FAIL2BAN_RECIDIVE_FINDTIME:-86400}"
 FAIL2BAN_RECIDIVE_BANTIME="${FAIL2BAN_RECIDIVE_BANTIME:-604800}"
 AUTO_REBOOT_TIME="${AUTO_REBOOT_TIME:-03:30}"
 
-log() { printf '[*] %s\n' "$*"; }
-ok() { printf '[OK] %s\n' "$*"; }
-fail() { printf '[FAIL] %s\n' "$*" >&2; }
+ts() { date '+%Y-%m-%d %H:%M:%S'; }
+log() { printf '%s [INFO] %s\n' "$(ts)" "$*"; }
+ok() { printf '%s [OK] %s\n' "$(ts)" "$*"; }
+fail() { printf '%s [FAIL] %s\n' "$(ts)" "$*" >&2; }
+
+on_error() {
+    local code=$?
+    local line=$1
+    fail "Unhandled error at line $line while running: ${BASH_COMMAND}"
+    fail "See log: $LOG_FILE"
+    exit "$code"
+}
+
+trap 'on_error $LINENO' ERR
+
+init_logging() {
+    mkdir -p "$(dirname "$LOG_FILE")"
+    touch "$LOG_FILE"
+    chmod 600 "$LOG_FILE"
+
+    if command -v tee >/dev/null 2>&1; then
+        exec > >(tee -a "$LOG_FILE") 2>&1
+    else
+        exec >>"$LOG_FILE" 2>&1
+    fi
+
+    log "Logging started"
+    log "Run ID: $RUN_ID"
+    log "Log file: $LOG_FILE"
+}
 
 require_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -71,6 +100,7 @@ resolve_allowed_user() {
 }
 
 backup_configs() {
+    log "Creating configuration backup directory"
     mkdir -p "$BACKUP_DIR"
     cp /etc/ssh/sshd_config "$BACKUP_DIR/sshd_config"
     [[ -f /etc/fail2ban/jail.local ]] && cp /etc/fail2ban/jail.local "$BACKUP_DIR/jail.local"
@@ -84,6 +114,7 @@ set_sshd_option() {
     local value=$2
     local file=/etc/ssh/sshd_config
 
+    log "Setting sshd option: $key $value"
     sed -ri "/^[[:space:]]*${key}[[:space:]]+/d" "$file"
     printf '%s %s\n' "$key" "$value" >>"$file"
 }
@@ -92,6 +123,7 @@ set_ssh_port_only() {
     local port=$1
     local file=/etc/ssh/sshd_config
 
+    log "Setting sshd to listen only on port $port"
     sed -ri '/^[[:space:]]*Port[[:space:]]+[0-9]+/d' "$file"
     if grep -q '^Include /etc/ssh/sshd_config.d/\*\.conf' "$file"; then
         sed -i '/^Include \/etc\/ssh\/sshd_config.d\/\*\.conf/a Port '"$port" "$file"
@@ -100,7 +132,61 @@ set_ssh_port_only() {
     fi
 }
 
+first_ufw_rule_number_matching() {
+    local needle=$1
+    ufw status numbered | awk -v needle="$needle" '
+        index($0, needle) {
+            line = $0
+            sub(/^\[[[:space:]]*/, "", line)
+            sub(/\].*$/, "", line)
+            print line
+            exit
+        }
+    '
+}
+
+delete_ufw_rules_matching() {
+    local needle=$1
+    local label=$2
+    local deleted=0
+    local rule_number
+
+    while true; do
+        rule_number="$(first_ufw_rule_number_matching "$needle")"
+        [[ -z "$rule_number" ]] && break
+
+        log "Deleting UFW rule #$rule_number: $label"
+        ufw --force delete "$rule_number" >/dev/null
+        deleted=$((deleted + 1))
+    done
+
+    if ((deleted > 0)); then
+        ok "Removed $deleted UFW rule(s): $label"
+    else
+        log "No UFW rule matched: $label"
+    fi
+}
+
+ensure_ufw_allow_rule() {
+    local rule=$1
+    local comment=${2:-}
+
+    if ufw status | grep -Fq "$rule"; then
+        log "UFW rule already present: $rule"
+        return
+    fi
+
+    log "Adding UFW allow rule: $rule"
+    if [[ -n "$comment" ]]; then
+        ufw allow "$rule" comment "$comment" >/dev/null
+    else
+        ufw allow "$rule" >/dev/null
+    fi
+    ok "Added UFW allow rule: $rule"
+}
+
 configure_auto_updates() {
+    log "Writing unattended-upgrades configuration"
     cat >/etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
@@ -112,8 +198,9 @@ Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 Unattended-Upgrade::Automatic-Reboot-Time "${AUTO_REBOOT_TIME}";
 EOF
 
+    log "Enabling unattended-upgrades service and apt timers"
     systemctl enable unattended-upgrades >/dev/null
-    systemctl restart unattended-upgrades >/dev/null || true
+    systemctl restart unattended-upgrades >/dev/null
     systemctl enable apt-daily.timer apt-daily-upgrade.timer >/dev/null
     systemctl start apt-daily.timer apt-daily-upgrade.timer >/dev/null
     ok "Automatic security updates and reboot policy configured"
@@ -122,6 +209,7 @@ EOF
 configure_fail2ban() {
     local ssh_port=$1
 
+    log "Writing fail2ban jail.local configuration (sshd port: $ssh_port)"
     cat >/etc/fail2ban/jail.local <<EOF
 [DEFAULT]
 ignoreip = $FAIL2BAN_IGNOREIP
@@ -144,15 +232,14 @@ bantime = $FAIL2BAN_RECIDIVE_BANTIME
 maxretry = $FAIL2BAN_RECIDIVE_MAXRETRY
 EOF
 
+    log "Enabling and restarting fail2ban"
     systemctl enable fail2ban >/dev/null
     systemctl restart fail2ban
     ok "fail2ban configured: sshd + recidive"
 }
 
 remove_mosh_rule() {
-    while ufw status | grep -Eq '\b60000:61000/udp\b'; do
-        ufw --force delete allow 60000:61000/udp >/dev/null || break
-    done
+    delete_ufw_rules_matching "60000:61000/udp" "Mosh range (60000:61000/udp)"
 }
 
 configure_base_security() {
@@ -164,17 +251,27 @@ configure_base_security() {
     set_sshd_option PubkeyAuthentication yes
     set_sshd_option X11Forwarding no
     set_sshd_option AllowUsers "$ALLOWED_USER"
+    log "Validating sshd configuration"
     sshd -t
 
-    systemctl disable --now ssh.socket >/dev/null 2>&1 || true
+    log "Disabling ssh.socket and restarting ssh.service"
+    if systemctl list-unit-files | grep -q '^ssh.socket'; then
+        systemctl disable --now ssh.socket >/dev/null
+    fi
     systemctl enable ssh >/dev/null
     systemctl restart ssh
 
+    log "Applying UFW default policies"
     ufw default deny incoming >/dev/null
     ufw default allow outgoing >/dev/null
     remove_mosh_rule
-    ufw allow "${SSH_PORT_OLD}/tcp" comment "Temporary SSH bootstrap" >/dev/null
-    ufw --force enable >/dev/null
+    ensure_ufw_allow_rule "${SSH_PORT_OLD}/tcp" "Temporary SSH bootstrap"
+    if ufw status | grep -q "Status: active"; then
+        log "UFW already active"
+    else
+        log "Enabling UFW firewall"
+        ufw --force enable >/dev/null
+    fi
 
     configure_auto_updates
     configure_fail2ban "$SSH_PORT_OLD"
@@ -185,17 +282,14 @@ configure_ssh_443_only() {
     log "PART 2/2: Move SSH to 443 and disable 22"
 
     set_ssh_port_only "$SSH_PORT_NEW"
+    log "Validating sshd configuration"
     sshd -t
+    log "Restarting ssh.service"
     systemctl restart ssh
 
-    ufw allow "${SSH_PORT_NEW}/tcp" comment "SSH" >/dev/null
-
-    while ufw status | grep -Eq "\\b${SSH_PORT_OLD}/tcp\\b"; do
-        ufw --force delete allow "${SSH_PORT_OLD}/tcp" >/dev/null || break
-    done
-    while ufw status | grep -q "OpenSSH"; do
-        ufw --force delete allow OpenSSH >/dev/null || break
-    done
+    ensure_ufw_allow_rule "${SSH_PORT_NEW}/tcp" "SSH"
+    delete_ufw_rules_matching "${SSH_PORT_OLD}/tcp" "legacy SSH port ${SSH_PORT_OLD}"
+    delete_ufw_rules_matching "OpenSSH" "legacy OpenSSH profile rule"
     remove_mosh_rule
 
     configure_fail2ban "$SSH_PORT_NEW"
@@ -262,6 +356,7 @@ verify_state() {
 
     printf '\nChecked: %d, Failed: %d\n' "$checks" "$failures"
     printf 'Backups: %s\n' "$BACKUP_DIR"
+    printf 'Log file: %s\n' "$LOG_FILE"
     printf 'SSH test: ssh -p %s %s@<server>\n' "$SSH_PORT_NEW" "$ALLOWED_USER"
 
     if ((failures > 0)); then
@@ -272,9 +367,11 @@ verify_state() {
 
 main() {
     require_root
+    init_logging
     require_ubuntu_2404
     require_commands
     resolve_allowed_user
+    log "Starting VPS hardening run"
     backup_configs
     configure_base_security
     configure_ssh_443_only
