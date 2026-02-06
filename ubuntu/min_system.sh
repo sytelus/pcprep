@@ -25,6 +25,7 @@ if sudo -n true 2>/dev/null; then
     # install core packages
     sudo apt-get install --assume-yes --no-install-recommends \
         git curl wget xclip xsel xz-utils tar apt-transport-https trash-cli bash-completion \
+        ufw fail2ban at \
         npm nodejs \
         tlp powertop tlp-rdw inxi procinfo htop aptitude \
         build-essential cmake libopencv-dev g++ libopenmpi-dev zlib1g-dev \
