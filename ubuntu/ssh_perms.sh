@@ -7,6 +7,15 @@ mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
 
 shopt -s nullglob
 
+set_ssh_config_permissions() {
+    local ssh_config="$HOME/.ssh/config"
+
+    if [ -f "$ssh_config" ]; then
+        chmod 600 "$ssh_config"
+        echo "Set 600 for $ssh_config"
+    fi
+}
+
 is_private_key() {
     local file="$1"
     head -n 1 "$file" 2>/dev/null | grep -qE '^-----BEGIN .*PRIVATE KEY-----$'
@@ -30,6 +39,9 @@ set_public_key_permissions() {
     chmod 644 "$public_key"
     echo "Set 644 for $public_key"
 }
+
+# Set permissions for SSH config
+set_ssh_config_permissions
 
 # Set permissions for public keys
 for public_key in "$HOME/.ssh/"*.pub; do

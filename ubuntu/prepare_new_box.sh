@@ -1,6 +1,6 @@
 #!/bin/bash
 #fail if any errors
-set -eu -o pipefail # fail if any command failes, log all commands, -o xtrace
+set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
 export NO_NET=${NO_NET:-}
 export user_name=${user_name:-}
@@ -85,11 +85,30 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
     sudo apt update
     sudo apt install wslu -y
 
+    if ! command -v git >/dev/null 2>&1; then
+        echo "git not found in WSL. Installing..."
+        sudo apt install -y git
+    fi
+
     # make sure we don't check-in with CRLFs
     git config --global core.autocrlf input
     # setup git credentials sharing
-    cmd.exe /c "git config --global credential.helper wincred"
-    if [[ "$(uname -m)" == "aarch64" ]]; then git config --global credential.helper "/mnt/c/Program\ Files/Git/clangarm64/bin/git-credential-manager.exe"; else git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe"; fi
+    if command -v cmd.exe >/dev/null 2>&1 && cmd.exe /c "where git" >/dev/null 2>&1; then
+        cmd.exe /c "git config --global credential.helper manager-core"
+    else
+        echo "Git for Windows not found in PATH; skipping Windows credential helper setup."
+    fi
+
+    if [[ "$(uname -m)" == "aarch64" ]]; then
+        win_gcm_path="/mnt/c/Program Files/Git/clangarm64/bin/git-credential-manager.exe"
+    else
+        win_gcm_path="/mnt/c/Program Files/Git/mingw64/bin/git-credential-manager.exe"
+    fi
+    if [ -x "$win_gcm_path" ]; then
+        git config --global credential.helper "$win_gcm_path"
+    else
+        echo "git-credential-manager.exe not found at $win_gcm_path; skipping WSL credential helper setup."
+    fi
     git config --global credential.useHttpPath true
 
     # if using tailscale, create alias
