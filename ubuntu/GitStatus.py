@@ -103,12 +103,12 @@ def main():
     """
     Parse arguments, iterate immediate subdirectories, and print statuses.
     """
-    if len(sys.argv) != 2:
+    if len(sys.argv) > 2:
         script_name = Path(sys.argv[0]).name
-        print(f"Usage: python {script_name} <directory_path>")
+        print(f"Usage: python {script_name} [directory_path]")
         sys.exit(1)
 
-    base_path = Path(sys.argv[1]).resolve()
+    base_path = Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else Path.cwd()
 
     if not base_path.is_dir():
         print(f"Error: {base_path} is not a directory")
