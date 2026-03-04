@@ -1,4 +1,33 @@
 #!/usr/bin/env python3
+"""
+GitStatus.py - quick Git status summary for immediate subdirectories.
+
+Goal:
+    Provide a fast, one-line per project overview to spot repositories that
+    are dirty or have local commits pending push.
+
+Purpose:
+    Scan a parent directory containing multiple Git repositories and classify
+    each immediate child directory as one of:
+        - Not a git repo
+        - Uncommitted
+        - Unpushed (no upstream branch)
+        - Unpushed
+        - Synced
+
+Usage:
+    python3 ubuntu/GitStatus.py /path/to/parent
+
+Behavior notes:
+    - Only checks immediate subdirectories; it does not recurse.
+    - Uses local Git metadata only; it does not run "git fetch".
+    - "Unpushed" is based on differences vs the configured upstream.
+    - Requires "git" to be available on PATH.
+
+References:
+    No in-repo references were found; this script is intended to be run directly.
+"""
+
 import os
 import sys
 import subprocess
@@ -6,7 +35,14 @@ from pathlib import Path
 
 def check_git_status(folder_path):
     """
-    Check the Git status of a folder and return its status.
+    Return a human-readable Git status label for a directory.
+
+    Statuses:
+        - "Not a git repo": The directory is not a Git repository.
+        - "Uncommitted": There are staged/unstaged/untracked changes.
+        - "Unpushed (no upstream branch)": No upstream is configured.
+        - "Unpushed": Local branch differs from its upstream.
+        - "Synced": Clean working tree and no local differences vs upstream.
     """
     try:
         # Check if it's a git repository
@@ -64,8 +100,12 @@ def check_git_status(folder_path):
         return "Error checking git status"
 
 def main():
+    """
+    Parse arguments, iterate immediate subdirectories, and print statuses.
+    """
     if len(sys.argv) != 2:
-        print("Usage: python script.py <directory_path>")
+        script_name = Path(sys.argv[0]).name
+        print(f"Usage: python {script_name} <directory_path>")
         sys.exit(1)
 
     base_path = Path(sys.argv[1]).resolve()
