@@ -204,7 +204,7 @@ function treesize {
 alias claudeyolo="claude --dangerously-skip-permissions"
 alias codexyolo="codex --yolo"
 alias codexupdate="npm install -g @openai/codex@latest"
-alias z="zellij a #"
+alias z="zellij attach -c "$USER@$(hostname)"
 
 #### slurm #####
 # drained nodes in slurm with reason
