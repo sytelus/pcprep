@@ -45,6 +45,7 @@ function gdelbra {
 alias gconf='git diff --name-only --diff-filter=U'
 alias grem='git remote -v'
 alias gchk='git checkout'
+alias gremote='git remote -v'
 alias undocommit='git reset --soft HEAD~1'
 
 # WSL root
@@ -204,7 +205,9 @@ function treesize {
 alias claudeyolo="claude --dangerously-skip-permissions"
 alias codexyolo="codex --yolo"
 alias codexupdate="npm install -g @openai/codex@latest"
-alias z="zellij attach -c "$USER@$(hostname)"
+alias claudeupdate="claude update"
+alias z='zellij attach -c "$USER@$(hostname)"'
+alias za="zellij a"
 
 #### slurm #####
 # drained nodes in slurm with reason
