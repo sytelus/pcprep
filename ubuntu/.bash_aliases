@@ -65,6 +65,8 @@ alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attac
 alias tmuxx=start-tmux
 alias ipconfig='nmcli dev show'
 
+alias whowhat="ps -eo user,pid,ppid,%cpu,%mem,tty,stat,start,time,cmd --sort=user | awk '$1 !~ /^(root|systemd|messagebus|syslog|daemon|polkitd|avahi|whoopsie|colord|rtkit|usbmux|dnsmasq|cups-pk-helper|speech-dispatcher|geoclue|fwupd-refresh|saned|uuidd|nobody)$/'"
+
 # NVIDIA driver reset (useful after driver crash)
 alias nvreset='sudo rmmod nvidia_uvm;sudo rmmod nvidia;sudo modprobe nvidia;sudo modprobe nvidia_uvm;'
 
