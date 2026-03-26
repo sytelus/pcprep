@@ -164,7 +164,7 @@ if [ "$NO_NET" = "0" ]; then
     curl -fsSL https://claude.ai/install.sh | bash
 
     # install Codex CLI
-    npm i -g @openai/codex
+    sudo npm i -g @openai/codex
 fi
 
 echo "Your new box is ready! Please restart your terminal."
