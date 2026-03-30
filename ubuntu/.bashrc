@@ -305,7 +305,6 @@ shopt -s cmdhist              # save multi-line cmds as one
 shopt -s lithist              # keep line breaks and indentation
 # assume all dirs to be safe for git
 export GIT_TEST_ASSUME_ALL_SAFE=1
-export CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536
 
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
