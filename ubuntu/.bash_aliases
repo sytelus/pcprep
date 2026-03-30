@@ -204,7 +204,7 @@ function treesize {
 }
 
 
-alias claudeyolo="claude --dangerously-skip-permissions"
+alias claudeyolo="claude --dangerously-skip-permissions --remote-control"
 alias codexyolo="codex --yolo"
 alias codexupdate="sudo npm install -g @openai/codex@latest"
 alias claudeupdate="claude update"
