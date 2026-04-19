@@ -1,0 +1,13 @@
+# Small set of GUI applications that solve real developer pain points on macOS
+# and are broadly accepted rather than highly personal.
+
+tap "homebrew/bundle"
+
+# iTerm2 remains the most common upgrade over Terminal.app for pane-heavy work.
+cask "iterm2"
+
+# VS Code is still the most common editor base for AI-assisted development.
+cask "visual-studio-code"
+
+# Rectangle fills a native window-management gap without requiring intrusive setup.
+cask "rectangle"

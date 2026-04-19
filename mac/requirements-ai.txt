@@ -1,0 +1,37 @@
+# Core Python environment for dependable AI development on Apple Silicon.
+# Keep this list short and mainstream so the environment stays easy to repair.
+
+# Packaging basics
+pip
+setuptools
+wheel
+
+# Numerical and data foundations
+numpy
+scipy
+pandas
+scikit-learn
+matplotlib
+
+# PyTorch on macOS uses the wheel's built-in MPS support on Apple Silicon.
+torch
+torchvision
+torchaudio
+
+# Common LLM and experiment tooling
+transformers
+datasets
+accelerate
+tokenizers
+sentencepiece
+tensorboard
+
+# Notebook and debugging workflow
+jupyterlab
+ipykernel
+rich
+pytest
+
+# Official SDKs that many AI developers reach for immediately after a fresh setup.
+openai
+anthropic

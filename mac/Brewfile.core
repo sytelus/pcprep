@@ -1,0 +1,49 @@
+# Core CLI tools chosen for a conservative but high-utility macOS developer box.
+# The goal is to fix real macOS shortcomings without turning the machine into a
+# grab bag of personal preferences.
+
+tap "homebrew/bundle"
+
+# Newer Git and Git LFS are table stakes for modern development, especially when
+# models or large artifacts live in repositories.
+brew "git"
+brew "git-lfs"
+brew "gh"
+
+# GNU userland tools reduce friction for developers coming from Linux. We install
+# them, but the scripts intentionally do not force them ahead of BSD tools in PATH.
+brew "coreutils"
+brew "findutils"
+brew "gnu-sed"
+brew "gnu-tar"
+brew "grep"
+brew "gawk"
+
+# Everyday terminal tools that most developers on macOS actively use.
+brew "curl"
+brew "wget"
+brew "jq"
+brew "yq"
+brew "ripgrep"
+brew "fd"
+brew "fzf"
+brew "tmux"
+brew "tree"
+brew "watch"
+brew "htop"
+brew "btop"
+
+# Build helpers that prevent common Python and native-extension failures.
+brew "cmake"
+brew "ninja"
+brew "pkg-config"
+
+# Stable language runtimes for the workflows this repo cares about.
+# Python 3.12 is widely supported across the AI ecosystem, and uv gives a fast,
+# dependable path to isolated virtual environments without adopting Conda by default.
+brew "python@3.12"
+brew "uv"
+
+# Claude Code and Codex are distributed through npm, so Node.js needs to exist
+# before we attempt to install either CLI.
+brew "node"
