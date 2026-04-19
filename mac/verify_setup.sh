@@ -18,6 +18,20 @@ EXPECT_DOCKER="${EXPECT_DOCKER:-1}"
 EXPECT_GUI_APPS="${EXPECT_GUI_APPS:-1}"
 EXPECT_AI_ENV="${EXPECT_AI_ENV:-1}"
 
+# Optional install expectations — mirror the INSTALL_* flags in prepare_new_box.sh.
+# Default ON so running verify_setup.sh standalone after a normal bootstrap
+# validates everything that was installed by default.
+EXPECT_OLLAMA="${EXPECT_OLLAMA:-1}"
+EXPECT_DEV_FONTS="${EXPECT_DEV_FONTS:-1}"
+EXPECT_RUST="${EXPECT_RUST:-1}"
+EXPECT_GO="${EXPECT_GO:-1}"
+EXPECT_TAILSCALE="${EXPECT_TAILSCALE:-1}"
+EXPECT_MLX="${EXPECT_MLX:-1}"
+EXPECT_LLAMA_CPP="${EXPECT_LLAMA_CPP:-1}"
+EXPECT_EXTRA_CLIS="${EXPECT_EXTRA_CLIS:-1}"
+EXPECT_FIREFOX="${EXPECT_FIREFOX:-1}"
+EXPECT_CHROME="${EXPECT_CHROME:-1}"
+
 FAILURES=0
 
 pass() {
@@ -48,6 +62,32 @@ check_path_exists() {
     pass "$label exists at $target_path"
   else
     fail "$label is missing at $target_path"
+  fi
+}
+
+check_brew_formula() {
+  # Check that a Homebrew formula is installed.  Kept separate from
+  # check_command because some formulas install binaries under non-obvious
+  # names (e.g. llama.cpp -> llama-cli) and because "brew list" is the
+  # authoritative source of truth regardless of PATH state.
+  local formula="$1"
+  local label="$2"
+
+  if brew list --formula "$formula" >/dev/null 2>&1; then
+    pass "$label is installed (formula: $formula)."
+  else
+    fail "$label is not installed (expected formula: $formula)."
+  fi
+}
+
+check_brew_cask() {
+  local cask="$1"
+  local label="$2"
+
+  if brew list --cask "$cask" >/dev/null 2>&1; then
+    pass "$label is installed (cask: $cask)."
+  else
+    fail "$label is not installed (expected cask: $cask)."
   fi
 }
 
@@ -116,6 +156,74 @@ PYTHON_CHECK
     fi
   else
     fail "Expected AI environment is missing at $AI_ENV_DIR"
+  fi
+fi
+
+# --- Optional install verifications (mirror prepare_new_box.sh INSTALL_* flags) ---
+
+if bool_is_true "$EXPECT_OLLAMA"; then
+  # We deliberately install the FORMULA (CLI binary), not the cask, so the
+  # check looks for the brew formula rather than an /Applications entry.
+  check_brew_formula ollama "Ollama CLI"
+fi
+
+if bool_is_true "$EXPECT_LLAMA_CPP"; then
+  # The llama.cpp formula installs several binaries (llama-cli, llama-server,
+  # llama-quantize, ...).  Checking the formula itself is more reliable than
+  # picking one binary name that could change between brew revisions.
+  check_brew_formula "llama.cpp" "llama.cpp"
+fi
+
+if bool_is_true "$EXPECT_GO"; then
+  check_command go "Go toolchain"
+fi
+
+if bool_is_true "$EXPECT_TAILSCALE"; then
+  # Formula (CLI), not cask — matches maybe_install_tailscale.
+  check_brew_formula tailscale "Tailscale CLI"
+fi
+
+if bool_is_true "$EXPECT_RUST"; then
+  # rustup installs into ~/.cargo/bin, outside brew's prefix, so we check the
+  # canonical binary path directly.
+  if [ -x "$HOME/.cargo/bin/rustup" ]; then
+    pass "Rust toolchain is installed (~/.cargo/bin/rustup)."
+  else
+    fail "Rust toolchain not found at ~/.cargo/bin/rustup."
+  fi
+fi
+
+if bool_is_true "$EXPECT_DEV_FONTS"; then
+  check_brew_cask font-jetbrains-mono "JetBrains Mono"
+  check_brew_cask font-meslo-lg-nerd-font "MesloLG Nerd Font"
+  check_brew_cask font-fira-code "Fira Code"
+fi
+
+if bool_is_true "$EXPECT_EXTRA_CLIS"; then
+  check_brew_formula ncdu "ncdu"
+  check_brew_formula sysbench "sysbench"
+  check_brew_formula iperf3 "iperf3"
+  check_brew_cask appcleaner "AppCleaner"
+fi
+
+if bool_is_true "$EXPECT_FIREFOX"; then
+  check_brew_cask firefox "Firefox"
+fi
+
+if bool_is_true "$EXPECT_CHROME"; then
+  check_brew_cask google-chrome "Google Chrome"
+fi
+
+if bool_is_true "$EXPECT_MLX"; then
+  # MLX is a Python package; verify by importing inside the AI environment.
+  if [ -x "$AI_ENV_DIR/bin/python" ]; then
+    if "$AI_ENV_DIR/bin/python" -c "import mlx" >/dev/null 2>&1; then
+      pass "MLX is importable in the AI environment."
+    else
+      fail "MLX is expected but not importable in $AI_ENV_DIR."
+    fi
+  else
+    fail "AI environment is missing; cannot verify MLX."
   fi
 fi
 

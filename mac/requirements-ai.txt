@@ -32,6 +32,13 @@ ipykernel
 rich
 pytest
 
+# Everyday analysis and notebook ergonomics developers reach for right after
+# a fresh AI setup: statistical plots, readable tensor reshapes, and interactive
+# notebook widgets.
+seaborn
+einops
+ipywidgets
+
 # Official SDKs that many AI developers reach for immediately after a fresh setup.
 openai
 anthropic

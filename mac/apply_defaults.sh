@@ -39,6 +39,16 @@ defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
 defaults write com.apple.finder FXPreferredViewStyle -string "clmv"
 defaults write com.apple.finder _FXSortFoldersFirst -bool true
 
+# Developers routinely need to see and edit dotfiles such as .gitignore, .env,
+# and .DS_Store.  Toggling Cmd+Shift+. per window is tedious, so surface them
+# by default.  (Revert with revert_defaults.sh if you prefer a tidier Finder.)
+defaults write com.apple.finder AppleShowAllFiles -bool true
+
+# Render the full POSIX path of the current directory in every Finder window's
+# title bar.  Complements the already-enabled pathbar and removes ambiguity
+# when several Finder windows are open at once.
+defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
+
 # Avoid polluting network and removable drives with Finder metadata files.
 defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
 defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true

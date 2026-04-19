@@ -1,0 +1,11 @@
+# Apple's MLX framework and the MLX-LM helpers for running local LLMs on
+# Apple Silicon.  Installed in addition to the PyTorch/MPS stack in
+# requirements-ai.txt so developers who want to experiment with native Metal
+# inference can do so without swapping environments.
+#
+# Kept in a separate requirements file so INSTALL_MLX=0 callers can skip it
+# (MLX is Apple-Silicon-only and noticeably large; leaving it off keeps the
+# default environment tight).
+
+mlx
+mlx-lm

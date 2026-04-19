@@ -52,3 +52,10 @@ brew "uv"
 # Claude Code and Codex are distributed through npm, so Node.js needs to exist
 # before we attempt to install either CLI.
 brew "node"
+
+# Apple ships Bash 3.2 — frozen at the 2007 GPLv2 release. Homebrew's Bash 5.x
+# installs side-by-side into $(brew --prefix)/bin/bash without replacing
+# /bin/bash, so macOS's own scripts keep using the stock shell while our scripts
+# gain associative arrays, `readarray`, case-transform parameter expansions, and
+# more than a decade of bug/security fixes.
+brew "bash"

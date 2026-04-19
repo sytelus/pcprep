@@ -30,6 +30,8 @@ defaults delete com.apple.finder FXDefaultSearchScope >/dev/null 2>&1 || true
 defaults delete com.apple.finder FXEnableExtensionChangeWarning >/dev/null 2>&1 || true
 defaults delete com.apple.finder FXPreferredViewStyle >/dev/null 2>&1 || true
 defaults delete com.apple.finder _FXSortFoldersFirst >/dev/null 2>&1 || true
+defaults delete com.apple.finder AppleShowAllFiles >/dev/null 2>&1 || true
+defaults delete com.apple.finder _FXShowPosixPathInTitle >/dev/null 2>&1 || true
 
 defaults delete com.apple.desktopservices DSDontWriteNetworkStores >/dev/null 2>&1 || true
 defaults delete com.apple.desktopservices DSDontWriteUSBStores >/dev/null 2>&1 || true

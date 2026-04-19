@@ -15,6 +15,10 @@ AI_ENV_NAME="${AI_ENV_NAME:-ai-dev-mac}"
 AI_ENV_DIR="${AI_ENV_DIR:-$HOME/.venvs/$AI_ENV_NAME}"
 PYTHON_FORMULA="${PYTHON_FORMULA:-python@3.12}"
 INSTALL_JUPYTER_KERNEL="${INSTALL_JUPYTER_KERNEL:-1}"
+# Apple's MLX framework for native Metal inference.  Installed into the same
+# venv as PyTorch so developers can switch frameworks without swapping envs.
+# Defaults ON to match the rest of the INSTALL_* opt-outs in prepare_new_box.sh.
+INSTALL_MLX="${INSTALL_MLX:-1}"
 NO_NET="${NO_NET:-0}"
 
 # Fail fast with a clear message instead of letting uv error deep inside a
@@ -81,6 +85,14 @@ uv pip install --python "$AI_ENV_DIR/bin/python" --upgrade pip setuptools wheel
 
 # Install the short, mainstream AI stack from the pinned requirements file.
 uv pip install --python "$AI_ENV_DIR/bin/python" --upgrade -r "$SCRIPT_DIR/requirements-ai.txt"
+
+# Optionally layer Apple's MLX stack on top of the PyTorch environment.  Kept
+# in a separate requirements file so users who want to stay on pure PyTorch can
+# set INSTALL_MLX=0 and skip the extra download and disk footprint.
+if bool_is_true "$INSTALL_MLX"; then
+  log "Installing MLX extras into the AI environment (INSTALL_MLX=1)."
+  uv pip install --python "$AI_ENV_DIR/bin/python" --upgrade -r "$SCRIPT_DIR/requirements-mlx.txt"
+fi
 
 if bool_is_true "$INSTALL_JUPYTER_KERNEL"; then
   # Registering the kernel makes the environment easy to select from Jupyter

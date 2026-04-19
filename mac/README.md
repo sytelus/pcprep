@@ -47,6 +47,9 @@ bash mac/revert_defaults.sh
 
 ## Common environment flags
 
+Every `INSTALL_*` flag below defaults to `1` (enabled). Set to `0` to skip.
+
+### Core bootstrap
 - `NO_NET=1`: skip network-backed installs and only apply local configuration
 - `INSTALL_GUI_APPS=0`: skip iTerm2, VS Code, and Rectangle
 - `INSTALL_DOCKER=0`: skip Docker Desktop
@@ -56,9 +59,25 @@ bash mac/revert_defaults.sh
 - `ENABLE_FIREWALL=0`: leave the macOS firewall unchanged
 - `ENABLE_TOUCH_ID_FOR_SUDO=0`: leave sudo authentication unchanged
 
+### Developer extras (all default to `1`)
+- `INSTALL_EXTRA_CLIS=0`: skip `ncdu`, `sysbench`, `iperf3`, and AppCleaner
+- `INSTALL_LLAMA_CPP=0`: skip the `llama.cpp` CLI
+- `INSTALL_GO=0`: skip the Go toolchain
+- `INSTALL_OLLAMA=0`: skip the Ollama CLI (formula only — no auto-start daemon)
+- `INSTALL_TAILSCALE=0`: skip the Tailscale CLI (formula only — no auto-start daemon)
+- `INSTALL_RUST=0`: skip `rustup` and the stable Rust toolchain
+- `INSTALL_DEV_FONTS=0`: skip JetBrains Mono, MesloLG Nerd Font, and Fira Code
+- `INSTALL_FIREFOX=0`: skip Firefox
+- `INSTALL_CHROME=0`: skip Google Chrome (installs the persistent Keystone updater)
+- `INSTALL_MLX=0`: skip adding `mlx` + `mlx-lm` to the AI environment
+
 ## Notes on intentional omissions
 
 - GNU tools are installed, but not forced ahead of BSD tools in `PATH`. That keeps the machine safer for stock macOS scripts while still making GNU variants available.
-- Conda is not installed by default. The base setup uses Homebrew Python 3.12 plus `uv`, which is simpler and easier to repair on a general-purpose developer laptop.
-- Local-model tools such as Ollama and llama.cpp are not installed by default. They are useful, but they are not required for the specific Python, PyTorch, Codex, and Claude Code workflow this repo is targeting.
+- Conda is not installed. The base setup uses Homebrew Python 3.12 plus `uv`, which is simpler and easier to repair on a general-purpose developer laptop.
+- Ollama and Tailscale install their **CLI formulas only**, not the GUI casks. The casks ship login items that auto-start background daemons; the formulas leave daemon lifecycle in the user's hands so the idle battery cost is only paid when the services are actually in use. Start them with `ollama serve` / `sudo brew services start tailscale` as needed.
+- Oh My Zsh, Powerlevel10k, and the usual `.zshrc` rewrites are not performed. The scripts intentionally do not own the user's shell rc.
+- No automated Safari tweaks, FileVault toggles, or Setup Assistant changes — all are TCC-protected or pre-login and require manual confirmation in System Settings.
 - If you keep the defaults `ENABLE_TOUCH_ID_FOR_SUDO=1` and `ENABLE_FIREWALL=1`, both changes are reversible. Remove the `pam_tid.so` line from `/etc/pam.d/sudo_local` to undo Touch ID for sudo, and run `sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off` to turn the firewall back off.
+
+See `todo.md` for the candidate list that drove the current defaults and `unimplemented.md` for the full audit of what the tutorial recommends but these scripts deliberately skip.

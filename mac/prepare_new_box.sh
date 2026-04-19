@@ -25,6 +25,23 @@ ENABLE_FIREWALL="${ENABLE_FIREWALL:-1}"
 ENABLE_FIREWALL_STEALTH="${ENABLE_FIREWALL_STEALTH:-0}"
 ENABLE_TOUCH_ID_FOR_SUDO="${ENABLE_TOUCH_ID_FOR_SUDO:-1}"
 UPGRADE_NODE_GLOBALS="${UPGRADE_NODE_GLOBALS:-0}"
+
+# Additional installs — all default ON so a fresh MacBook gets the popular-dev
+# loadout automatically.  Set any individual flag to 0 to opt out of that item.
+# Several of these touch background processes; each maybe_* function explains
+# the tradeoff inline and emits append_next_step notes so nothing surprises
+# a user doing light non-development work.
+INSTALL_OLLAMA="${INSTALL_OLLAMA:-1}"
+INSTALL_DEV_FONTS="${INSTALL_DEV_FONTS:-1}"
+INSTALL_RUST="${INSTALL_RUST:-1}"
+INSTALL_GO="${INSTALL_GO:-1}"
+INSTALL_TAILSCALE="${INSTALL_TAILSCALE:-1}"
+INSTALL_MLX="${INSTALL_MLX:-1}"
+INSTALL_LLAMA_CPP="${INSTALL_LLAMA_CPP:-1}"
+INSTALL_EXTRA_CLIS="${INSTALL_EXTRA_CLIS:-1}"
+INSTALL_FIREFOX="${INSTALL_FIREFOX:-1}"
+INSTALL_CHROME="${INSTALL_CHROME:-1}"
+
 user_name="${user_name:-}"
 user_email="${user_email:-}"
 
@@ -85,7 +102,14 @@ if [ -x \"$brew_bin\" ]; then
   eval \"\$($brew_bin shellenv)\"
 fi
 
-export PATH=\"\$HOME/.local/bin:\$PATH\""
+export PATH=\"\$HOME/.local/bin:\$PATH\"
+
+# Rust toolchain: picked up automatically when pcprep's maybe_install_rust
+# has populated ~/.cargo/bin.  Keeping the check here avoids editing the
+# user's ~/.zshrc / ~/.bash_profile to add cargo manually.
+if [ -d \"\$HOME/.cargo/bin\" ]; then
+  export PATH=\"\$HOME/.cargo/bin:\$PATH\"
+fi"
   upsert_managed_block \
     "$brew_shellenv_file" \
     "# >>> pcprep macos shellenv >>>" \
@@ -148,6 +172,158 @@ maybe_install_docker() {
   # Surface this so users doing light non-development work can keep it off at login.
   append_next_step "In Docker Desktop → Settings → General, disable 'Start Docker Desktop when you log in' unless you actually need containers running all day. The VM draws noticeable battery even when idle."
   append_next_step "Quit Docker Desktop from the menu bar when you're not actively using it to preserve battery on light-use days."
+}
+
+brew_install_if_missing() {
+  # Idempotent brew install helper.  Checks whether the named formula or cask
+  # is already installed so reruns do not reinstall or upgrade unnecessarily.
+  #   $1: "formula" or "cask"
+  #   $2: package name (e.g. "bash", "firefox")
+  #   $3: human-readable label for log output (optional, defaults to $2)
+  local kind="$1"
+  local name="$2"
+  local label="${3:-$name}"
+
+  if brew list "--$kind" "$name" >/dev/null 2>&1; then
+    log "$label is already installed."
+    return 0
+  fi
+
+  log "Installing $label."
+  if [ "$kind" = "cask" ]; then
+    brew install --cask "$name"
+  else
+    brew install "$name"
+  fi
+}
+
+maybe_install_extra_clis() {
+  # Small bundle of quality-of-life CLIs and one utility cask.  All are dormant
+  # when not invoked, so installing them has no idle cost.
+  if ! bool_is_true "$INSTALL_EXTRA_CLIS"; then
+    warn "INSTALL_EXTRA_CLIS=0 set. Skipping extra CLI bundle."
+    return 0
+  fi
+
+  # TUI disk usage explorer; complements 'du' and 'btop' for storage triage.
+  brew_install_if_missing formula ncdu "ncdu"
+  # CPU/memory/IO benchmark for quick machine sanity checks.
+  brew_install_if_missing formula sysbench "sysbench"
+  # Host-to-host network throughput testing for distributed workloads.
+  brew_install_if_missing formula iperf3 "iperf3"
+  # GUI-driven app uninstaller.  Its optional "SmartDelete" helper is dormant
+  # until enabled in-app, so installing the cask costs effectively nothing.
+  brew_install_if_missing cask appcleaner "AppCleaner"
+}
+
+maybe_install_llama_cpp() {
+  # Pure CLI inference engine for local LLMs.  No launchd agent, no background
+  # work — the tools only run when invoked directly.
+  if ! bool_is_true "$INSTALL_LLAMA_CPP"; then
+    warn "INSTALL_LLAMA_CPP=0 set. Skipping llama.cpp."
+    return 0
+  fi
+  brew_install_if_missing formula "llama.cpp" "llama.cpp"
+}
+
+maybe_install_go() {
+  # Go toolchain via Homebrew.  Go binaries land under $(brew --prefix)/bin,
+  # which is already on PATH via the managed shellenv block.
+  if ! bool_is_true "$INSTALL_GO"; then
+    warn "INSTALL_GO=0 set. Skipping Go toolchain."
+    return 0
+  fi
+  brew_install_if_missing formula go "Go toolchain"
+}
+
+maybe_install_ollama() {
+  # Install Ollama's FORMULA (CLI binary), NOT the cask (GUI app).  The cask
+  # ships a login item that starts the Ollama server every time the user logs
+  # in, which costs battery even when no model is loaded.  The formula installs
+  # just the binaries; the server only runs when the user invokes
+  # `ollama serve` explicitly, which matches the "no unexpected background
+  # daemons" goal set in mac/todo.md.
+  if ! bool_is_true "$INSTALL_OLLAMA"; then
+    warn "INSTALL_OLLAMA=0 set. Skipping Ollama."
+    return 0
+  fi
+  brew_install_if_missing formula ollama "Ollama CLI"
+  append_next_step "Ollama is installed as a CLI with no auto-start daemon. Run 'ollama serve' in a terminal only when you actually need local-model inference. Avoid 'brew services start ollama' unless you want the server running at every login — the persistent process is a real battery cost on light-use days."
+}
+
+maybe_install_tailscale() {
+  # Install Tailscale's FORMULA (CLI + tailscaled binary), NOT the cask.  The
+  # cask installs a System Extension and a background network daemon that
+  # auto-starts after the user approves it once; the formula leaves daemon
+  # lifecycle management in the user's hands so the ~0.1-0.5W idle cost is
+  # only paid when VPN access is actually in use.
+  if ! bool_is_true "$INSTALL_TAILSCALE"; then
+    warn "INSTALL_TAILSCALE=0 set. Skipping Tailscale."
+    return 0
+  fi
+  brew_install_if_missing formula tailscale "Tailscale CLI"
+  append_next_step "Tailscale is installed as a CLI with no auto-start daemon. Start it manually with 'sudo brew services start tailscale' when you need mesh-VPN access, and 'sudo brew services stop tailscale' afterwards to preserve battery."
+}
+
+maybe_install_rust() {
+  # Install the stable Rust toolchain through rustup.  The rustup-init bootstrap
+  # binary itself is fetched via Homebrew so we avoid piping a remote shell
+  # script through sudo.  --no-modify-path keeps rustup out of the user's
+  # ~/.zshrc / ~/.bash_profile; pcprep's managed shellenv block already adds
+  # ~/.cargo/bin to PATH conditionally (see ensure_homebrew above).
+  if ! bool_is_true "$INSTALL_RUST"; then
+    warn "INSTALL_RUST=0 set. Skipping Rust toolchain."
+    return 0
+  fi
+
+  if [ -x "$HOME/.cargo/bin/rustup" ]; then
+    log "rustup is already installed."
+    return 0
+  fi
+
+  brew_install_if_missing formula rustup-init "rustup installer"
+
+  log "Running rustup-init to install the stable Rust toolchain."
+  rustup-init -y --default-toolchain stable --no-modify-path
+
+  append_next_step "Rust toolchain installed at ~/.cargo/bin. Restart your terminal (or 'source ~/.config/pcprep/macos-shellenv.sh') so 'cargo' and 'rustc' land on PATH."
+}
+
+maybe_install_dev_fonts() {
+  # Developer monospaced fonts with programming ligatures and nerd-font glyphs.
+  # Homebrew folded the cask-fonts tap into the main cask repository in 2023,
+  # so no extra tap is required.  Font installs are fully reversible via
+  # `brew uninstall --cask <font-name>`.
+  if ! bool_is_true "$INSTALL_DEV_FONTS"; then
+    warn "INSTALL_DEV_FONTS=0 set. Skipping developer fonts."
+    return 0
+  fi
+  brew_install_if_missing cask font-jetbrains-mono "JetBrains Mono"
+  brew_install_if_missing cask font-meslo-lg-nerd-font "MesloLG Nerd Font"
+  brew_install_if_missing cask font-fira-code "Fira Code"
+}
+
+maybe_install_firefox() {
+  # Firefox cask.  Mozilla Maintenance Service is dormant unless Firefox is
+  # running, so installing the cask has no idle cost.
+  if ! bool_is_true "$INSTALL_FIREFOX"; then
+    warn "INSTALL_FIREFOX=0 set. Skipping Firefox."
+    return 0
+  fi
+  brew_install_if_missing cask firefox "Firefox"
+}
+
+maybe_install_chrome() {
+  # Google Chrome cask.  Chrome ships Google Software Update (Keystone), a
+  # launchd agent that periodically polls for updates even when Chrome itself
+  # is quit.  Surface this through append_next_step so users who only need
+  # Chrome occasionally can disable the updater if they prefer.
+  if ! bool_is_true "$INSTALL_CHROME"; then
+    warn "INSTALL_CHROME=0 set. Skipping Google Chrome."
+    return 0
+  fi
+  brew_install_if_missing cask google-chrome "Google Chrome"
+  append_next_step "Chrome installs Google's Keystone auto-updater as a persistent launchd agent that runs even when Chrome is quit. If you rarely use Chrome, you can set 'defaults write com.google.Keystone.Agent checkInterval 0' to pause its polling."
 }
 
 maybe_link_vscode_cli() {
@@ -372,6 +548,17 @@ main() {
     fi
 
     maybe_install_docker
+    # Opt-in-by-default installs (all INSTALL_* flags default to 1).  Grouped
+    # formulas-first, casks-second so the longer download queue runs together.
+    maybe_install_extra_clis
+    maybe_install_llama_cpp
+    maybe_install_go
+    maybe_install_ollama
+    maybe_install_tailscale
+    maybe_install_rust
+    maybe_install_dev_fonts
+    maybe_install_firefox
+    maybe_install_chrome
     maybe_install_ai_clis
   else
     warn "Skipping network-backed installs because NO_NET=1."
@@ -407,6 +594,16 @@ main() {
     EXPECT_CODEX="$INSTALL_CODEX" \
     EXPECT_CLAUDE="$INSTALL_CLAUDE_CODE" \
     EXPECT_AI_ENV="$INSTALL_AI_ENV" \
+    EXPECT_OLLAMA="$INSTALL_OLLAMA" \
+    EXPECT_DEV_FONTS="$INSTALL_DEV_FONTS" \
+    EXPECT_RUST="$INSTALL_RUST" \
+    EXPECT_GO="$INSTALL_GO" \
+    EXPECT_TAILSCALE="$INSTALL_TAILSCALE" \
+    EXPECT_MLX="$INSTALL_MLX" \
+    EXPECT_LLAMA_CPP="$INSTALL_LLAMA_CPP" \
+    EXPECT_EXTRA_CLIS="$INSTALL_EXTRA_CLIS" \
+    EXPECT_FIREFOX="$INSTALL_FIREFOX" \
+    EXPECT_CHROME="$INSTALL_CHROME" \
     "$SCRIPT_DIR/verify_setup.sh"
   fi
 
