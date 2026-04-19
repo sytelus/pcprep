@@ -143,6 +143,11 @@ maybe_install_docker() {
   fi
 
   append_next_step "Launch Docker Desktop once so macOS grants permissions and the Docker daemon can finish initialization."
+  # Docker Desktop's Linux VM idles at roughly 1-3W continuously once started, which
+  # can cost 1-3 hours of MacBook battery life per day even with no containers running.
+  # Surface this so users doing light non-development work can keep it off at login.
+  append_next_step "In Docker Desktop → Settings → General, disable 'Start Docker Desktop when you log in' unless you actually need containers running all day. The VM draws noticeable battery even when idle."
+  append_next_step "Quit Docker Desktop from the menu bar when you're not actively using it to preserve battery on light-use days."
 }
 
 maybe_link_vscode_cli() {
