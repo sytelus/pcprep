@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
-# Verify that the conservative macOS developer setup completed successfully.
-# The checks here are deliberately explicit so failures are easy to debug.
+# Verify that the macOS developer setup completed successfully.
+#
+# Design:
+# - No `set -e`: we accumulate a FAILURES counter across independent checks
+#   and exit non-zero only at the very end.  That way one missing tool does
+#   not hide the rest of the report from the user.
+# - Coverage is layered:
+#     1. Hand-picked command checks for a small, high-signal set of tools
+#        (brew, git, uv, node, npm, python).  These must be on PATH for the
+#        rest of the environment to work.
+#     2. A single `brew bundle check` per manifest covers the full Brewfile
+#        without this script having to re-list every formula or cask.
+#     3. Optional EXPECT_* flags mirror the INSTALL_* flags in
+#        prepare_new_box.sh so verification can be narrowed the same way the
+#        install was narrowed.
 
 set -uo pipefail
 
@@ -12,13 +25,20 @@ require_macos
 
 AI_ENV_NAME="${AI_ENV_NAME:-ai-dev-mac}"
 AI_ENV_DIR="${AI_ENV_DIR:-$HOME/.venvs/$AI_ENV_NAME}"
+
+# Python formula we expect to find on PATH.  Derived from the same env var
+# setup_python_ai.sh uses so the two scripts always agree on which minor
+# version to validate.  "python@3.12" -> "3.12".
+PYTHON_FORMULA="${PYTHON_FORMULA:-python@3.12}"
+PYTHON_MINOR="${PYTHON_FORMULA#python@}"
+
 EXPECT_CLAUDE="${EXPECT_CLAUDE:-1}"
 EXPECT_CODEX="${EXPECT_CODEX:-1}"
 EXPECT_DOCKER="${EXPECT_DOCKER:-1}"
 EXPECT_GUI_APPS="${EXPECT_GUI_APPS:-1}"
 EXPECT_AI_ENV="${EXPECT_AI_ENV:-1}"
 
-# Optional install expectations — mirror the INSTALL_* flags in prepare_new_box.sh.
+# Optional install expectations — mirror INSTALL_* in prepare_new_box.sh.
 # Default ON so running verify_setup.sh standalone after a normal bootstrap
 # validates everything that was installed by default.
 EXPECT_OLLAMA="${EXPECT_OLLAMA:-1}"
@@ -34,15 +54,22 @@ EXPECT_CHROME="${EXPECT_CHROME:-1}"
 
 FAILURES=0
 
+# --- Reporting helpers ------------------------------------------------------
+
+# Print a green-flavored success line for a check.
 pass() {
   printf '%s[PASS] %s\n' "$PCPREP_PREFIX" "$*"
 }
 
+# Print a failure line to stderr and bump the global FAILURES counter.
 fail() {
   printf '%s[FAIL] %s\n' "$PCPREP_PREFIX" "$*" >&2
   FAILURES=$((FAILURES + 1))
 }
 
+# --- Individual-check helpers ----------------------------------------------
+
+# Assert that a command is resolvable on the current PATH.
 check_command() {
   local command_name="$1"
   local required_label="$2"
@@ -54,6 +81,7 @@ check_command() {
   fi
 }
 
+# Assert that a filesystem path (file, directory, or app bundle) exists.
 check_path_exists() {
   local target_path="$1"
   local label="$2"
@@ -65,14 +93,18 @@ check_path_exists() {
   fi
 }
 
+# Assert that a Homebrew formula is installed.  Prefer this over check_command
+# when a formula's binary has a non-obvious name (e.g. llama.cpp installs
+# `llama-cli`), and for side-by-side formulas like `bash` where check_command
+# would find Apple's /bin/bash before reaching brew's.
 check_brew_formula() {
-  # Check that a Homebrew formula is installed.  Kept separate from
-  # check_command because some formulas install binaries under non-obvious
-  # names (e.g. llama.cpp -> llama-cli) and because "brew list" is the
-  # authoritative source of truth regardless of PATH state.
   local formula="$1"
   local label="$2"
 
+  if ! command_exists brew; then
+    fail "$label not verified (brew command missing)."
+    return
+  fi
   if brew list --formula "$formula" >/dev/null 2>&1; then
     pass "$label is installed (formula: $formula)."
   else
@@ -80,10 +112,15 @@ check_brew_formula() {
   fi
 }
 
+# Assert that a Homebrew cask is installed.
 check_brew_cask() {
   local cask="$1"
   local label="$2"
 
+  if ! command_exists brew; then
+    fail "$label not verified (brew command missing)."
+    return
+  fi
   if brew list --cask "$cask" >/dev/null 2>&1; then
     pass "$label is installed (cask: $cask)."
   else
@@ -91,26 +128,52 @@ check_brew_cask() {
   fi
 }
 
+# Assert that every item in a Brewfile is installed.  Uses `brew bundle check`
+# which returns non-zero if anything is missing.  Much cleaner than duplicating
+# the Brewfile contents as individual check_command calls.
+check_brewfile() {
+  local bundle_file="$1"
+  local label="$2"
+
+  if ! command_exists brew; then
+    fail "$label not verified (brew command missing)."
+    return
+  fi
+  if [ ! -f "$bundle_file" ]; then
+    fail "$label manifest missing: $bundle_file"
+    return
+  fi
+  if brew bundle check --file="$bundle_file" --no-upgrade >/dev/null 2>&1; then
+    pass "$label are all installed (per $(basename "$bundle_file"))."
+  else
+    fail "$label are incomplete. Run 'brew bundle --file=$bundle_file' to install missing items."
+  fi
+}
+
+# --- Foundation checks -----------------------------------------------------
+
+# Xcode Command Line Tools are a hard prerequisite for Homebrew itself.
 if xcode-select -p >/dev/null 2>&1; then
   pass "Xcode Command Line Tools are installed."
 else
   fail "Xcode Command Line Tools are not installed."
 fi
 
+# Small, high-signal set of tools every downstream step depends on.  Broader
+# coverage comes from check_brewfile below so we do not duplicate the Brewfile
+# contents here.
 check_command brew "Homebrew"
-check_command git "Git"
-check_command git-lfs "Git LFS"
-check_command gh "GitHub CLI"
-check_command rg "ripgrep"
-check_command fd "fd"
-check_command jq "jq"
-check_command fzf "fzf"
-check_command tmux "tmux"
-check_command python3 "Python 3"
-check_command python3.12 "Python 3.12"
-check_command uv "uv"
+check_command git  "Git"
+check_command uv   "uv"
 check_command node "Node.js"
-check_command npm "npm"
+check_command npm  "npm"
+check_command "python${PYTHON_MINOR}" "Python ${PYTHON_MINOR} (from ${PYTHON_FORMULA})"
+
+# Validate the full CLI manifest in one shot.  Any missing formula surfaces
+# a single failure line here with the command to re-install.
+check_brewfile "$SCRIPT_DIR/Brewfile.core" "Brewfile.core formulas"
+
+# --- Optional / conditional checks -----------------------------------------
 
 if bool_is_true "$EXPECT_CODEX"; then
   check_command codex "Codex CLI"
@@ -121,9 +184,10 @@ if bool_is_true "$EXPECT_CLAUDE"; then
 fi
 
 if bool_is_true "$EXPECT_GUI_APPS"; then
-  check_path_exists "/Applications/iTerm.app" "iTerm2"
-  check_path_exists "/Applications/Visual Studio Code.app" "Visual Studio Code"
-  check_path_exists "/Applications/Rectangle.app" "Rectangle"
+  # Cask manifest covers iTerm2 + VS Code + Rectangle in one check.
+  check_brewfile "$SCRIPT_DIR/Brewfile.cask" "Brewfile.cask casks"
+  # Code CLI is a user-local symlink created by maybe_link_vscode_cli, not a
+  # cask file, so check it explicitly.
   check_command code "VS Code CLI"
 fi
 
@@ -143,6 +207,8 @@ fi
 if bool_is_true "$EXPECT_AI_ENV"; then
   if [ -x "$AI_ENV_DIR/bin/python" ]; then
     pass "AI environment exists at $AI_ENV_DIR"
+    # Capture interpreter output so the PASS / FAIL status line lands near
+    # its own heading rather than being visually separated by Python stdout.
     if "$AI_ENV_DIR/bin/python" - <<'PYTHON_CHECK'
 import torch
 
@@ -159,18 +225,14 @@ PYTHON_CHECK
   fi
 fi
 
-# --- Optional install verifications (mirror prepare_new_box.sh INSTALL_* flags) ---
-
 if bool_is_true "$EXPECT_OLLAMA"; then
-  # We deliberately install the FORMULA (CLI binary), not the cask, so the
-  # check looks for the brew formula rather than an /Applications entry.
+  # Installed as FORMULA (no auto-start daemon), not the cask.
   check_brew_formula ollama "Ollama CLI"
 fi
 
 if bool_is_true "$EXPECT_LLAMA_CPP"; then
-  # The llama.cpp formula installs several binaries (llama-cli, llama-server,
-  # llama-quantize, ...).  Checking the formula itself is more reliable than
-  # picking one binary name that could change between brew revisions.
+  # The formula exposes several binaries (llama-cli, llama-server, ...);
+  # checking the formula itself is more stable than picking one binary name.
   check_brew_formula "llama.cpp" "llama.cpp"
 fi
 
@@ -185,7 +247,7 @@ fi
 
 if bool_is_true "$EXPECT_RUST"; then
   # rustup installs into ~/.cargo/bin, outside brew's prefix, so we check the
-  # canonical binary path directly.
+  # canonical binary path directly instead of via brew.
   if [ -x "$HOME/.cargo/bin/rustup" ]; then
     pass "Rust toolchain is installed (~/.cargo/bin/rustup)."
   else
@@ -194,16 +256,16 @@ if bool_is_true "$EXPECT_RUST"; then
 fi
 
 if bool_is_true "$EXPECT_DEV_FONTS"; then
-  check_brew_cask font-jetbrains-mono "JetBrains Mono"
+  check_brew_cask font-jetbrains-mono     "JetBrains Mono"
   check_brew_cask font-meslo-lg-nerd-font "MesloLG Nerd Font"
-  check_brew_cask font-fira-code "Fira Code"
+  check_brew_cask font-fira-code          "Fira Code"
 fi
 
 if bool_is_true "$EXPECT_EXTRA_CLIS"; then
-  check_brew_formula ncdu "ncdu"
+  check_brew_formula ncdu     "ncdu"
   check_brew_formula sysbench "sysbench"
-  check_brew_formula iperf3 "iperf3"
-  check_brew_cask appcleaner "AppCleaner"
+  check_brew_formula iperf3   "iperf3"
+  check_brew_cask    appcleaner "AppCleaner"
 fi
 
 if bool_is_true "$EXPECT_FIREFOX"; then
@@ -226,6 +288,8 @@ if bool_is_true "$EXPECT_MLX"; then
     fail "AI environment is missing; cannot verify MLX."
   fi
 fi
+
+# --- Summary ---------------------------------------------------------------
 
 if [ "$FAILURES" -ne 0 ]; then
   fail "Verification completed with $FAILURES failing check(s)."

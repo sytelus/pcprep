@@ -4,11 +4,13 @@
 # common annoyance for developers rather than express a personal aesthetic.
 
 set -Eeuo pipefail
-trap 'on_err "${BASH_COMMAND}" "${LINENO}" "$?"' ERR
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=mac/common.sh
 source "$SCRIPT_DIR/common.sh"
+
+# Install the ERR trap *after* sourcing common.sh so on_err is always defined.
+trap 'on_err "${BASH_COMMAND}" "${LINENO}" "$?"' ERR
 
 require_macos
 

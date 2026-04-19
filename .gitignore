@@ -60,6 +60,13 @@ build/
 nohup.out
 logs/
 
+# ---- Homebrew ----
+# Homebrew 4.2+ stopped generating Brewfile.lock.json by default, but older
+# brew versions (and a user's HOMEBREW_BUNDLE_NO_LOCK=0) would recreate it
+# alongside mac/Brewfile.core and mac/Brewfile.cask.  Ignored repo-wide so
+# it can never get committed accidentally.
+Brewfile.lock.json
+
 # ---- General IDE / OS ----
 *.DS_Store
 Thumbs.db

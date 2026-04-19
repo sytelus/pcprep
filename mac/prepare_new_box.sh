@@ -7,11 +7,14 @@
 # - Prepare a dependable Python and Node base for AI development workflows
 
 set -Eeuo pipefail
-trap 'on_err "${BASH_COMMAND}" "${LINENO}" "$?"' ERR
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=mac/common.sh
 source "$SCRIPT_DIR/common.sh"
+
+# Install the ERR trap *after* sourcing common.sh so on_err is always defined
+# at the moment the trap fires (including when the source itself errors out).
+trap 'on_err "${BASH_COMMAND}" "${LINENO}" "$?"' ERR
 
 NO_NET="${NO_NET:-0}"
 SKIP_BREW_UPDATE="${SKIP_BREW_UPDATE:-0}"
@@ -64,12 +67,14 @@ ensure_xcode_clt() {
 }
 
 ensure_homebrew() {
+  # Install Homebrew if absent, repair PATH if present-but-unconfigured, and
+  # persist the managed shellenv so cargo/brew land on PATH in future shells
+  # without editing the user's own .zshrc / .bash_profile.
   local preferred_prefix
   local brew_bin
   local brew_shellenv_file
   local shellenv_block
-  local zprofile_source_line
-  local bash_profile_source_line
+  local source_line
 
   preferred_prefix="$(brew_prefix_guess)"
   brew_bin="$preferred_prefix/bin/brew"
@@ -116,10 +121,12 @@ fi"
     "# <<< pcprep macos shellenv <<<" \
     "$shellenv_block"
 
-  zprofile_source_line='[ -f "$HOME/.config/pcprep/macos-shellenv.sh" ] && source "$HOME/.config/pcprep/macos-shellenv.sh"'
-  bash_profile_source_line='[ -f "$HOME/.config/pcprep/macos-shellenv.sh" ] && source "$HOME/.config/pcprep/macos-shellenv.sh"'
-  ensure_line_in_file "$HOME/.zprofile" "$zprofile_source_line"
-  ensure_line_in_file "$HOME/.bash_profile" "$bash_profile_source_line"
+  # The same one-liner goes into both login rc files — zsh reads ~/.zprofile
+  # for login shells and bash reads ~/.bash_profile — so they both pick up
+  # the managed shellenv without us owning either file's full contents.
+  source_line='[ -f "$HOME/.config/pcprep/macos-shellenv.sh" ] && source "$HOME/.config/pcprep/macos-shellenv.sh"'
+  ensure_line_in_file "$HOME/.zprofile"      "$source_line"
+  ensure_line_in_file "$HOME/.bash_profile"  "$source_line"
   ensure_dir "$HOME/.local/bin"
   export PATH="$HOME/.local/bin:$PATH"
 }
@@ -347,10 +354,45 @@ maybe_link_vscode_cli() {
   fi
 }
 
+_ensure_git_identity_key() {
+  # Set a git identity key (user.name / user.email) only when it is not
+  # already configured.  Prefers an env var value over an interactive prompt;
+  # silently skips when neither is available.  Keeps configure_git symmetric
+  # for name and email instead of duplicating 10 lines of branching twice.
+  #   $1: git config key  (e.g. "user.name")
+  #   $2: label shown in the interactive prompt  (e.g. "name")
+  #   $3: preloaded value from the environment   (may be empty)
+  local key="$1"
+  local label="$2"
+  local preloaded="$3"
+  local existing
+  local entered
+
+  existing="$(git config --global --get "$key" || true)"
+  if [ -n "$existing" ]; then
+    return 0
+  fi
+
+  if [ -n "$preloaded" ]; then
+    git config --global "$key" "$preloaded"
+    return 0
+  fi
+
+  if ! is_interactive; then
+    return 0
+  fi
+
+  printf 'Git %s is not set. Enter your %s (leave blank to skip): ' "$key" "$label"
+  read -r entered
+  if [ -n "$entered" ]; then
+    git config --global "$key" "$entered"
+  fi
+}
+
 configure_git() {
+  # Apply conservative global git defaults that work across editors and hosts.
+  # All writes target the global scope; repo-local configs remain untouched.
   local gitignore_file
-  local existing_name
-  local existing_email
 
   if ! command_exists git; then
     warn "Git is not available yet. Skipping Git configuration."
@@ -358,50 +400,41 @@ configure_git() {
   fi
 
   log "Applying conservative global Git defaults."
+  # Modern default branch name; matches GitHub / GitLab conventions.
   git config --global init.defaultBranch main
+  # Rebase-on-pull keeps histories linear and avoids accidental merge commits.
   git config --global pull.rebase true
+  # Clean up deleted upstream branches automatically on every fetch.
   git config --global fetch.prune true
+  # Move-detection colors for word-swapped diffs make refactor reviews easier.
   git config --global diff.colorMoved zebra
+  # Store HTTPS credentials in the macOS Keychain instead of plain text.
   git config --global credential.helper osxkeychain
+  # Treat the working tree as LF; convert CRLF inputs to LF on add but never
+  # rewrite LF to CRLF (safe default when collaborating with Windows peers).
   git config --global core.eol lf
   git config --global core.autocrlf input
 
   if command_exists code; then
+    # Use VS Code as the default editor when it's available (so `git commit`
+    # with no -m opens a familiar editor instead of vi).
     git config --global core.editor "code --wait"
   fi
 
+  # Global gitignore: keep macOS / trash-bin droppings out of every repo.
   gitignore_file="$HOME/.gitignore_global"
   ensure_line_in_file "$gitignore_file" ".DS_Store"
   ensure_line_in_file "$gitignore_file" ".Trash-*"
   git config --global core.excludesfile "$gitignore_file"
 
   if command_exists git-lfs; then
-    # git lfs install writes the expected global filters once and is safe to rerun.
+    # Writes the global git-lfs filters once; --skip-repo keeps it from
+    # trying to initialize LFS in a repo we are not actually inside.
     git lfs install --skip-repo >/dev/null
   fi
 
-  existing_name="$(git config --global --get user.name || true)"
-  existing_email="$(git config --global --get user.email || true)"
-
-  if [ -z "$existing_name" ] && [ -n "$user_name" ]; then
-    git config --global user.name "$user_name"
-  elif [ -z "$existing_name" ] && is_interactive; then
-    printf 'Git user.name is not set. Enter your name (leave blank to skip): '
-    read -r user_name
-    if [ -n "$user_name" ]; then
-      git config --global user.name "$user_name"
-    fi
-  fi
-
-  if [ -z "$existing_email" ] && [ -n "$user_email" ]; then
-    git config --global user.email "$user_email"
-  elif [ -z "$existing_email" ] && is_interactive; then
-    printf 'Git user.email is not set. Enter your email (leave blank to skip): '
-    read -r user_email
-    if [ -n "$user_email" ]; then
-      git config --global user.email "$user_email"
-    fi
-  fi
+  _ensure_git_identity_key "user.name"  "name"  "$user_name"
+  _ensure_git_identity_key "user.email" "email" "$user_email"
 }
 
 configure_ssh_keychain_support() {
@@ -477,15 +510,26 @@ maybe_install_ai_clis() {
   fi
 }
 
+_require_sudo_or_skip() {
+  # Small guard used by the two privileged steps below.  Returns 0 if the
+  # cached sudo session from ensure_sudo_session is usable, otherwise warns
+  # with the caller-supplied step label and returns 1 so the caller can skip.
+  local step_label="$1"
+  if [ "$HAVE_SUDO" -eq 1 ]; then
+    return 0
+  fi
+  warn "Skipping $step_label because sudo access is unavailable."
+  return 1
+}
+
 maybe_enable_touch_id_for_sudo() {
+  # Authorize Touch ID for sudo by adding "auth sufficient pam_tid.so" to
+  # /etc/pam.d/sudo_local, Apple's upgrade-safe overlay over /etc/pam.d/sudo.
+  # Editing sudo_local (rather than sudo itself) survives macOS upgrades.
   if ! bool_is_true "$ENABLE_TOUCH_ID_FOR_SUDO"; then
     return 0
   fi
-
-  if [ "$HAVE_SUDO" -ne 1 ]; then
-    warn "Skipping Touch ID for sudo because sudo access is unavailable."
-    return 0
-  fi
+  _require_sudo_or_skip "Touch ID for sudo" || return 0
 
   if [ ! -f /etc/pam.d/sudo_local.template ]; then
     warn "This macOS version does not expose /etc/pam.d/sudo_local.template. Skipping Touch ID setup."
@@ -497,6 +541,8 @@ maybe_enable_touch_id_for_sudo() {
     run_sudo cp /etc/pam.d/sudo_local.template /etc/pam.d/sudo_local
   fi
 
+  # Idempotent: only append if no existing "auth sufficient pam_tid.so" line
+  # is present (whitespace-tolerant match).
   if grep -Eq '^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_tid\.so' /etc/pam.d/sudo_local; then
     log "Touch ID for sudo is already configured."
   else
@@ -506,14 +552,14 @@ maybe_enable_touch_id_for_sudo() {
 }
 
 maybe_enable_firewall() {
+  # Turn on the macOS application firewall (socketfilterfw) and, if explicitly
+  # requested, stealth mode (no ICMP responses to unsolicited probes).  Both
+  # settings are fully reversible via the same CLI with --setglobalstate off
+  # / --setstealthmode off.
   if ! bool_is_true "$ENABLE_FIREWALL"; then
     return 0
   fi
-
-  if [ "$HAVE_SUDO" -ne 1 ]; then
-    warn "Skipping firewall configuration because sudo access is unavailable."
-    return 0
-  fi
+  _require_sudo_or_skip "firewall configuration" || return 0
 
   log "Ensuring the macOS application firewall is enabled."
   run_sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on >/dev/null
