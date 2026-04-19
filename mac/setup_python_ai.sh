@@ -15,6 +15,13 @@ AI_ENV_NAME="${AI_ENV_NAME:-ai-dev-mac}"
 AI_ENV_DIR="${AI_ENV_DIR:-$HOME/.venvs/$AI_ENV_NAME}"
 PYTHON_FORMULA="${PYTHON_FORMULA:-python@3.12}"
 INSTALL_JUPYTER_KERNEL="${INSTALL_JUPYTER_KERNEL:-1}"
+NO_NET="${NO_NET:-0}"
+
+# Fail fast with a clear message instead of letting uv error deep inside a
+# resolve/download step. Every install in this script needs network access.
+if bool_is_true "$NO_NET"; then
+  die "NO_NET=1 is set but this script needs network access for pip installs. Re-run with NO_NET=0 after connecting."
+fi
 
 find_python_bin() {
   local candidate
@@ -60,12 +67,20 @@ else
   uv venv --python "$PYTHON_BIN" "$AI_ENV_DIR"
 fi
 
-# Upgrade packaging tooling first so later installs have the best chance of
-# succeeding when building a native dependency.
-"$AI_ENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
+# Install packaging tooling and the AI stack with "uv pip --python".
+# Two things to note:
+#   1. "uv venv" does not seed pip/setuptools/wheel into the venv, so a call
+#      like "$VENV/bin/python -m pip install" would fail with "No module named
+#      pip" on a freshly created environment.
+#   2. "uv pip install --python <interp>" installs directly into the target
+#      interpreter's site-packages using uv's resolver and does not require
+#      pip to already be present in the venv.
+# Packaging basics go in first so downstream sdist builds (e.g. sentencepiece)
+# can still find pip/setuptools/wheel if they need them during compilation.
+uv pip install --python "$AI_ENV_DIR/bin/python" --upgrade pip setuptools wheel
 
-# Install a short, mainstream AI stack from a pinned requirements file in the repo.
-"$AI_ENV_DIR/bin/python" -m pip install --upgrade -r "$SCRIPT_DIR/requirements-ai.txt"
+# Install the short, mainstream AI stack from the pinned requirements file.
+uv pip install --python "$AI_ENV_DIR/bin/python" --upgrade -r "$SCRIPT_DIR/requirements-ai.txt"
 
 if bool_is_true "$INSTALL_JUPYTER_KERNEL"; then
   # Registering the kernel makes the environment easy to select from Jupyter

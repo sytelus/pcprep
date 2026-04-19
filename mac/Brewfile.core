@@ -32,6 +32,11 @@ brew "tree"
 brew "watch"
 brew "htop"
 brew "btop"
+# bat is a near-universal upgrade over "cat" for reading source files.
+brew "bat"
+# direnv loads project-local environment variables when you cd into a directory.
+# Opt-in per project via an .envrc file, so it has no effect unless a repo enables it.
+brew "direnv"
 
 # Build helpers that prevent common Python and native-extension failures.
 brew "cmake"

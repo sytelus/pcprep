@@ -7,6 +7,14 @@ set -u
 
 PCPREP_PREFIX="[pcprep-mac]"
 
+# Initialize the deferred user-message queue here so scripts that source this
+# file without first declaring the array (e.g. setup_python_ai.sh) can still
+# call append_next_step without tripping `set -u`. Using "+x" leaves any array
+# the caller already populated intact.
+if [ -z "${NEXT_STEPS+x}" ]; then
+  NEXT_STEPS=()
+fi
+
 log() {
   printf '%s[INFO] %s\n' "$PCPREP_PREFIX" "$*"
 }

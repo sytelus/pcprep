@@ -28,7 +28,7 @@ UPGRADE_NODE_GLOBALS="${UPGRADE_NODE_GLOBALS:-0}"
 user_name="${user_name:-}"
 user_email="${user_email:-}"
 
-NEXT_STEPS=()
+# NEXT_STEPS is already initialized by common.sh; we only declare HAVE_SUDO here.
 HAVE_SUDO=0
 
 ensure_xcode_clt() {
@@ -109,7 +109,9 @@ install_brew_bundle_file() {
   fi
 
   log "Installing $label from $(basename "$bundle_file")."
-  brew bundle --file="$bundle_file" --no-lock --no-upgrade
+  # --no-upgrade keeps reruns idempotent by leaving already-installed formulas alone.
+  # (The older --no-lock flag was removed in Homebrew 4.2+ and would now error out.)
+  brew bundle --file="$bundle_file" --no-upgrade
 }
 
 maybe_update_brew() {
