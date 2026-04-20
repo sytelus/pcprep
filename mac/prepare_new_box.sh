@@ -473,8 +473,9 @@ maybe_install_extra_clis() {
   fi
 
   # TLDR client: Homebrew's old `tldr` formula is currently disabled, so use
-  # the officially recommended replacement instead.
-  brew_install_if_missing formula tlrc "tlrc"
+  # the `tlrc` formula instead. Note that the installed executable is `tldr`,
+  # not `tlrc`.
+  brew_install_if_missing formula tlrc "TLDR client"
   # TUI disk usage explorer; complements 'du' and 'btop' for storage triage.
   brew_install_if_missing formula ncdu "ncdu"
   # moreutils conflicts with GNU parallel in Homebrew; prefer moreutils on macOS
@@ -586,7 +587,12 @@ maybe_install_miniconda() {
   fi
 
   # Keep base dormant unless the user explicitly opts in for a given shell.
-  "$MINICONDA_DIR/bin/conda" config --system --set auto_activate_base false >/dev/null
+  # Newer conda versions renamed this setting to `auto_activate`, while older
+  # releases still use `auto_activate_base`. Try the canonical key first and
+  # fall back to the legacy alias for older installs.
+  if ! "$MINICONDA_DIR/bin/conda" config --system --set auto_activate false >/dev/null 2>&1; then
+    "$MINICONDA_DIR/bin/conda" config --system --set auto_activate_base false >/dev/null
+  fi
 
   append_next_step "Miniconda is installed at $MINICONDA_DIR but intentionally left off PATH so Homebrew Python + uv remain the default toolchain."
   append_next_step "Open a new shell and run 'condaon' to activate conda base, or 'condaon ENV_NAME' to activate a specific environment. Run 'condaoff' to fully deactivate conda again."
@@ -948,7 +954,7 @@ maybe_configure_sudo_timestamp_timeout() {
 
   desired_line="Defaults timestamp_timeout=$SUDO_TIMESTAMP_TIMEOUT_MINUTES"
 
-  if [ -f "$target_file" ] && grep -Fqx "$desired_line" "$target_file"; then
+  if [ -f "$target_file" ] && grep -Fqx "$desired_line" "$target_file" 2>/dev/null; then
     log "Global sudo credential timeout is already set to $SUDO_TIMESTAMP_TIMEOUT_MINUTES minutes."
     return 0
   fi

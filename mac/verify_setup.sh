@@ -239,6 +239,22 @@ check_python_import_stack() {
   fi
 }
 
+check_miniconda_auto_activate_disabled() {
+  local conda_bin="$1"
+  local config_dump
+
+  if ! config_dump="$("$conda_bin" config --show 2>/dev/null)"; then
+    fail "Miniconda is installed but conda config could not be queried."
+    return
+  fi
+
+  if printf '%s\n' "$config_dump" | grep -Eiq '^[[:space:]]*auto_activate(_base)?:[[:space:]]*false[[:space:]]*$'; then
+    pass "Miniconda auto_activate_base is disabled."
+  else
+    fail "Miniconda is installed but auto_activate_base is not disabled."
+  fi
+}
+
 # Assert that a filesystem path (file, directory, or app bundle) exists.
 check_path_exists() {
   local target_path="$1"
@@ -480,15 +496,7 @@ fi
 if bool_is_true "$EXPECT_MINICONDA"; then
   if [ -x "$MINICONDA_DIR/bin/conda" ]; then
     pass "Miniconda is installed at $MINICONDA_DIR."
-    if "$MINICONDA_DIR/bin/conda" config --show auto_activate_base >/dev/null 2>&1; then
-      if "$MINICONDA_DIR/bin/conda" config --show auto_activate_base 2>/dev/null | grep -Eq 'auto_activate_base: false'; then
-        pass "Miniconda auto_activate_base is disabled."
-      else
-        fail "Miniconda is installed but auto_activate_base is not disabled."
-      fi
-    else
-      fail "Miniconda is installed but conda config could not be queried."
-    fi
+    check_miniconda_auto_activate_disabled "$MINICONDA_DIR/bin/conda"
   else
     fail "Expected Miniconda install is missing at $MINICONDA_DIR."
   fi
@@ -544,7 +552,8 @@ if bool_is_true "$EXPECT_POWERLEVEL10K"; then
 fi
 
 if bool_is_true "$EXPECT_EXTRA_CLIS"; then
-  check_command tlrc "tlrc"
+  check_brew_formula tlrc "TLDR client"
+  check_command tldr "TLDR client command"
   check_brew_formula ncdu "ncdu"
   check_brew_formula moreutils "moreutils"
   check_command rename "rename"
