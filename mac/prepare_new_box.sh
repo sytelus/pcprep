@@ -988,6 +988,7 @@ maybe_enable_firewall() {
 main() {
   local verify_expect_mlx
   local verify_expect_powerlevel10k
+  local verify_expect_sudo_timestamp_timeout
 
   require_macos
   ensure_existing_ssh_setup
@@ -1089,6 +1090,11 @@ main() {
     verify_expect_powerlevel10k=1
   fi
 
+  verify_expect_sudo_timestamp_timeout=0
+  if bool_is_true "$CONFIGURE_SUDO_TIMESTAMP_TIMEOUT" && [ "$HAVE_SUDO" -eq 1 ]; then
+    verify_expect_sudo_timestamp_timeout=1
+  fi
+
   if ! bool_is_true "$NO_NET"; then
     EXPECT_GUI_APPS="$INSTALL_GUI_APPS" \
     EXPECT_DOCKER="$INSTALL_DOCKER" \
@@ -1111,7 +1117,7 @@ main() {
     EXPECT_EXTRA_CLIS="$INSTALL_EXTRA_CLIS" \
     EXPECT_FIREFOX="$INSTALL_FIREFOX" \
     EXPECT_CHROME="$INSTALL_CHROME" \
-    EXPECT_SUDO_TIMESTAMP_TIMEOUT="$CONFIGURE_SUDO_TIMESTAMP_TIMEOUT" \
+    EXPECT_SUDO_TIMESTAMP_TIMEOUT="$verify_expect_sudo_timestamp_timeout" \
     SUDO_TIMESTAMP_TIMEOUT_MINUTES="$SUDO_TIMESTAMP_TIMEOUT_MINUTES" \
     "$SCRIPT_DIR/verify_setup.sh"
   fi

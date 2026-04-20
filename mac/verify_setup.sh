@@ -128,8 +128,22 @@ check_sudo_timestamp_timeout() {
   local target_file="/etc/sudoers.d/pcprep-timestamp-timeout"
   local expected_line="Defaults timestamp_timeout=$SUDO_TIMESTAMP_TIMEOUT_MINUTES"
 
-  if [ -f "$target_file" ] && grep -Fqx "$expected_line" "$target_file"; then
+  if [ -r "$target_file" ] && grep -Fqx "$expected_line" "$target_file"; then
     pass "Global sudo credential timeout is configured to $SUDO_TIMESTAMP_TIMEOUT_MINUTES minutes."
+    return
+  fi
+
+  if command_exists sudo && sudo -n test -f "$target_file" 2>/dev/null; then
+    if sudo -n grep -Fqx "$expected_line" "$target_file" >/dev/null 2>&1; then
+      pass "Global sudo credential timeout is configured to $SUDO_TIMESTAMP_TIMEOUT_MINUTES minutes."
+    else
+      fail "Global sudo credential timeout is not configured as expected in $target_file."
+    fi
+    return
+  fi
+
+  if [ -f "$target_file" ]; then
+    warn "Global sudo credential timeout file exists at $target_file but could not be read without sudo. Re-run verification after 'sudo -v' if you want this check confirmed."
   else
     fail "Global sudo credential timeout is not configured as expected in $target_file."
   fi
@@ -421,7 +435,11 @@ if bool_is_true "$EXPECT_GUI_APPS"; then
 fi
 
 if bool_is_true "$EXPECT_DOCKER"; then
-  check_path_exists "/Applications/Docker.app" "Docker Desktop"
+  check_brew_cask_or_app_bundle \
+    docker \
+    "Docker Desktop" \
+    "/Applications/Docker.app" \
+    "$HOME/Applications/Docker.app"
   if command_exists docker; then
     if docker info >/dev/null 2>&1; then
       pass "Docker CLI can talk to the Docker daemon."
