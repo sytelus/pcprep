@@ -32,5 +32,7 @@ error: The interpreter at /opt/homebrew/opt/python@3.12/Frameworks/Python.framew
 
 hint: Consider creating a virtual environment, e.g., with `uv venv`
 [pcprep-mac][ERROR] Command failed with exit code 2 at line 48: uv pip install --python "$PYTHON_BIN" --upgrade pip setuptools wheel
-[pcprep-mac][ERROR] Command failed with exit code 2 at line 899: "$SCRIPT_DIR/setup_python_ai.sh"
-shitals
+
+[pcprep-mac][PASS] Managed main Python imports the optional MLX package stack successfully.
+[pcprep-mac][FAIL] Verification completed with 2 failing check(s).
+[pcprep-mac][ERROR] Command failed with exit code 1 at line 945: EXPECT_GUI_APPS="$INSTALL_GUI_APPS" EXPECT_DOCKER="$INSTALL_DOCKER" EXPECT_GITHUB_COPILOT_CLI="$INSTALL_GITHUB_COPILOT_CLI" EXPECT_CODEX_APP="$INSTALL_CODEX_APP" EXPECT_CLAUDE_APP="$INSTALL_CLAUDE_APP" EXPECT_CODEX="$INSTALL_CODEX" EXPECT_CLAUDE="$INSTALL_CLAUDE_CODE" EXPECT_AI_ENV="$INSTALL_AI_ENV" EXPECT_MINICONDA="$INSTALL_MINICONDA" EXPECT_DOTFILES="$APPLY_DOTFILES" EXPECT_POWERLEVEL10K="$verify_expect_powerlevel10k" EXPECT_OLLAMA="$INSTALL_OLLAMA" EXPECT_DEV_FONTS="$INSTALL_DEV_FONTS" EXPECT_RUST="$INSTALL_RUST" EXPECT_GO="$INSTALL_GO" EXPECT_TAILSCALE="$INSTALL_TAILSCALE" EXPECT_MLX="$verify_expect_mlx" EXPECT_LLAMA_CPP="$INSTALL_LLAMA_CPP" EXPECT_EXTRA_CLIS="$INSTALL_EXTRA_CLIS" EXPECT_FIREFOX="$INSTALL_FIREFOX" EXPECT_CHROME="$INSTALL_CHROME" "$SCRIPT_DIR/verify_setup.sh"
