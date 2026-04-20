@@ -83,6 +83,34 @@ check_command() {
   fi
 }
 
+check_azure_cli_extension_setup() {
+  local azure_config_dir
+  local azure_extension_dir
+  local azure_config_file
+
+  azure_config_dir="${AZURE_CONFIG_DIR:-$HOME/.azure}"
+  azure_extension_dir="${AZURE_EXTENSION_DIR:-$azure_config_dir/cliextensions}"
+  azure_config_file="$azure_config_dir/config"
+
+  check_path_exists "$azure_extension_dir" "Azure CLI extensions directory"
+
+  if [ -w "$azure_extension_dir" ]; then
+    pass "Azure CLI extensions directory is user-writable at $azure_extension_dir"
+  else
+    fail "Azure CLI extensions directory is not writable at $azure_extension_dir"
+  fi
+
+  if [ -f "$azure_config_file" ] && awk '
+    /^\[/ { section=$0; next }
+    section == "[extension]" && $0 ~ /^[[:space:]]*use_dynamic_install[[:space:]]*=[[:space:]]*yes_without_prompt[[:space:]]*$/ { found=1 }
+    END { exit(found ? 0 : 1) }
+  ' "$azure_config_file"; then
+    pass "Azure CLI dynamic extension install is set to yes_without_prompt."
+  else
+    fail "Azure CLI dynamic extension install is not configured to yes_without_prompt."
+  fi
+}
+
 # Compile and run tiny C and C++ programs through Apple's toolchain so we
 # validate real native-build functionality, not just the presence of CLT files.
 check_c_cpp_toolchain() {
@@ -156,6 +184,45 @@ find_python_bin() {
   fi
 
   return 1
+}
+
+check_python_import_stack() {
+  local python_bin="$1"
+  local check_label="$2"
+
+  if "$python_bin" - <<'PYTHON_CHECK'
+import importlib
+
+packages = [
+    ("rich", "rich"),
+    ("pytest", "pytest"),
+    ("pandas", "pandas"),
+    ("scikit-learn", "sklearn"),
+    ("matplotlib", "matplotlib"),
+    ("jupyter", "jupyter"),
+    ("tensorflow", "tensorflow"),
+    ("tensorboard", "tensorboard"),
+    ("keras", "keras"),
+    ("transformers", "transformers"),
+    ("datasets", "datasets"),
+    ("wandb", "wandb"),
+    ("accelerate", "accelerate"),
+    ("einops", "einops"),
+    ("tokenizers", "tokenizers"),
+    ("sentencepiece", "sentencepiece"),
+    ("lightning", "lightning"),
+]
+
+for label, module_name in packages:
+    module = importlib.import_module(module_name)
+    version = getattr(module, "__version__", "unknown")
+    print(f"{label}: {version}")
+PYTHON_CHECK
+  then
+    pass "$check_label"
+  else
+    fail "$check_label"
+  fi
 }
 
 # Assert that a filesystem path (file, directory, or app bundle) exists.
@@ -246,6 +313,7 @@ check_command node "Node.js"
 check_command npm  "npm"
 check_command az "Azure CLI"
 check_command azcopy "AzCopy"
+check_azure_cli_extension_setup
 check_command tmux "tmux"
 check_command zellij "zellij"
 check_command pv "pv"
@@ -325,6 +393,10 @@ PYTHON_CHECK
     else
       fail "Homebrew Python exists but PyTorch verification failed."
     fi
+
+    check_python_import_stack \
+      "$PYTHON_BIN" \
+      "Homebrew Python imports the requested AI and notebook packages successfully."
   else
     fail "Expected Homebrew Python interpreter is missing for AI package verification."
   fi
@@ -384,10 +456,31 @@ if bool_is_true "$EXPECT_DEV_FONTS"; then
 fi
 
 if bool_is_true "$EXPECT_EXTRA_CLIS"; then
-  check_brew_formula ncdu     "ncdu"
+  check_command tlrc "tlrc"
+  check_brew_formula ncdu "ncdu"
+  check_brew_formula moreutils "moreutils"
+  check_command rename "rename"
+  check_command entr "entr"
+  check_brew_formula rsync "rsync"
   check_brew_formula sysbench "sysbench"
-  check_brew_formula iperf3   "iperf3"
-  check_brew_cask    appcleaner "AppCleaner"
+  check_brew_formula iperf3 "iperf3"
+  check_command meson "Meson"
+  check_command autoconf "autoconf"
+  check_command automake "automake"
+  check_brew_formula libtool "GNU libtool"
+  check_command ccache "ccache"
+  check_command autossh "autossh"
+  check_command mtr "mtr"
+  check_command nmap "nmap"
+  check_brew_formula kubernetes-cli "kubectl"
+  check_command rclone "rclone"
+  check_command zstd "zstd"
+  check_command pigz "pigz"
+  check_command pbzip2 "pbzip2"
+  check_brew_formula sevenzip "7-Zip"
+  check_command unar "unar"
+  check_command ffmpeg "FFmpeg"
+  check_brew_cask appcleaner "AppCleaner"
 fi
 
 if bool_is_true "$EXPECT_FIREFOX"; then

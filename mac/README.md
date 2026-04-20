@@ -14,6 +14,9 @@ defaults, a Homebrew Python + `uv` AI stack, and a small set of macOS defaults.
 - Internet is required for installs unless you run with `NO_NET=1`.
 - The script asks for Git name and email at the start if they are not already
   configured. You can preseed them with `user_name=...` and `user_email=...`.
+- When sudo is available, the bootstrap asks up front, then keeps that sudo
+  session alive for the rest of the run so later privileged steps do not keep
+  re-prompting.
 
 ## Main Scripts
 
@@ -94,6 +97,9 @@ zellij
 - After the bootstrap completes, you can compile C and C++ with Apple Clang,
   and the script also installs Homebrew `cmake`, `ninja`, and `pkg-config` for
   common native build workflows.
+- Homebrew `gcc` is also installed as an extra compiler toolchain, but it is
+  not made the default. Apple Clang remains the expected compiler for normal
+  macOS and Xcode-oriented builds.
 - The final `verify_setup.sh` pass now smoke-tests the toolchain by compiling
   and running a tiny C program and a tiny C++ program.
 
@@ -145,6 +151,8 @@ Useful toggles:
 Developer extras, all default `1`:
 
 - `INSTALL_EXTRA_CLIS=0`
+  Skips the dormant extra CLI bundle (`tlrc`, `ncdu`, `meson`, `kubectl`,
+  `rclone`, `ffmpeg`, archive helpers, and similar command-line tools).
 - `INSTALL_LLAMA_CPP=0`
 - `INSTALL_GO=0`
 - `INSTALL_OLLAMA=0`
@@ -185,8 +193,14 @@ Path override:
 
 - Homebrew tools are installed alongside Apple’s built-ins. Nothing overwrites
   `/usr/bin` or `/bin`.
+- Homebrew `gcc` is installed side-by-side for projects that specifically need
+  GNU GCC, but the bootstrap does not export `CC`/`CXX` or otherwise switch the
+  default compiler away from Apple Clang.
 - Azure CLI (`az`) and AzCopy (`azcopy`) are part of the default core CLI set.
-  Run `az login` when you want to authenticate the Azure CLI.
+  The bootstrap also enables non-interactive Azure CLI extension installs and
+  ensures the default macOS extension directory exists at
+  `~/.azure/cliextensions`. Run `az login` when you want to authenticate the
+  Azure CLI.
 - `apply_dotfiles.sh` gives bash and zsh a shared alias/helper layer based on
   `ubuntu/.bash_aliases`. Linux-only entries are guarded in that file instead
   of being dropped, so Slurm / Kubernetes / remote-development aliases remain
@@ -195,13 +209,24 @@ Path override:
   dotfile setup adds a small managed block to `~/.bash_profile` that sources
   `~/.bashrc`. New `bash` shells therefore pick up the same Homebrew shellenv,
   history settings, and shared aliases by default after the scripts run.
+- The bootstrap front-loads sudo authentication and refreshes the cached sudo
+  timestamp in the background during long runs, so password or Touch ID prompts
+  should usually happen once per bootstrap rather than once per privileged step.
 - GitHub CLI `gh` is part of `Brewfile.core`; there is no dedicated
   `INSTALL_GITHUB_CLI` flag.
 - AI packages are installed into Homebrew `python@3.12`, not Apple’s Python.
+- The default mac AI package set includes notebook/data-science basics
+  (`rich`, `pytest`, `pandas`, `scikit-learn`, `matplotlib`, `jupyter`),
+  TensorFlow / Keras, and the mainstream LLM tooling stack (`transformers`,
+  `datasets`, `wandb`, `accelerate`, `einops`, `tokenizers`,
+  `sentencepiece`, `lightning`, plus PyTorch and TensorBoard).
 - Miniconda is installed by default into `~/miniconda3`, but it is left off
   `PATH` and `auto_activate_base` is disabled. Use `condaon` to activate conda
   base, `condaon ENV_NAME` for a named environment, and `condaoff` to fully
   deactivate it again.
+- `INSTALL_EXTRA_CLIS=1` installs only CLI tools and one utility cask
+  (`AppCleaner`). Nothing in that bundle adds login items or background daemons
+  just by being installed.
 - Ollama and Tailscale install the Homebrew formulas only, not the GUI casks,
   so they do not auto-start background daemons.
 - Some post-install actions remain manual by design, such as app sign-in,

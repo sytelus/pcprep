@@ -18,15 +18,24 @@ torch
 torchvision
 torchaudio
 
+# TensorFlow / Keras are installed too, but on macOS the official TensorFlow
+# wheel is CPU-only. PyTorch+MPS and optional MLX remain the accelerated stacks
+# in this repo.
+tensorflow
+keras
+
 # Common LLM and experiment tooling
 transformers
 datasets
+wandb
 accelerate
+lightning
 tokenizers
 sentencepiece
 tensorboard
 
 # Notebook and debugging workflow
+jupyter
 jupyterlab
 ipykernel
 rich

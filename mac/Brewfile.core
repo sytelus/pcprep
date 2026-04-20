@@ -87,6 +87,11 @@ brew "direnv"
 brew "cmake"
 brew "ninja"
 brew "pkg-config"
+# gcc: installs GNU GCC as an additional compiler toolchain, but does NOT
+# replace Apple's Clang defaults.  macOS and this repo still use Xcode CLT
+# `clang`/`clang++` as the default compiler path.  Homebrew GCC is kept
+# side-by-side and should be invoked explicitly when needed.
+brew "gcc"
 
 # Python: do not rely on stock macOS for a stable, developer-managed Python.
 # We pin an explicit Homebrew 3.12 runtime.  `python3.12` lives in

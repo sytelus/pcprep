@@ -93,4 +93,39 @@ print(f"MPS built: {torch.backends.mps.is_built()}")
 print(f"MPS available: {torch.backends.mps.is_available()}")
 PYTHON_CHECK
 
+log "Verifying the requested Python package stack."
+"$PYTHON_BIN" <<'PYTHON_CHECK'
+import importlib.metadata as metadata
+import importlib
+
+packages = [
+    ("rich", "rich"),
+    ("pytest", "pytest"),
+    ("pandas", "pandas"),
+    ("scikit-learn", "sklearn"),
+    ("matplotlib", "matplotlib"),
+    ("jupyter", ""),
+    ("tensorflow", "tensorflow"),
+    ("tensorboard", "tensorboard"),
+    ("keras", "keras"),
+    ("transformers", "transformers"),
+    ("datasets", "datasets"),
+    ("wandb", "wandb"),
+    ("accelerate", "accelerate"),
+    ("einops", "einops"),
+    ("tokenizers", "tokenizers"),
+    ("sentencepiece", "sentencepiece"),
+    ("lightning", "lightning"),
+]
+
+for dist_name, module_name in packages:
+    dist_version = metadata.version(dist_name)
+    if module_name:
+        module = importlib.import_module(module_name)
+        module_version = getattr(module, "__version__", dist_version)
+        print(f"{dist_name}: {module_version}")
+    else:
+        print(f"{dist_name}: {dist_version}")
+PYTHON_CHECK
+
 log "AI Python packages are installed into the Homebrew interpreter at $PYTHON_BIN"

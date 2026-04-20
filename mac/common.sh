@@ -26,6 +26,10 @@ if [ -z "${NEXT_STEPS+x}" ]; then
   NEXT_STEPS=()
 fi
 
+# PID of the background helper that periodically refreshes the cached sudo
+# timestamp during a long-running bootstrap. Empty means no helper is active.
+SUDO_KEEPALIVE_PID="${SUDO_KEEPALIVE_PID:-}"
+
 # Print an informational message to stdout with the pcprep prefix.
 log() {
   printf '%s[INFO] %s\n' "$PCPREP_PREFIX" "$*"
@@ -200,6 +204,41 @@ ensure_sudo_session() {
   fi
 
   return 0
+}
+
+# Keep the cached sudo timestamp alive during long-running setup so the user is
+# not re-prompted midway through package installs or later privileged steps.
+# Requires ensure_sudo_session to have succeeded first.
+start_sudo_keepalive() {
+  if [ "$(id -u)" -eq 0 ]; then
+    return 0
+  fi
+
+  if [ -n "${SUDO_KEEPALIVE_PID:-}" ] && kill -0 "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! command_exists sudo; then
+    return 1
+  fi
+
+  (
+    while true; do
+      sudo -n true >/dev/null 2>&1 || exit 0
+      sleep 60
+    done
+  ) &
+  SUDO_KEEPALIVE_PID="$!"
+  return 0
+}
+
+# Stop the background sudo keepalive helper if one is running.
+stop_sudo_keepalive() {
+  if [ -n "${SUDO_KEEPALIVE_PID:-}" ] && kill -0 "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1; then
+    kill "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1 || true
+    wait "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+  fi
+  SUDO_KEEPALIVE_PID=""
 }
 
 # Return the conventional Homebrew prefix for the current CPU architecture.

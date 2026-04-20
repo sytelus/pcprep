@@ -40,6 +40,11 @@ if [ -n "${ZSH_VERSION:-}" ]; then
   # Record the timestamp of each entry so `history -i` shows when commands
   # were run.  Useful for reconstructing a session post-hoc.
   setopt EXTENDED_HISTORY
+
+  # Keep the default zsh prompt intentionally short: just a compact path
+  # showing the last two components plus the standard prompt char.
+  PROMPT='%2~ %# '
+  RPROMPT=
 fi
 
 # Shell-agnostic environment, aliases, and SSH/tmux helpers live in a common

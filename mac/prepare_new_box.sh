@@ -15,6 +15,7 @@ source "$SCRIPT_DIR/common.sh"
 # Install the ERR trap *after* sourcing common.sh so on_err is always defined
 # at the moment the trap fires (including when the source itself errors out).
 trap 'on_err "${BASH_COMMAND}" "${LINENO}" "$?"' ERR
+trap 'stop_sudo_keepalive' EXIT
 
 NO_NET="${NO_NET:-0}"
 SKIP_BREW_UPDATE="${SKIP_BREW_UPDATE:-0}"
@@ -86,7 +87,8 @@ collect_preflight_inputs() {
   # Front-load every stdin-driven prompt so the rest of the bootstrap can run
   # unattended once package installs and config steps begin.  At present the
   # only script-local prompts are the optional Git identity fields; sudo
-  # authentication is already front-loaded in main() via ensure_sudo_session.
+  # authentication is already front-loaded in main() and then kept warm for
+  # the rest of the bootstrap via start_sudo_keepalive().
   local entered
 
   if ! is_interactive; then
@@ -293,19 +295,45 @@ brew_install_if_missing() {
 }
 
 maybe_install_extra_clis() {
-  # Small bundle of quality-of-life CLIs and one utility cask.  All are dormant
-  # when not invoked, so installing them has no idle cost.
+  # Expanded bundle of quality-of-life, build, networking, and archive CLIs
+  # mapped from ubuntu/extra_install.sh where the tools are available on macOS
+  # and remain fully dormant unless the user invokes them.
   if ! bool_is_true "$INSTALL_EXTRA_CLIS"; then
     warn "INSTALL_EXTRA_CLIS=0 set. Skipping extra CLI bundle."
     return 0
   fi
 
+  # TLDR client: Homebrew's old `tldr` formula is currently disabled, so use
+  # the officially recommended replacement instead.
+  brew_install_if_missing formula tlrc "tlrc"
   # TUI disk usage explorer; complements 'du' and 'btop' for storage triage.
   brew_install_if_missing formula ncdu "ncdu"
+  # moreutils conflicts with GNU parallel in Homebrew; prefer moreutils on macOS
+  # because `sponge`, `ts`, and `vidir` are broadly useful day-to-day helpers.
+  brew_install_if_missing formula moreutils "moreutils"
+  brew_install_if_missing formula rename "rename"
+  brew_install_if_missing formula entr "entr"
+  brew_install_if_missing formula rsync "rsync"
   # CPU/memory/IO benchmark for quick machine sanity checks.
   brew_install_if_missing formula sysbench "sysbench"
   # Host-to-host network throughput testing for distributed workloads.
   brew_install_if_missing formula iperf3 "iperf3"
+  brew_install_if_missing formula meson "Meson"
+  brew_install_if_missing formula autoconf "autoconf"
+  brew_install_if_missing formula automake "automake"
+  brew_install_if_missing formula libtool "GNU libtool"
+  brew_install_if_missing formula ccache "ccache"
+  brew_install_if_missing formula autossh "autossh"
+  brew_install_if_missing formula mtr "mtr"
+  brew_install_if_missing formula nmap "nmap"
+  brew_install_if_missing formula kubernetes-cli "kubectl"
+  brew_install_if_missing formula rclone "rclone"
+  brew_install_if_missing formula zstd "zstd"
+  brew_install_if_missing formula pigz "pigz"
+  brew_install_if_missing formula pbzip2 "pbzip2"
+  brew_install_if_missing formula sevenzip "7-Zip"
+  brew_install_if_missing formula unar "unar"
+  brew_install_if_missing formula ffmpeg "FFmpeg"
   # GUI-driven app uninstaller.  Its optional "SmartDelete" helper is dormant
   # until enabled in-app, so installing the cask costs effectively nothing.
   brew_install_if_missing cask appcleaner "AppCleaner"
@@ -534,6 +562,33 @@ maybe_link_vscode_cli() {
   fi
 }
 
+configure_azure_cli() {
+  # Azure CLI extensions on macOS install into the user's Azure config tree by
+  # default (`~/.azure/cliextensions`), so the macOS equivalent of the Linux
+  # `/opt/az/extensions` workaround is to ensure the user-scoped directory
+  # exists and is writable, then enable dynamic install with no prompt.
+  local azure_config_dir
+  local azure_extension_dir
+
+  if ! command_exists az; then
+    warn "Azure CLI is not available yet. Skipping Azure CLI configuration."
+    return 0
+  fi
+
+  azure_config_dir="${AZURE_CONFIG_DIR:-$HOME/.azure}"
+  azure_extension_dir="${AZURE_EXTENSION_DIR:-$azure_config_dir/cliextensions}"
+
+  ensure_dir "$azure_config_dir"
+  ensure_dir "$azure_extension_dir"
+
+  # Keep the Azure CLI config tree user-owned and writable without the
+  # over-broad world-writable permissions used by some Linux package layouts.
+  chmod 700 "$azure_config_dir" "$azure_extension_dir"
+
+  log "Configuring Azure CLI for non-interactive extension installs."
+  az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+}
+
 _ensure_git_identity_key() {
   # Set a git identity key (user.name / user.email) only when it is not
   # already configured.  Prefers a preloaded env / preflight value and
@@ -726,6 +781,7 @@ main() {
 
   if ensure_sudo_session; then
     HAVE_SUDO=1
+    start_sudo_keepalive
   fi
 
   if ! bool_is_true "$NO_NET"; then
@@ -761,6 +817,7 @@ main() {
   fi
 
   configure_git
+  configure_azure_cli
 
   if bool_is_true "$APPLY_MACOS_DEFAULTS"; then
     "$SCRIPT_DIR/apply_defaults.sh"
@@ -783,6 +840,7 @@ main() {
   fi
 
   append_next_step "Run 'gh auth login' if you want GitHub CLI authentication and git credential helpers to work immediately."
+  append_next_step "Run 'az login' if you want Azure CLI authentication. Azure CLI dynamic extension installs are preconfigured to use your user-scoped macOS directory."
   append_next_step "If you need the full Apple SDKs for iOS or simulator work, install Xcode from the App Store and then run 'sudo xcodebuild -license accept'."
   append_next_step "Add Terminal or iTerm2 to Full Disk Access if a tool needs broader filesystem visibility."
 
