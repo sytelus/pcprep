@@ -59,6 +59,34 @@ user_email="${user_email:-}"
 # NEXT_STEPS is already initialized by common.sh; we only declare HAVE_SUDO here.
 HAVE_SUDO=0
 
+collect_preflight_inputs() {
+  # Front-load every stdin-driven prompt so the rest of the bootstrap can run
+  # unattended once package installs and config steps begin.  At present the
+  # only script-local prompts are the optional Git identity fields; sudo
+  # authentication is already front-loaded in main() via ensure_sudo_session.
+  local entered
+
+  if ! is_interactive; then
+    return 0
+  fi
+
+  if [ -z "$user_name" ]; then
+    printf 'Git user.name (leave blank to skip): '
+    read -r entered
+    if [ -n "$entered" ]; then
+      user_name="$entered"
+    fi
+  fi
+
+  if [ -z "$user_email" ]; then
+    printf 'Git user.email (leave blank to skip): '
+    read -r entered
+    if [ -n "$entered" ]; then
+      user_email="$entered"
+    fi
+  fi
+}
+
 ensure_xcode_clt() {
   if xcode-select -p >/dev/null 2>&1 && xcrun --find clang >/dev/null 2>&1; then
     log "Xcode Command Line Tools are already installed."
@@ -395,17 +423,16 @@ maybe_link_vscode_cli() {
 
 _ensure_git_identity_key() {
   # Set a git identity key (user.name / user.email) only when it is not
-  # already configured.  Prefers an env var value over an interactive prompt;
-  # silently skips when neither is available.  Keeps configure_git symmetric
-  # for name and email instead of duplicating 10 lines of branching twice.
+  # already configured.  Prefers a preloaded env / preflight value and
+  # silently skips when none is available.  Keeps configure_git symmetric for
+  # name and email instead of duplicating 10 lines of branching twice.
   #   $1: git config key  (e.g. "user.name")
-  #   $2: label shown in the interactive prompt  (e.g. "name")
+  #   $2: human-readable label for log output    (e.g. "name")
   #   $3: preloaded value from the environment   (may be empty)
   local key="$1"
   local label="$2"
   local preloaded="$3"
   local existing
-  local entered
 
   existing="$(git config --global --get "$key" || true)"
   if [ -n "$existing" ]; then
@@ -413,18 +440,8 @@ _ensure_git_identity_key() {
   fi
 
   if [ -n "$preloaded" ]; then
+    log "Setting global Git $label."
     git config --global "$key" "$preloaded"
-    return 0
-  fi
-
-  if ! is_interactive; then
-    return 0
-  fi
-
-  printf 'Git %s is not set. Enter your %s (leave blank to skip): ' "$key" "$label"
-  read -r entered
-  if [ -n "$entered" ]; then
-    git config --global "$key" "$entered"
   fi
 }
 
@@ -631,6 +648,7 @@ maybe_enable_firewall() {
 
 main() {
   require_macos
+  collect_preflight_inputs
 
   if ! bool_is_true "$NO_NET" && ! has_internet; then
     warn "Internet connectivity was not detected. Switching to NO_NET=1 and running local-only steps."

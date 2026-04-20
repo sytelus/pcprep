@@ -60,6 +60,13 @@ alias clshard='reset; stty sane; tput rs1; setterm -reset; tput rmcup; tput rese
 alias cls='tput reset'
 alias pu='pushd .'
 alias po='popd'
+if ! type ll >/dev/null 2>&1; then
+  if command -v eza >/dev/null 2>&1; then
+    alias ll='eza -alh --icons --group-directories-first'
+  else
+    alias ll='ls -lah'
+  fi
+fi
 
 alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux)'
 alias tmuxx=start-tmux
@@ -204,8 +211,12 @@ function treesize {
 }
 
 
-alias claudeyolo="claude --dangerously-skip-permissions --remote-control"
-alias codexyolo="codex --yolo"
+function claudeyolo {
+  claude --dangerously-skip-permissions --remote-control "$@"
+}
+function codexyolo {
+  codex --yolo "$@"
+}
 alias codexupdate="sudo npm install -g @openai/codex@latest"
 alias claudeupdate="claude update"
 alias z='zellij attach -c "$USER@$(hostname)"'
