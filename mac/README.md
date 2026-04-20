@@ -18,6 +18,8 @@ set of macOS defaults without taking over the whole machine.
   sudo session alive for the rest of the run. By default it also sets the
   system-wide sudo credential timeout to 30 minutes through
   `/etc/sudoers.d/pcprep-timestamp-timeout`.
+- Each run writes a full log to `~/Library/Logs/pcprep/prepare_new_box.<timestamp>.log`
+  and refreshes `~/Library/Logs/pcprep/prepare_new_box.latest.log`.
 
 ## Main Commands
 
@@ -66,6 +68,7 @@ bash mac/verify_setup.sh
 ## What It Sets Up
 
 - Homebrew core CLI tools from [Brewfile.core](/home/shitals/GitHubSrc/pcprep/mac/Brewfile.core:1)
+- Codex / Claude / Copilot AI tools are installed immediately after the core CLI bundle so they are available early for debugging later setup failures
 - Optional GUI apps from [Brewfile.cask](/home/shitals/GitHubSrc/pcprep/mac/Brewfile.cask:1)
 - Shared dotfiles and helper scripts via [apply_dotfiles.sh](/home/shitals/GitHubSrc/pcprep/mac/apply_dotfiles.sh:1)
 - Managed `main` Python environment based on Homebrew Python 3.12 via [setup_python_ai.sh](/home/shitals/GitHubSrc/pcprep/mac/setup_python_ai.sh:1)

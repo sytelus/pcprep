@@ -43,6 +43,9 @@ warn() {
 # Print an error to stderr and terminate the script with exit status 1.
 die() {
   printf '%s[ERROR] %s\n' "$PCPREP_PREFIX" "$*" >&2
+  if [ -n "${PCPREP_LOG_FILE:-}" ]; then
+    printf '%s[ERROR] Review log: %s\n' "$PCPREP_PREFIX" "$PCPREP_LOG_FILE" >&2
+  fi
   exit 1
 }
 
@@ -57,6 +60,9 @@ on_err() {
 
   printf '%s[ERROR] Command failed with exit code %s at line %s: %s\n' \
     "$PCPREP_PREFIX" "$failed_status" "$failed_line" "$failed_command" >&2
+  if [ -n "${PCPREP_LOG_FILE:-}" ]; then
+    printf '%s[ERROR] Review log: %s\n' "$PCPREP_PREFIX" "$PCPREP_LOG_FILE" >&2
+  fi
   exit "$failed_status"
 }
 

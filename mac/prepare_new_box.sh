@@ -12,8 +12,38 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=mac/common.sh
 source "$SCRIPT_DIR/common.sh"
 
+start_run_logging() {
+  # Mirror the full run to a persistent logfile so failures can be reviewed
+  # after the terminal scrollback is gone.  `prepare_new_box.latest.log` is a
+  # stable symlink to the newest run for quick access.
+  local log_dir
+  local log_timestamp
+  local latest_link
+
+  if [ -n "${PCPREP_LOGGING_INITIALIZED:-}" ]; then
+    return 0
+  fi
+
+  log_dir="${PCPREP_LOG_DIR:-$HOME/Library/Logs/pcprep}"
+  log_timestamp="$(date '+%Y%m%d-%H%M%S')"
+  PCPREP_LOG_FILE="${PCPREP_LOG_FILE:-$log_dir/prepare_new_box.${log_timestamp}.log}"
+  ensure_dir "$(dirname "$PCPREP_LOG_FILE")"
+  latest_link="$(dirname "$PCPREP_LOG_FILE")/prepare_new_box.latest.log"
+
+  exec > >(/usr/bin/tee -a "$PCPREP_LOG_FILE") 2>&1
+  ln -sfn "$(basename "$PCPREP_LOG_FILE")" "$latest_link" 2>/dev/null || true
+
+  export PCPREP_LOG_FILE
+  PCPREP_LOGGING_INITIALIZED=1
+  export PCPREP_LOGGING_INITIALIZED
+
+  log "Run log: $PCPREP_LOG_FILE"
+  log "Latest-log symlink: $latest_link"
+}
+
 # Install the ERR trap *after* sourcing common.sh so on_err is always defined
 # at the moment the trap fires (including when the source itself errors out).
+start_run_logging
 trap 'on_err "${BASH_COMMAND}" "${LINENO}" "$?"' ERR
 trap 'stop_sudo_keepalive' EXIT
 
@@ -1017,6 +1047,13 @@ main() {
     maybe_update_brew
     install_brew_bundle_file "$SCRIPT_DIR/Brewfile.core" "core CLI packages"
 
+    # Install the AI-focused CLIs/apps immediately after the core CLI bundle so
+    # they are available early if a later setup step needs interactive
+    # debugging or investigation on the same machine.
+    maybe_install_ai_clis
+    maybe_install_github_copilot_cli
+    maybe_install_ai_apps
+
     if bool_is_true "$INSTALL_GUI_APPS"; then
       install_core_gui_apps
       maybe_link_vscode_cli
@@ -1037,9 +1074,6 @@ main() {
     maybe_install_powerlevel10k
     maybe_install_firefox
     maybe_install_chrome
-    maybe_install_github_copilot_cli
-    maybe_install_ai_apps
-    maybe_install_ai_clis
   else
     warn "Skipping network-backed installs because NO_NET=1."
   fi
