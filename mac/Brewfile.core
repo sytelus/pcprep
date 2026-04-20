@@ -50,6 +50,10 @@ brew "gawk"
 brew "curl"
 # The rest of this section does not exist on stock macOS.
 brew "wget"
+brew "azure-cli"
+brew "azcopy"
+brew "pv"
+brew "xz"
 brew "jq"
 brew "yq"
 brew "ripgrep"
@@ -59,12 +63,20 @@ brew "tmux"
 # zellij: modern terminal multiplexer with batteries-included defaults. Like
 # tmux, it is shell-agnostic and works fine under zsh, bash, etc.
 brew "zellij"
+# screen: some macOS releases ship an older `/usr/bin/screen`; the Homebrew
+# build is newer and can win via PATH in interactive shells without touching
+# Apple's copy on disk.
+brew "screen"
 brew "tree"
 brew "watch"
 brew "htop"
 brew "btop"
 # bat is a near-universal upgrade over "cat" for reading source files.
 brew "bat"
+# micro: modern terminal editor that complements, rather than replaces, VS Code.
+brew "micro"
+# fdupes: useful filesystem hygiene tool for finding duplicate files.
+brew "fdupes"
 # direnv loads project-local environment variables when you cd into a directory.
 # Does not exist on stock macOS.  Opt-in per project via an .envrc file, so it
 # has no effect unless a repo enables it.

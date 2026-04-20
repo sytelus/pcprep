@@ -72,6 +72,8 @@ bash mac/verify_setup.sh
 - `tmux` is the more portable choice for SSH, remote hosts, and shared team
   workflows.
 - `zellij` has nicer built-in defaults and a more discoverable UI.
+- Homebrew `screen` is also installed as a compatibility fallback, but `tmux`
+  and `zellij` remain the preferred defaults.
 - The Mac setup already seeds `~/.tmux.conf` copy-if-absent and auto-attaches
   `tmux` for SSH sessions in the managed shell fragment.
 
@@ -183,6 +185,8 @@ Path override:
 
 - Homebrew tools are installed alongside Apple’s built-ins. Nothing overwrites
   `/usr/bin` or `/bin`.
+- Azure CLI (`az`) and AzCopy (`azcopy`) are part of the default core CLI set.
+  Run `az login` when you want to authenticate the Azure CLI.
 - `apply_dotfiles.sh` gives bash and zsh a shared alias/helper layer based on
   `ubuntu/.bash_aliases`. Linux-only entries are guarded in that file instead
   of being dropped, so Slurm / Kubernetes / remote-development aliases remain
