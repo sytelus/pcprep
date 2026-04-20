@@ -13,17 +13,18 @@ The scope is intentionally narrower than the tutorial in [macos-expert-tutorial.
 - `prepare_new_box.sh`: main entrypoint for a new machine
 - `apply_defaults.sh`: reversible macOS preference tweaks for developers
 - `revert_defaults.sh`: removes the preferences set by `apply_defaults.sh`
-- `apply_dotfiles.sh`: copies staged dotfiles + installs a managed zsh fragment
+- `apply_dotfiles.sh`: copies shared dotfiles from `ubuntu/` + installs a managed zsh fragment
 - `setup_python_ai.sh`: creates a dedicated AI Python environment under `~/.venvs/`
 - `verify_setup.sh`: validates the resulting installation
 - `Brewfile.core`: curated CLI packages
 - `Brewfile.cask`: curated GUI packages
 - `requirements-ai.txt`: conservative Python package set for AI development
 - `requirements-mlx.txt`: Apple MLX extras layered on top of the PyTorch stack
-- `dotfiles/`: source files copied/linked into the user's home directory
-  - `tmux.conf` → `~/.tmux.conf` (copy-if-absent)
-  - `claude-settings.json` → `~/.claude/settings.json` (copy-if-absent)
-  - `codex-config.toml` → `~/.codex/config.toml` (copy-if-absent)
+- Shared repo dotfiles copied/linked into the user's home directory
+  - `../ubuntu/.tmux.conf` → `~/.tmux.conf` (copy-if-absent)
+  - `../ubuntu/.claude/settings.json` → `~/.claude/settings.json` (copy-if-absent)
+  - `../ubuntu/.codex/config.toml` → `~/.codex/config.toml` (copy-if-absent)
+- `dotfiles/`
   - `pcprep-shell.zsh` → `~/.config/pcprep/pcprep-shell.zsh` (rewritten every run) and sourced from `~/.zshrc` via a fenced managed block
 
 ## Usage
@@ -66,7 +67,7 @@ Every `INSTALL_*` flag below defaults to `1` (enabled). Set to `0` to skip.
 - `ENABLE_FIREWALL=0`: leave the macOS firewall unchanged
 - `ENABLE_TOUCH_ID_FOR_SUDO=0`: leave sudo authentication unchanged
 - `APPLY_MACOS_DEFAULTS=0`: skip the `defaults write` pass in `apply_defaults.sh`
-- `APPLY_DOTFILES=0`: skip copying staged dotfiles and the managed zsh fragment
+- `APPLY_DOTFILES=0`: skip copying the shared dotfiles and the managed zsh fragment
 
 ### Developer extras (all default to `1`)
 - `INSTALL_EXTRA_CLIS=0`: skip `ncdu`, `sysbench`, `iperf3`, and AppCleaner
@@ -88,6 +89,6 @@ Every `INSTALL_*` flag below defaults to `1` (enabled). Set to `0` to skip.
 - Oh My Zsh, Powerlevel10k, and the usual `.zshrc` rewrites are not performed. The scripts intentionally do not own the user's shell rc.
 - No automated Safari tweaks, FileVault toggles, or Setup Assistant changes — all are TCC-protected or pre-login and require manual confirmation in System Settings.
 - If you keep the defaults `ENABLE_TOUCH_ID_FOR_SUDO=1` and `ENABLE_FIREWALL=1`, both changes are reversible. Remove the `pam_tid.so` line from `/etc/pam.d/sudo_local` to undo Touch ID for sudo, and run `sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off` to turn the firewall back off.
-- The managed zsh fragment installed by `apply_dotfiles.sh` is fully reversible: delete `~/.config/pcprep/pcprep-shell.zsh` and remove the `>>> pcprep macos zshrc >>>` / `<<< pcprep macos zshrc <<<` block from `~/.zshrc`. The staged `~/.tmux.conf`, `~/.claude/settings.json`, and `~/.codex/config.toml` are copy-if-absent and never overwrite existing user edits, so they are effectively opt-in for already-configured machines.
+- The managed zsh fragment installed by `apply_dotfiles.sh` is fully reversible: delete `~/.config/pcprep/pcprep-shell.zsh` and remove the `>>> pcprep macos zshrc >>>` / `<<< pcprep macos zshrc <<<` block from `~/.zshrc`. The shared `~/.tmux.conf`, `~/.claude/settings.json`, and `~/.codex/config.toml` copies are copy-if-absent and never overwrite existing user edits, so they are effectively opt-in for already-configured machines.
 
 See `todo.md` for the candidate list that drove the current defaults and `unimplemented.md` for the full audit of what the tutorial recommends but these scripts deliberately skip.

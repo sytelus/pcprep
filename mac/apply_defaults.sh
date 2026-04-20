@@ -19,26 +19,32 @@ log "Applying developer-friendly macOS defaults."
 # Coding on macOS is painful if smart punctuation or auto-correction rewrites
 # shell commands, JSON, or code literals. Disable the text substitutions that
 # routinely break code across editors, terminals, and system text fields.
-defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
-defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
-defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
-defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
-defaults write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool false
+# defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
+# defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
+# defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+# defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
+# defaults write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool false
 
 # Developers typically prefer responsive key repeat and Vim-friendly behavior
 # over the accent picker that macOS shows on long key presses.
-defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool false
-defaults write NSGlobalDomain KeyRepeat -int 2
-defaults write NSGlobalDomain InitialKeyRepeat -int 15
+# defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool false
+# defaults write NSGlobalDomain KeyRepeat -int 2
+# defaults write NSGlobalDomain InitialKeyRepeat -int 15
 
 # Finder is much more useful when it exposes file extensions, path context, and
 # the current-folder search scope instead of hiding important filesystem details.
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
+# Show the current folder path in the Finder path bar.
 defaults write com.apple.finder ShowPathbar -bool true
+# Show item counts and disk space details in the Finder status bar.
 defaults write com.apple.finder ShowStatusBar -bool true
-defaults write com.apple.finder FXDefaultSearchScope -string "SCcf"
+# Default Finder searches to the current folder instead of the whole Mac.
+# defaults write com.apple.finder FXDefaultSearchScope -string "SCcf"
+# Suppress the warning shown when changing a file extension.
 defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
+# Open new Finder windows in Column view by default.
 defaults write com.apple.finder FXPreferredViewStyle -string "clmv"
+# Keep folders listed before files when Finder sorts items.
 defaults write com.apple.finder _FXSortFoldersFirst -bool true
 
 # Developers routinely need to see and edit dotfiles such as .gitignore, .env,
@@ -52,20 +58,20 @@ defaults write com.apple.finder AppleShowAllFiles -bool true
 defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
 
 # Avoid polluting network and removable drives with Finder metadata files.
-defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
-defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true
+# defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+# defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true
 
 # Save panels are easier to work with when expanded by default.
 defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
 defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode2 -bool true
 
 # Keep the Dock a little less noisy without changing major layout behavior.
-defaults write com.apple.dock show-recents -bool false
+# defaults write com.apple.dock show-recents -bool false
 
 # A dedicated screenshots directory keeps the Desktop from turning into a dump.
 mkdir -p "$HOME/Screenshots"
 defaults write com.apple.screencapture location -string "$HOME/Screenshots"
-defaults write com.apple.screencapture disable-shadow -bool true
+#defaults write com.apple.screencapture disable-shadow -bool true
 
 # Restart the affected UI services so the settings take effect immediately.
 killall Finder >/dev/null 2>&1 || true

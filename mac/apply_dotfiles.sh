@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Install the cross-platform dotfiles ported from ubuntu/ into the user's
-# home directory, plus a managed zsh fragment that layers opinionated
-# history/aliases/env-vars on top of the user's existing ~/.zshrc.
+# Install shared cross-platform dotfiles from ubuntu/ into the user's home
+# directory, plus a managed macOS-specific zsh fragment that layers
+# opinionated history/aliases/env-vars on top of the user's existing ~/.zshrc.
 #
 # Policy:
 # - Never clobber an existing user-edited config.  Files in ~/ that the user
@@ -28,16 +28,23 @@ trap 'on_err "${BASH_COMMAND}" "${LINENO}" "$?"' ERR
 
 require_macos
 
-DOTFILES_DIR="$SCRIPT_DIR/dotfiles"
-if [ ! -d "$DOTFILES_DIR" ]; then
-  die "Staged dotfiles directory not found at $DOTFILES_DIR"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MAC_DOTFILES_DIR="$SCRIPT_DIR/dotfiles"
+UBUNTU_DOTFILES_DIR="$REPO_ROOT/ubuntu"
+
+if [ ! -d "$MAC_DOTFILES_DIR" ]; then
+  die "macOS dotfiles directory not found at $MAC_DOTFILES_DIR"
+fi
+
+if [ ! -d "$UBUNTU_DOTFILES_DIR" ]; then
+  die "Shared Ubuntu dotfiles directory not found at $UBUNTU_DOTFILES_DIR"
 fi
 
 # ------------------------------------------------------------------ helpers
 
-# Copy a staged file into ~/ only when no file is already there.  Prints a
+# Copy a repo-managed file into ~/ only when no file is already there.  Prints a
 # log line whichever way it goes so the user can see what we did/skipped.
-#   $1: source path inside mac/dotfiles/
+#   $1: absolute source path inside the repo
 #   $2: absolute destination path under $HOME
 #   $3: human-readable label
 copy_if_absent() {
@@ -46,7 +53,7 @@ copy_if_absent() {
   local label="$3"
 
   if [ ! -f "$src" ]; then
-    warn "Staged $label missing at $src; skipping."
+    warn "Repo-managed $label missing at $src; skipping."
     return 0
   fi
 
@@ -65,7 +72,7 @@ copy_if_absent() {
 # ~/.tmux.conf: fully portable between Linux and macOS.  Copy-if-absent so
 # we never stomp on tmux tweaks a user has built up.
 copy_if_absent \
-  "$DOTFILES_DIR/tmux.conf" \
+  "$UBUNTU_DOTFILES_DIR/.tmux.conf" \
   "$HOME/.tmux.conf" \
   "tmux configuration"
 
@@ -75,7 +82,7 @@ copy_if_absent \
 # the documented pcprep defaults on a fresh machine; leaves any existing
 # customization intact.
 copy_if_absent \
-  "$DOTFILES_DIR/claude-settings.json" \
+  "$UBUNTU_DOTFILES_DIR/.claude/settings.json" \
   "$HOME/.claude/settings.json" \
   "Claude Code settings"
 
@@ -85,7 +92,7 @@ copy_if_absent \
 # sandbox preferences the Linux box uses so cross-platform behavior stays
 # consistent.  Copy-if-absent.
 copy_if_absent \
-  "$DOTFILES_DIR/codex-config.toml" \
+  "$UBUNTU_DOTFILES_DIR/.codex/config.toml" \
   "$HOME/.codex/config.toml" \
   "Codex CLI configuration"
 
@@ -97,7 +104,7 @@ copy_if_absent \
 # fenced block that sources it; deleting that block fully removes us.
 PCPREP_SHELL_DEST="$HOME/.config/pcprep/pcprep-shell.zsh"
 ensure_dir "$(dirname "$PCPREP_SHELL_DEST")"
-cp "$DOTFILES_DIR/pcprep-shell.zsh" "$PCPREP_SHELL_DEST"
+cp "$MAC_DOTFILES_DIR/pcprep-shell.zsh" "$PCPREP_SHELL_DEST"
 log "Wrote managed zsh fragment to $PCPREP_SHELL_DEST"
 
 # The source line we want in ~/.zshrc.  The guard ensures zsh does not

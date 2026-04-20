@@ -26,8 +26,8 @@ INSTALL_AI_ENV="${INSTALL_AI_ENV:-1}"
 APPLY_MACOS_DEFAULTS="${APPLY_MACOS_DEFAULTS:-1}"
 # APPLY_DOTFILES runs mac/apply_dotfiles.sh after the `defaults write` pass.
 # Installs a managed zsh fragment with history/AI-cache/aliases and copies
-# staged ~/.tmux.conf, ~/.claude/settings.json, ~/.codex/config.toml
-# (copy-if-absent, so existing user edits are preserved).
+# shared ~/.tmux.conf, ~/.claude/settings.json, ~/.codex/config.toml from
+# ubuntu/ (copy-if-absent, so existing user edits are preserved).
 APPLY_DOTFILES="${APPLY_DOTFILES:-1}"
 ENABLE_FIREWALL="${ENABLE_FIREWALL:-1}"
 ENABLE_FIREWALL_STEALTH="${ENABLE_FIREWALL_STEALTH:-0}"
