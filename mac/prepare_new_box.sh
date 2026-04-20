@@ -88,17 +88,20 @@ apply_shared_ssh_permissions() {
 
 collect_preflight_inputs() {
   # Front-load every stdin-driven prompt so the rest of the bootstrap can run
-  # unattended once package installs and config steps begin.  At present the
-  # only script-local prompts are the optional Git identity fields; sudo
-  # authentication is already front-loaded in main() and then kept warm for
-  # the rest of the bootstrap via start_sudo_keepalive().
+  # unattended once package installs and config steps begin. We only prompt
+  # for Git identity when it is truly missing from the existing global config.
+  # That keeps reruns quiet on already-configured machines and avoids asking
+  # again after a partially successful earlier bootstrap.
   local entered
+  local existing_name
+  local existing_email
 
-  if ! is_interactive; then
-    return 0
-  fi
+  existing_name="$(git_global_config_get "user.name")"
+  existing_email="$(git_global_config_get "user.email")"
 
-  if [ -z "$user_name" ]; then
+  if [ -n "$existing_name" ]; then
+    user_name="$existing_name"
+  elif is_interactive && [ -z "$user_name" ]; then
     printf 'Git user.name (leave blank to skip): '
     read -r entered
     if [ -n "$entered" ]; then
@@ -106,13 +109,30 @@ collect_preflight_inputs() {
     fi
   fi
 
-  if [ -z "$user_email" ]; then
+  if [ -n "$existing_email" ]; then
+    user_email="$existing_email"
+  elif is_interactive && [ -z "$user_email" ]; then
     printf 'Git user.email (leave blank to skip): '
     read -r entered
     if [ -n "$entered" ]; then
       user_email="$entered"
     fi
   fi
+}
+
+persist_preflight_git_identity() {
+  # Persist any just-entered Git identity immediately instead of waiting until
+  # the later configure_git pass. That way a brew failure or other mid-run
+  # error does not force the user to re-enter the same values on the rerun.
+  if ! command_exists git; then
+    if [ -n "$user_name" ] || [ -n "$user_email" ]; then
+      warn "Git is not available yet. Deferring Git identity writes until the later Git configuration step."
+    fi
+    return 0
+  fi
+
+  _ensure_git_identity_key "user.name"  "name"  "$user_name"
+  _ensure_git_identity_key "user.email" "email" "$user_email"
 }
 
 ensure_xcode_clt() {
@@ -662,6 +682,10 @@ configure_git() {
   git config --global diff.colorMoved zebra
   # Store HTTPS credentials in the macOS Keychain instead of plain text.
   git config --global credential.helper osxkeychain
+  # Prefer SSH for GitHub-hosted repos so copy-pasted HTTPS clone URLs still
+  # use the user's SSH keys instead of falling back to password/token prompts.
+  git config --global 'url.ssh://git@github.com/.insteadOf' https://github.com/
+  git config --global 'url.ssh://git@gist.github.com/.insteadOf' https://gist.github.com/
   # Treat the working tree as LF; convert CRLF inputs to LF on add but never
   # rewrite LF to CRLF (safe default when collaborating with Windows peers).
   git config --global core.eol lf
@@ -802,7 +826,6 @@ main() {
 
   require_macos
   ensure_existing_ssh_setup
-  collect_preflight_inputs
   apply_shared_ssh_permissions
 
   if ! bool_is_true "$NO_NET" && ! has_internet; then
@@ -810,13 +833,19 @@ main() {
     NO_NET=1
   fi
 
+  if ! bool_is_true "$NO_NET"; then
+    ensure_xcode_clt
+  fi
+
+  collect_preflight_inputs
+  persist_preflight_git_identity
+
   if ensure_sudo_session; then
     HAVE_SUDO=1
     start_sudo_keepalive
   fi
 
   if ! bool_is_true "$NO_NET"; then
-    ensure_xcode_clt
     ensure_homebrew
     maybe_update_brew
     install_brew_bundle_file "$SCRIPT_DIR/Brewfile.core" "core CLI packages"

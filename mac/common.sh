@@ -298,6 +298,86 @@ find_brew_python_bin() {
   return 1
 }
 
+# Read a value from the user's global Git config files without invoking `git`.
+# This keeps early prompt-suppression logic safe even before Xcode CLT / Git is
+# guaranteed to be runnable. Supports simple section.key lookups such as
+# `user.name` and `user.email`, which is all the bootstrap currently needs.
+git_global_config_get() {
+  local key="$1"
+  local section="${key%%.*}"
+  local field="${key#*.}"
+  local config_file
+  local value
+
+  for config_file in "$HOME/.gitconfig" "${XDG_CONFIG_HOME:-$HOME/.config}/git/config"; do
+    if [ ! -f "$config_file" ]; then
+      continue
+    fi
+
+    value="$(
+      awk -v wanted_section="$section" -v wanted_key="$field" '
+        function trim(s) {
+          sub(/^[[:space:]]+/, "", s)
+          sub(/[[:space:]]+$/, "", s)
+          return s
+        }
+
+        BEGIN {
+          current_section = ""
+          found = ""
+          wanted_header = "[" tolower(wanted_section) "]"
+        }
+
+        {
+          line = $0
+          sub(/[[:space:]]*[#;].*$/, "", line)
+          line = trim(line)
+
+          if (line == "") {
+            next
+          }
+
+          if (line ~ /^\[/) {
+            current_section = tolower(line)
+            next
+          }
+
+          if (current_section != wanted_header) {
+            next
+          }
+
+          split(line, parts, "=")
+          if (length(parts) < 2) {
+            next
+          }
+
+          key_name = trim(parts[1])
+          value = trim(substr(line, index(line, "=") + 1))
+          gsub(/^"/, "", value)
+          gsub(/"$/, "", value)
+
+          if (tolower(key_name) == tolower(wanted_key)) {
+            found = value
+          }
+        }
+
+        END {
+          if (found != "") {
+            print found
+          }
+        }
+      ' "$config_file"
+    )"
+
+    if [ -n "$value" ]; then
+      printf '%s\n' "$value"
+      return 0
+    fi
+  done
+
+  return 0
+}
+
 # Queue a user-visible reminder to be printed at the end of the run.  Used for
 # actions that cannot be automated (GUI approvals, post-install sign-ins, etc).
 append_next_step() {

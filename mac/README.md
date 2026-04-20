@@ -10,8 +10,9 @@ over the whole machine.
 - macOS only.
 - `~/.ssh` must already exist with your keys and config.
 - Internet is required unless you run with `NO_NET=1`.
-- The bootstrap asks for `git user.name` and `git user.email` at the start if
-  they are not already configured. You can preseed them with
+- The bootstrap checks global `git user.name` / `git user.email` early in the
+  run and only prompts if either is missing. Any entered values are written
+  immediately so reruns do not ask again. You can preseed them with
   `user_name=... user_email=...`.
 - When sudo is available, the bootstrap prompts once up front and keeps that
   sudo session alive for the rest of the run.
@@ -171,6 +172,12 @@ Azure CLI:
 - `az` and `azcopy` are part of the default CLI set
 - The bootstrap enables `extension.use_dynamic_install=yes_without_prompt`
 - Run `az login` when you want to authenticate
+
+Git:
+
+- Existing global `user.name` / `user.email` are left alone
+- Missing values are prompted for once and written immediately
+- `https://github.com/...` remotes are rewritten to SSH so GitHub keys are used automatically
 
 ## Managed Files
 

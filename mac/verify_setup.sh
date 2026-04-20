@@ -120,6 +120,25 @@ check_azure_cli_extension_setup() {
   fi
 }
 
+check_git_global_value() {
+  local key="$1"
+  local expected_value="$2"
+  local label="$3"
+  local actual_values
+
+  if ! command_exists git; then
+    fail "$label not verified (git command missing)."
+    return
+  fi
+
+  actual_values="$(git config --global --get-all "$key" 2>/dev/null || true)"
+  if printf '%s\n' "$actual_values" | grep -Fxq "$expected_value"; then
+    pass "$label"
+  else
+    fail "$label"
+  fi
+}
+
 # Compile and run tiny C and C++ programs through Apple's toolchain so we
 # validate real native-build functionality, not just the presence of CLT files.
 check_c_cpp_toolchain() {
@@ -273,6 +292,10 @@ fi
 # contents here.
 check_command brew "Homebrew"
 check_command git  "Git"
+check_git_global_value \
+  'url.ssh://git@github.com/.insteadOf' \
+  'https://github.com/' \
+  "GitHub HTTPS remotes are rewritten to SSH."
 check_command uv   "uv"
 check_command node "Node.js"
 check_command npm  "npm"
