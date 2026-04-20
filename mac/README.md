@@ -61,6 +61,7 @@ Every `INSTALL_*` flag below defaults to `1` (enabled). Set to `0` to skip.
 - `NO_NET=1`: skip network-backed installs and only apply local configuration
 - `INSTALL_GUI_APPS=0`: skip iTerm2, VS Code, and Rectangle
 - `INSTALL_DOCKER=0`: skip Docker Desktop
+- `INSTALL_GITHUB_CLI=0`: skip the GitHub CLI install
 - `INSTALL_AI_ENV=0`: skip Python AI environment creation
 - `INSTALL_CODEX=0`: skip the Codex CLI install
 - `INSTALL_CLAUDE_CODE=0`: skip the Claude Code install
