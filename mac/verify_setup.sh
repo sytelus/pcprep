@@ -56,6 +56,8 @@ EXPECT_FIREFOX="${EXPECT_FIREFOX:-1}"
 EXPECT_CHROME="${EXPECT_CHROME:-1}"
 MINICONDA_DIR="${MINICONDA_DIR:-$HOME/miniconda3}"
 MAIN_VENV_DIR="$(default_main_venv_dir)"
+EXPECT_SUDO_TIMESTAMP_TIMEOUT="${EXPECT_SUDO_TIMESTAMP_TIMEOUT:-1}"
+SUDO_TIMESTAMP_TIMEOUT_MINUTES="${SUDO_TIMESTAMP_TIMEOUT_MINUTES:-30}"
 
 if [ -n "${EXPECT_MLX+x}" ]; then
   EXPECT_MLX="${EXPECT_MLX:-0}"
@@ -119,6 +121,17 @@ check_azure_cli_extension_setup() {
     pass "Azure CLI dynamic extension install is set to yes_without_prompt."
   else
     fail "Azure CLI dynamic extension install is not configured to yes_without_prompt."
+  fi
+}
+
+check_sudo_timestamp_timeout() {
+  local target_file="/etc/sudoers.d/pcprep-timestamp-timeout"
+  local expected_line="Defaults timestamp_timeout=$SUDO_TIMESTAMP_TIMEOUT_MINUTES"
+
+  if [ -f "$target_file" ] && grep -Fqx "$expected_line" "$target_file"; then
+    pass "Global sudo credential timeout is configured to $SUDO_TIMESTAMP_TIMEOUT_MINUTES minutes."
+  else
+    fail "Global sudo credential timeout is not configured as expected in $target_file."
   fi
 }
 
@@ -332,6 +345,9 @@ check_command npm  "npm"
 check_command az "Azure CLI"
 check_command azcopy "AzCopy"
 check_azure_cli_extension_setup
+if bool_is_true "$EXPECT_SUDO_TIMESTAMP_TIMEOUT"; then
+  check_sudo_timestamp_timeout
+fi
 check_command tmux "tmux"
 check_command zellij "zellij"
 check_command pv "pv"

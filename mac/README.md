@@ -15,7 +15,9 @@ set of macOS defaults without taking over the whole machine.
   immediately so reruns do not ask again. You can preseed them with
   `user_name=... user_email=...`.
 - When sudo is available, the bootstrap prompts once up front and keeps that
-  sudo session alive for the rest of the run.
+  sudo session alive for the rest of the run. By default it also sets the
+  system-wide sudo credential timeout to 30 minutes through
+  `/etc/sudoers.d/pcprep-timestamp-timeout`.
 
 ## Main Commands
 
@@ -103,6 +105,8 @@ Common toggles:
 | `ENABLE_FIREWALL` | `1` | Enable the macOS application firewall |
 | `ENABLE_FIREWALL_STEALTH` | `0` | Also enable firewall stealth mode |
 | `ENABLE_TOUCH_ID_FOR_SUDO` | `1` | Configure Touch ID for `sudo` where supported |
+| `CONFIGURE_SUDO_TIMESTAMP_TIMEOUT` | `1` | Set a global sudo credential timeout drop-in under `/etc/sudoers.d/` |
+| `SUDO_TIMESTAMP_TIMEOUT_MINUTES` | `30` | Minutes before sudo re-prompts system-wide |
 | `UPGRADE_NODE_GLOBALS` | `0` | Upgrade Codex CLI / Claude Code instead of install-if-missing |
 
 Optional developer extras, all default `1`:
@@ -196,6 +200,13 @@ Git:
 - Existing global `user.name` / `user.email` are left alone
 - Missing values are prompted for once and written immediately
 - `https://github.com/...` remotes are rewritten to SSH so GitHub keys are used automatically
+
+Sudo:
+
+- The bootstrap refreshes the sudo timestamp in the background during long runs
+- By default it also sets `timestamp_timeout=30` globally
+- Use `CONFIGURE_SUDO_TIMESTAMP_TIMEOUT=0` to leave the system sudo timeout unchanged
+- Override the global timeout with `SUDO_TIMESTAMP_TIMEOUT_MINUTES=...`
 
 ## Managed Files
 

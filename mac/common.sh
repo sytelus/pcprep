@@ -228,6 +228,8 @@ ensure_sudo_session() {
 # not re-prompted midway through package installs or later privileged steps.
 # Requires ensure_sudo_session to have succeeded first.
 start_sudo_keepalive() {
+  local keepalive_interval_seconds="${SUDO_KEEPALIVE_INTERVAL_SECONDS:-60}"
+
   if [ "$(id -u)" -eq 0 ]; then
     return 0
   fi
@@ -242,8 +244,11 @@ start_sudo_keepalive() {
 
   (
     while true; do
-      sudo -n true >/dev/null 2>&1 || exit 0
-      sleep 60
+      # Refresh the sudo timestamp, not just check that it exists.  `sudo -v`
+      # updates the cached credential timestamp, which avoids the default
+      # 5-minute expiry from re-prompting during long Homebrew / package runs.
+      sudo -n -v >/dev/null 2>&1 || exit 0
+      sleep "$keepalive_interval_seconds"
     done
   ) &
   SUDO_KEEPALIVE_PID="$!"

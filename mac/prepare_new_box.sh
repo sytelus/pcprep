@@ -41,6 +41,8 @@ APPLY_DOTFILES="${APPLY_DOTFILES:-1}"
 ENABLE_FIREWALL="${ENABLE_FIREWALL:-1}"
 ENABLE_FIREWALL_STEALTH="${ENABLE_FIREWALL_STEALTH:-0}"
 ENABLE_TOUCH_ID_FOR_SUDO="${ENABLE_TOUCH_ID_FOR_SUDO:-1}"
+CONFIGURE_SUDO_TIMESTAMP_TIMEOUT="${CONFIGURE_SUDO_TIMESTAMP_TIMEOUT:-1}"
+SUDO_TIMESTAMP_TIMEOUT_MINUTES="${SUDO_TIMESTAMP_TIMEOUT_MINUTES:-30}"
 UPGRADE_NODE_GLOBALS="${UPGRADE_NODE_GLOBALS:-0}"
 # Keep the stock managed prompt simple by default, but allow an explicit
 # Powerlevel10k opt-in for users who want a richer zsh prompt.
@@ -894,6 +896,47 @@ _require_sudo_or_skip() {
   return 1
 }
 
+maybe_configure_sudo_timestamp_timeout() {
+  # Increase sudo's cached credential lifetime system-wide through a dedicated,
+  # validated sudoers.d drop-in.  This reduces repeated password prompts both
+  # during the bootstrap and in later day-to-day macOS terminal work.
+  local sudoers_dir="/etc/sudoers.d"
+  local target_file="$sudoers_dir/pcprep-timestamp-timeout"
+  local desired_line
+  local temp_file
+
+  if ! bool_is_true "$CONFIGURE_SUDO_TIMESTAMP_TIMEOUT"; then
+    return 0
+  fi
+  _require_sudo_or_skip "sudo timeout configuration" || return 0
+
+  case "$SUDO_TIMESTAMP_TIMEOUT_MINUTES" in
+    ''|*[!0-9]*)
+      die "SUDO_TIMESTAMP_TIMEOUT_MINUTES must be a non-negative integer. Got: $SUDO_TIMESTAMP_TIMEOUT_MINUTES"
+      ;;
+  esac
+
+  desired_line="Defaults timestamp_timeout=$SUDO_TIMESTAMP_TIMEOUT_MINUTES"
+
+  if [ -f "$target_file" ] && grep -Fqx "$desired_line" "$target_file"; then
+    log "Global sudo credential timeout is already set to $SUDO_TIMESTAMP_TIMEOUT_MINUTES minutes."
+    return 0
+  fi
+
+  temp_file="$(mktemp "${TMPDIR:-/tmp}/pcprep-sudoers.XXXXXX")"
+  printf '%s\n' "$desired_line" > "$temp_file"
+
+  if ! /usr/sbin/visudo -cf "$temp_file" >/dev/null 2>&1; then
+    rm -f "$temp_file"
+    die "Refusing to install invalid sudoers content for timestamp_timeout."
+  fi
+
+  log "Setting global sudo credential timeout to $SUDO_TIMESTAMP_TIMEOUT_MINUTES minutes."
+  run_sudo mkdir -p "$sudoers_dir"
+  run_sudo install -m 0440 "$temp_file" "$target_file"
+  rm -f "$temp_file"
+}
+
 maybe_enable_touch_id_for_sudo() {
   # Authorize Touch ID for sudo by adding "auth sufficient pam_tid.so" to
   # /etc/pam.d/sudo_local, Apple's upgrade-safe overlay over /etc/pam.d/sudo.
@@ -965,6 +1008,7 @@ main() {
   if ensure_sudo_session; then
     HAVE_SUDO=1
     start_sudo_keepalive
+    maybe_configure_sudo_timestamp_timeout
   fi
 
   if ! bool_is_true "$NO_NET"; then
@@ -1067,6 +1111,8 @@ main() {
     EXPECT_EXTRA_CLIS="$INSTALL_EXTRA_CLIS" \
     EXPECT_FIREFOX="$INSTALL_FIREFOX" \
     EXPECT_CHROME="$INSTALL_CHROME" \
+    EXPECT_SUDO_TIMESTAMP_TIMEOUT="$CONFIGURE_SUDO_TIMESTAMP_TIMEOUT" \
+    SUDO_TIMESTAMP_TIMEOUT_MINUTES="$SUDO_TIMESTAMP_TIMEOUT_MINUTES" \
     "$SCRIPT_DIR/verify_setup.sh"
   fi
 
