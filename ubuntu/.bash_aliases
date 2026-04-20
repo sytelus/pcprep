@@ -1,3 +1,17 @@
+# Portable helpers so this alias file can be sourced from both Ubuntu bash and
+# the macOS managed zsh/bash setup without exploding on platform differences.
+pcprep_cmd_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+pcprep_is_macos() {
+  [ "$(uname -s)" = "Darwin" ]
+}
+
+pcprep_is_linux() {
+  [ "$(uname -s)" = "Linux" ]
+}
+
 # alias airros='cd ~/vso/msresearch/Theseus/catkin_ws/src/air_ros/src/'
 # alias airmain='cd ~/vso/msresearch/Theseus/main/'
 # alias airrt='cd ~/vso/msresearch/Theseus/'
@@ -49,7 +63,9 @@ alias gremote='git remote -v'
 alias undocommit='git reset --soft HEAD~1'
 
 # WSL root
-alias bashrt='cd /mnt/c/Users/$USER/AppData/Local/lxss/rootfs'
+if [ -d "/mnt/c/Users/$USER/AppData/Local/lxss/rootfs" ]; then
+  alias bashrt='cd /mnt/c/Users/$USER/AppData/Local/lxss/rootfs'
+fi
 # alias ue4='~/GitHubSrc/UnrealEngine/Engine/Binaries/Linux/UE4Editor'
 
 function findstr {
@@ -70,12 +86,27 @@ fi
 
 alias start-tmux='[[ -z "$TMUX" ]] && [ "$SSH_CONNECTION" != "" ] && (tmux attach-session -t ssh_tmux || tmux new-session -s ssh_tmux)'
 alias tmuxx=start-tmux
-alias ipconfig='nmcli dev show'
+if pcprep_cmd_exists nmcli; then
+  alias ipconfig='nmcli dev show'
+elif pcprep_is_macos; then
+  alias ipconfig='ifconfig'
+fi
 
-alias whowhat="ps -eo user,pid,ppid,%cpu,%mem,tty,stat,start,time,cmd --sort=user | awk '$1 !~ /^(root|systemd|messagebus|syslog|daemon|polkitd|avahi|whoopsie|colord|rtkit|usbmux|dnsmasq|cups-pk-helper|speech-dispatcher|geoclue|fwupd-refresh|saned|uuidd|nobody)$/'"
+whowhat() {
+  if pcprep_is_macos; then
+    ps -eo user,pid,ppid,%cpu,%mem,stat,time,comm \
+      | awk '$1 !~ /^(root|_.*|nobody|daemon)$/' \
+      | sort -k1,1
+  else
+    ps -eo user,pid,ppid,%cpu,%mem,tty,stat,start,time,cmd --sort=user \
+      | awk '$1 !~ /^(root|systemd|messagebus|syslog|daemon|polkitd|avahi|whoopsie|colord|rtkit|usbmux|dnsmasq|cups-pk-helper|speech-dispatcher|geoclue|fwupd-refresh|saned|uuidd|nobody)$/'
+  fi
+}
 
 # NVIDIA driver reset (useful after driver crash)
-alias nvreset='sudo rmmod nvidia_uvm;sudo rmmod nvidia;sudo modprobe nvidia;sudo modprobe nvidia_uvm;'
+if pcprep_cmd_exists nvidia-smi && pcprep_cmd_exists modprobe && pcprep_cmd_exists rmmod; then
+  alias nvreset='sudo rmmod nvidia_uvm;sudo rmmod nvidia;sudo modprobe nvidia;sudo modprobe nvidia_uvm;'
+fi
 
 # move files and remove source
 function smv {
@@ -88,6 +119,46 @@ alias dockerls='docker container ls'
 alias dockersize='docker ps --all --size'
 unalias version 2>/dev/null
 function version {
+  if pcprep_is_macos; then
+    echo "=== macOS ==="
+    sw_vers
+    echo
+
+    echo "=== Shell ==="
+    if [ -n "${ZSH_VERSION:-}" ]; then
+      echo "zsh $ZSH_VERSION ($SHELL)"
+    else
+      echo "$SHELL"
+    fi
+    echo
+
+    local py_exe=""
+    if pcprep_cmd_exists python3; then
+      py_exe=$(command -v python3)
+    elif pcprep_cmd_exists python; then
+      py_exe=$(command -v python)
+    fi
+
+    if [ -n "$py_exe" ]; then
+      echo "Python: $("$py_exe" --version 2>&1) ($py_exe)"
+      if "$py_exe" -c "import torch" >/dev/null 2>&1; then
+        local torch_ver mps_ok
+        torch_ver=$("$py_exe" -c 'import torch; print(torch.__version__)')
+        mps_ok=$("$py_exe" -c 'import torch; print(torch.backends.mps.is_available())')
+        echo "PyTorch: $torch_ver (MPS available: $mps_ok)"
+      else
+        echo "PyTorch: not installed for $py_exe"
+      fi
+    else
+      echo "Python: not found"
+    fi
+
+    if pcprep_cmd_exists brew; then
+      echo "Homebrew: $(brew --version | head -1) (prefix: $(brew --prefix))"
+    fi
+    return 0
+  fi
+
   echo "=== Distribution ==="
   if command -v lsb_release >/dev/null 2>&1; then
     lsb_release -a
@@ -187,12 +258,44 @@ function version {
     echo "cuDNN: ldconfig not available"
   fi
 }
-alias freespace="df -h | grep -vE '^Filesystem|tmpfs|cdrom' | sort -k4hr"
-alias drives='df -hT 2>/dev/null | sort -k 3 --human-numeric-sort --reverse'
-alias disks=drives
+
+freespace() {
+  if pcprep_is_macos; then
+    df -h | grep -vE '^Filesystem|/System/Volumes' | sort -k4 -hr
+  else
+    df -h | grep -vE '^Filesystem|tmpfs|cdrom' | sort -k4hr
+  fi
+}
+
+drives() {
+  if pcprep_is_macos; then
+    df -h
+  else
+    df -hT 2>/dev/null | sort -k 3 --human-numeric-sort --reverse
+  fi
+}
+
+disks() {
+  drives "$@"
+}
+
 # Displays a full, hierarchical snapshot of all running processes.
-alias psex='ps -ef f'
-alias pmy='ps -u $USER -U $USER u'
+psex() {
+  if pcprep_is_macos; then
+    ps -axww -o pid,ppid,user,%cpu,%mem,stat,start,time,command
+  else
+    ps -ef f
+  fi
+}
+
+pmy() {
+  if pcprep_is_macos; then
+    ps -U "$USER" -u "$USER" -o pid,ppid,%cpu,%mem,stat,time,command
+  else
+    ps -u "$USER" -U "$USER" u
+  fi
+}
+
 function realview {
   less +F "$1"
 }
@@ -200,24 +303,57 @@ alias cpx='rsync -avh --info=progress2'
 # cpz ~/dir1/ user@myserver.com:~/dir2/
 alias cpz='rsync -avhz --info=progress2'
 alias mvx='rsync -avh --remove-source-files --info=progress2'
+
 # show torch version
-alias torchver="python -c 'import torch; print(torch.__version__)';nvcc --version"
+torchver() {
+  local py_exe=""
+  if pcprep_cmd_exists python; then
+    py_exe=$(command -v python)
+  elif pcprep_cmd_exists python3; then
+    py_exe=$(command -v python3)
+  fi
+
+  if [ -n "$py_exe" ]; then
+    "$py_exe" -c 'import torch; print(torch.__version__)'
+  else
+    echo "python not found"
+  fi
+
+  if pcprep_cmd_exists nvcc; then
+    nvcc --version
+  fi
+}
+
 # remove pass phrase from ssh keys
 alias removepass='find ~/.ssh -type f \( -name 'id_*' -o -name 'sb_*' \) ! -name '*.pub' -exec sh -c 'ssh-keygen -l -f "{}" >/dev/null 2>&1 && echo "Processing: {}" && ssh-keygen -p -f "{}"' \;'
 function treesize {
   local target="${1:-.}"
-  du -a --max-depth=1 --human-readable --time --exclude='.*' -- "$target" \
-    | sort --human-numeric-sort --reverse
+  if pcprep_is_macos; then
+    du -ahd 1 "$target" 2>/dev/null | sort -hr | head -n 15
+  else
+    du -a --max-depth=1 --human-readable --time --exclude='.*' -- "$target" \
+      | sort --human-numeric-sort --reverse
+  fi
 }
 
 
 function claudeyolo {
-  claude --dangerously-skip-permissions --remote-control "$@"
+  if claude --help 2>/dev/null | grep -q -- '--remote-control'; then
+    claude --dangerously-skip-permissions --remote-control "$@"
+  else
+    claude --dangerously-skip-permissions "$@"
+  fi
 }
 function codexyolo {
   codex --yolo "$@"
 }
-alias codexupdate="sudo npm install -g @openai/codex@latest"
+codexupdate() {
+  if pcprep_is_macos; then
+    npm install -g @openai/codex@latest
+  else
+    sudo npm install -g @openai/codex@latest
+  fi
+}
 alias claudeupdate="claude update"
 alias z='zellij attach -c "$USER@$(hostname)"'
 alias za="zellij a"

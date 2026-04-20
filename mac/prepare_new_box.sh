@@ -162,6 +162,11 @@ ensure_homebrew() {
 
   brew_shellenv_file="$HOME/.config/pcprep/macos-shellenv.sh"
   shellenv_block="# Managed by pcprep. Source Homebrew and the user-local bin directory.
+if [ -n \"\${PCPREP_MACOS_SHELLENV_LOADED:-}\" ]; then
+  return 0 2>/dev/null || true
+fi
+PCPREP_MACOS_SHELLENV_LOADED=1
+
 if [ -x \"$brew_bin\" ]; then
   eval \"\$($brew_bin shellenv)\"
 fi

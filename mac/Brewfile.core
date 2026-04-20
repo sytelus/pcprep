@@ -56,6 +56,9 @@ brew "ripgrep"
 brew "fd"
 brew "fzf"
 brew "tmux"
+# zellij: modern terminal multiplexer with batteries-included defaults. Like
+# tmux, it is shell-agnostic and works fine under zsh, bash, etc.
+brew "zellij"
 brew "tree"
 brew "watch"
 brew "htop"

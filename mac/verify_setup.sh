@@ -83,6 +83,64 @@ check_command() {
   fi
 }
 
+# Compile and run tiny C and C++ programs through Apple's toolchain so we
+# validate real native-build functionality, not just the presence of CLT files.
+check_c_cpp_toolchain() {
+  local temp_dir
+  local c_src
+  local cpp_src
+  local c_bin
+  local cpp_bin
+
+  if ! xcrun --find clang >/dev/null 2>&1; then
+    fail "Apple Clang is not available via xcrun."
+    return
+  fi
+
+  if ! xcrun --find clang++ >/dev/null 2>&1; then
+    fail "Apple Clang++ is not available via xcrun."
+    return
+  fi
+
+  temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/pcprep-mac-cxx.XXXXXX")"
+  c_src="$temp_dir/hello.c"
+  cpp_src="$temp_dir/hello.cpp"
+  c_bin="$temp_dir/hello-c"
+  cpp_bin="$temp_dir/hello-cpp"
+
+  cat > "$c_src" <<'EOF'
+#include <stdio.h>
+
+int main(void) {
+  puts("pcprep-c-ok");
+  return 0;
+}
+EOF
+
+  cat > "$cpp_src" <<'EOF'
+#include <iostream>
+
+int main() {
+  std::cout << "pcprep-cpp-ok\n";
+  return 0;
+}
+EOF
+
+  if xcrun clang "$c_src" -o "$c_bin" >/dev/null 2>&1 && "$c_bin" >/dev/null 2>&1; then
+    pass "C toolchain compiles and runs a simple program."
+  else
+    fail "C toolchain smoke test failed."
+  fi
+
+  if xcrun clang++ -std=c++17 "$cpp_src" -o "$cpp_bin" >/dev/null 2>&1 && "$cpp_bin" >/dev/null 2>&1; then
+    pass "C++ toolchain compiles and runs a simple program."
+  else
+    fail "C++ toolchain smoke test failed."
+  fi
+
+  rm -rf "$temp_dir"
+}
+
 # Resolve the same preferred Python interpreter that setup_python_ai.sh targets.
 find_python_bin() {
   local prefix
@@ -186,7 +244,13 @@ check_command git  "Git"
 check_command uv   "uv"
 check_command node "Node.js"
 check_command npm  "npm"
+check_command tmux "tmux"
+check_command zellij "zellij"
+check_command cmake "CMake"
+check_command ninja "Ninja"
+check_command pkg-config "pkg-config"
 check_command "python${PYTHON_MINOR}" "Python ${PYTHON_MINOR} (from ${PYTHON_FORMULA})"
+check_c_cpp_toolchain
 
 PYTHON_BIN="$(find_python_bin || true)"
 

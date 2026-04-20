@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # Install shared cross-platform dotfiles from ubuntu/ into the user's home
-# directory, plus a managed macOS-specific zsh fragment that layers
-# opinionated history/aliases/env-vars on top of the user's existing ~/.zshrc.
+# directory, plus managed macOS shell fragments that layer opinionated
+# history/aliases/env-vars on top of the user's existing bash/zsh setup.
 #
 # Policy:
 # - Never clobber an existing user-edited config.  Files in ~/ that the user
 #   may have customized (.tmux.conf, ~/.claude/settings.json,
 #   ~/.codex/config.toml) are copied COPY-IF-ABSENT.
-# - The pcprep-shell.zsh fragment IS rewritten on every run because it lives
-#   under ~/.config/pcprep/ (a directory we own) and is sourced from a fenced
-#   managed block in ~/.zshrc — removing that block fully uninstalls us.
+# - The managed shell fragments under ~/.config/pcprep/ ARE rewritten on every
+#   run because they live in a directory we own and are sourced from fenced
+#   managed blocks in ~/.zshrc / ~/.bashrc / ~/.bash_profile.
 # - All changes are reversible without this script by:
-#     1. Deleting ~/.config/pcprep/pcprep-shell.zsh
-#     2. Removing the "# >>> pcprep macos zshrc >>>" block from ~/.zshrc
+#     1. Deleting ~/.config/pcprep/ managed shell files
+#     2. Removing the "# >>> pcprep macos ... >>>" blocks from ~/.zshrc,
+#        ~/.bashrc, and ~/.bash_profile
 #     3. Deleting any copied-if-absent files you no longer want
 #
 # Runs under Bash 3.2 so it works on a fresh Mac before Homebrew is installed.
@@ -113,6 +114,15 @@ copy_if_absent \
   "$HOME/.codex/config.toml" \
   "Codex CLI configuration"
 
+# --------------------------------------------------------- Readline config
+
+# Readline config helps bash and other Readline-based CLIs feel the same on
+# Ubuntu and macOS without affecting zsh's line editor.
+copy_if_absent \
+  "$UBUNTU_DOTFILES_DIR/.inputrc" \
+  "$HOME/.inputrc" \
+  "Readline configuration"
+
 # --------------------------------------------------------- Local bin helpers
 
 # Cross-machine helper scripts copied from ubuntu/ into ~/.local/bin.  Most of
@@ -138,16 +148,19 @@ do
     "$local_bin_file"
 done
 
-# ------------------------------------------------------ Managed zsh fragment
+# ---------------------------------------------------- Managed shell fragments
 
-# Our opinionated zsh extras (history tuning, AI cache env vars, aliases).
-# This file lives under ~/.config/pcprep/ — a directory we own — so we are
-# free to REWRITE it on every run.  The user's ~/.zshrc gets a single
-# fenced block that sources it; deleting that block fully removes us.
-PCPREP_SHELL_DEST="$HOME/.config/pcprep/pcprep-shell.zsh"
-ensure_dir "$(dirname "$PCPREP_SHELL_DEST")"
-cp "$MAC_DOTFILES_DIR/pcprep-shell.zsh" "$PCPREP_SHELL_DEST"
-log "Wrote managed zsh fragment to $PCPREP_SHELL_DEST"
+# The mac shell fragments live under ~/.config/pcprep, which we own.  That lets
+# us rewrite them on reruns while still keeping ~/.zshrc, ~/.bashrc, and
+# ~/.bash_profile under the user's control except for small fenced blocks.
+PCPREP_CONFIG_DIR="$HOME/.config/pcprep"
+ensure_dir "$PCPREP_CONFIG_DIR"
+
+cp "$MAC_DOTFILES_DIR/pcprep-shell.zsh" "$PCPREP_CONFIG_DIR/pcprep-shell.zsh"
+cp "$MAC_DOTFILES_DIR/pcprep-shell.bash" "$PCPREP_CONFIG_DIR/pcprep-shell.bash"
+cp "$MAC_DOTFILES_DIR/pcprep-shell.common.sh" "$PCPREP_CONFIG_DIR/pcprep-shell.common.sh"
+cp "$UBUNTU_DOTFILES_DIR/.bash_aliases" "$PCPREP_CONFIG_DIR/pcprep-aliases.sh"
+log "Wrote managed bash/zsh shell fragments under $PCPREP_CONFIG_DIR"
 
 # The source line we want in ~/.zshrc.  The guard ensures zsh does not
 # error out if the fragment is ever moved/deleted — sourcing silently
@@ -164,6 +177,27 @@ upsert_managed_block \
   "$zshrc_source_line"
 log "Ensured ~/.zshrc sources the pcprep managed fragment."
 
-append_next_step "Dotfiles applied. Open a new terminal (or 'exec zsh') so the updated ~/.zshrc takes effect. The managed block is marked by '>>> pcprep macos zshrc >>>' / '<<< pcprep macos zshrc <<<'; remove that block to uninstall."
+bashrc_source_line='[ -f "$HOME/.config/pcprep/pcprep-shell.bash" ] && . "$HOME/.config/pcprep/pcprep-shell.bash"'
+upsert_managed_block \
+  "$HOME/.bashrc" \
+  "# >>> pcprep macos bashrc >>>" \
+  "# <<< pcprep macos bashrc <<<" \
+  "$bashrc_source_line"
+log "Ensured ~/.bashrc sources the pcprep managed fragment."
+
+# Login bash on macOS reads ~/.bash_profile, not ~/.bashrc, so source ~/.bashrc
+# from a fenced block there as well.  The separate managed shellenv block from
+# prepare_new_box.sh remains responsible for Homebrew PATH setup.
+bash_profile_block='if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi'
+upsert_managed_block \
+  "$HOME/.bash_profile" \
+  "# >>> pcprep macos bash_profile >>>" \
+  "# <<< pcprep macos bash_profile <<<" \
+  "$bash_profile_block"
+log "Ensured ~/.bash_profile sources ~/.bashrc for login bash shells."
+
+append_next_step "Dotfiles applied. Open a new terminal (or run 'exec zsh' / 'exec bash') so the updated shell fragments take effect. The managed blocks are marked by '>>> pcprep macos ... >>>' / '<<< pcprep macos ... <<<'; remove those blocks to uninstall."
 
 log "Dotfiles setup completed."
