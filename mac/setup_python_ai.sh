@@ -30,27 +30,11 @@ if bool_is_true "$NO_NET"; then
   die "NO_NET=1 is set but this script needs network access for pip installs. Re-run with NO_NET=0 after connecting."
 fi
 
-find_python_bin() {
-  local prefix
-
-  if ! command_exists brew; then
-    return 1
-  fi
-
-  prefix="$(brew --prefix "$PYTHON_FORMULA" 2>/dev/null || true)"
-  if [ -n "$prefix" ] && [ -x "$prefix/bin/python${PYTHON_MINOR}" ]; then
-    printf '%s\n' "$prefix/bin/python${PYTHON_MINOR}"
-    return 0
-  fi
-
-  return 1
-}
-
 if ! command_exists uv; then
   die "uv is not installed. Run mac/prepare_new_box.sh first so the Python toolchain exists."
 fi
 
-PYTHON_BIN="$(find_python_bin || true)"
+PYTHON_BIN="$(find_brew_python_bin "$PYTHON_FORMULA" || true)"
 if [ -z "$PYTHON_BIN" ]; then
   die "Homebrew $PYTHON_FORMULA was not found. Install it first via mac/prepare_new_box.sh."
 fi
@@ -70,8 +54,12 @@ uv pip install --python "$PYTHON_BIN" --upgrade -r "$SCRIPT_DIR/requirements-ai.
 # separate requirements file so users who want to stay on pure PyTorch can set
 # INSTALL_MLX=0 and skip the extra download and disk footprint.
 if bool_is_true "$INSTALL_MLX"; then
-  log "Installing MLX extras into the Homebrew Python interpreter (INSTALL_MLX=1)."
-  uv pip install --python "$PYTHON_BIN" --upgrade -r "$SCRIPT_DIR/requirements-mlx.txt"
+  if [ "$(uname -m)" = "arm64" ]; then
+    log "Installing MLX extras into the Homebrew Python interpreter (INSTALL_MLX=1)."
+    uv pip install --python "$PYTHON_BIN" --upgrade -r "$SCRIPT_DIR/requirements-mlx.txt"
+  else
+    warn "INSTALL_MLX=1 was requested, but MLX is Apple-Silicon-only. Skipping MLX on $(uname -m)."
+  fi
 fi
 
 if bool_is_true "$INSTALL_JUPYTER_KERNEL"; then
@@ -94,38 +82,6 @@ print(f"MPS available: {torch.backends.mps.is_available()}")
 PYTHON_CHECK
 
 log "Verifying the requested Python package stack."
-"$PYTHON_BIN" <<'PYTHON_CHECK'
-import importlib.metadata as metadata
-import importlib
-
-packages = [
-    ("rich", "rich"),
-    ("pytest", "pytest"),
-    ("pandas", "pandas"),
-    ("scikit-learn", "sklearn"),
-    ("matplotlib", "matplotlib"),
-    ("jupyter", ""),
-    ("tensorflow", "tensorflow"),
-    ("tensorboard", "tensorboard"),
-    ("keras", "keras"),
-    ("transformers", "transformers"),
-    ("datasets", "datasets"),
-    ("wandb", "wandb"),
-    ("accelerate", "accelerate"),
-    ("einops", "einops"),
-    ("tokenizers", "tokenizers"),
-    ("sentencepiece", "sentencepiece"),
-    ("lightning", "lightning"),
-]
-
-for dist_name, module_name in packages:
-    dist_version = metadata.version(dist_name)
-    if module_name:
-        module = importlib.import_module(module_name)
-        module_version = getattr(module, "__version__", dist_version)
-        print(f"{dist_name}: {module_version}")
-    else:
-        print(f"{dist_name}: {dist_version}")
-PYTHON_CHECK
+"$PYTHON_BIN" "$SCRIPT_DIR/check_python_stack.py"
 
 log "AI Python packages are installed into the Homebrew interpreter at $PYTHON_BIN"

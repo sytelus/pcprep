@@ -42,6 +42,9 @@ ENABLE_FIREWALL="${ENABLE_FIREWALL:-1}"
 ENABLE_FIREWALL_STEALTH="${ENABLE_FIREWALL_STEALTH:-0}"
 ENABLE_TOUCH_ID_FOR_SUDO="${ENABLE_TOUCH_ID_FOR_SUDO:-1}"
 UPGRADE_NODE_GLOBALS="${UPGRADE_NODE_GLOBALS:-0}"
+# Keep the stock managed prompt simple by default, but allow an explicit
+# Powerlevel10k opt-in for users who want a richer zsh prompt.
+USE_POWERLEVEL10K_PROMPT="${USE_POWERLEVEL10K_PROMPT:-0}"
 
 # Additional installs — all default ON so a fresh MacBook gets the popular-dev
 # loadout automatically.  Set any individual flag to 0 to opt out of that item.
@@ -135,7 +138,7 @@ ensure_homebrew() {
   local brew_bin
   local brew_shellenv_file
   local shellenv_block
-  local source_line
+  local shellenv_source_line
 
   preferred_prefix="$(brew_prefix_guess)"
   brew_bin="$preferred_prefix/bin/brew"
@@ -168,6 +171,8 @@ if [ -n \"\${PCPREP_MACOS_SHELLENV_LOADED:-}\" ]; then
   return 0 2>/dev/null || true
 fi
 PCPREP_MACOS_SHELLENV_LOADED=1
+
+export USE_POWERLEVEL10K_PROMPT=\"${USE_POWERLEVEL10K_PROMPT:-0}\"
 
 if [ -x \"$brew_bin\" ]; then
   eval \"\$($brew_bin shellenv)\"
@@ -211,12 +216,22 @@ fi"
     "# <<< pcprep macos shellenv <<<" \
     "$shellenv_block"
 
-  # The same one-liner goes into both login rc files — zsh reads ~/.zprofile
-  # for login shells and bash reads ~/.bash_profile — so they both pick up
-  # the managed shellenv without us owning either file's full contents.
-  source_line='[ -f "$HOME/.config/pcprep/macos-shellenv.sh" ] && source "$HOME/.config/pcprep/macos-shellenv.sh"'
-  ensure_line_in_file "$HOME/.zprofile"      "$source_line"
-  ensure_line_in_file "$HOME/.bash_profile"  "$source_line"
+  # Keep the shellenv sourcing itself managed and reversible too.  We also
+  # remove the older unmanaged one-line injection if it exists from a previous
+  # pcprep run so reruns converge on fenced blocks.
+  shellenv_source_line='[ -f "$HOME/.config/pcprep/macos-shellenv.sh" ] && source "$HOME/.config/pcprep/macos-shellenv.sh"'
+  remove_exact_line_from_file "$HOME/.zprofile" "$shellenv_source_line"
+  remove_exact_line_from_file "$HOME/.bash_profile" "$shellenv_source_line"
+  upsert_managed_block \
+    "$HOME/.zprofile" \
+    "# >>> pcprep macos zprofile shellenv >>>" \
+    "# <<< pcprep macos zprofile shellenv <<<" \
+    "$shellenv_source_line"
+  upsert_managed_block \
+    "$HOME/.bash_profile" \
+    "# >>> pcprep macos bash_profile shellenv >>>" \
+    "# <<< pcprep macos bash_profile shellenv <<<" \
+    "$shellenv_source_line"
   ensure_dir "$HOME/.local/bin"
   export PATH="$HOME/.local/bin:$PATH"
 }
@@ -426,7 +441,7 @@ maybe_install_ollama() {
   # in, which costs battery even when no model is loaded.  The formula installs
   # just the binaries; the server only runs when the user invokes
   # `ollama serve` explicitly, which matches the "no unexpected background
-  # daemons" goal set in mac/todo.md.
+  # daemons" goal for this bootstrap.
   if ! bool_is_true "$INSTALL_OLLAMA"; then
     warn "INSTALL_OLLAMA=0 set. Skipping Ollama."
     return 0
@@ -485,7 +500,19 @@ maybe_install_dev_fonts() {
   brew_install_if_missing cask font-jetbrains-mono "JetBrains Mono"
   brew_install_if_missing cask font-meslo-lg-nerd-font "MesloLG Nerd Font"
   brew_install_if_missing cask font-fira-code "Fira Code"
-  append_next_step "Set your Terminal or iTerm2 profile font to 'MesloLGS Nerd Font' if you want the managed Powerlevel10k prompt to render its glyphs cleanly."
+  append_next_step "Set your Terminal, iTerm2, or editor font to JetBrains Mono, MesloLGS Nerd Font, or Fira Code if you want to use the installed developer fonts."
+}
+
+maybe_install_powerlevel10k() {
+  # Optional zsh theme for users who want a richer prompt than the plain
+  # built-in `%2~ %#` default.  Kept explicit so prompt theming stays a choice,
+  # not an accidental side effect of the base bootstrap.
+  if ! bool_is_true "$USE_POWERLEVEL10K_PROMPT"; then
+    return 0
+  fi
+
+  brew_install_if_missing formula powerlevel10k "Powerlevel10k"
+  append_next_step "Powerlevel10k prompt is enabled for new zsh shells. If the glyphs look wrong, set your Terminal or iTerm2 font to MesloLGS Nerd Font."
 }
 
 maybe_install_firefox() {
@@ -770,6 +797,9 @@ maybe_enable_firewall() {
 }
 
 main() {
+  local verify_expect_mlx
+  local verify_expect_powerlevel10k
+
   require_macos
   ensure_existing_ssh_setup
   collect_preflight_inputs
@@ -808,6 +838,7 @@ main() {
     maybe_install_tailscale
     maybe_install_rust
     maybe_install_dev_fonts
+    maybe_install_powerlevel10k
     maybe_install_firefox
     maybe_install_chrome
     maybe_install_github_copilot_cli
@@ -845,8 +876,21 @@ main() {
   append_next_step "If you need the full Apple SDKs for iOS or simulator work, install Xcode from the App Store and then run 'sudo xcodebuild -license accept'."
   append_next_step "Add Terminal or iTerm2 to Full Disk Access if a tool needs broader filesystem visibility."
 
-  if bool_is_true "$INSTALL_GUI_APPS"; then
-    append_next_step "Restart your terminal after setup so the managed PATH changes are active in all future shells."
+  if ! bool_is_true "$APPLY_DOTFILES"; then
+    append_next_step "Open a new terminal (or source ~/.config/pcprep/macos-shellenv.sh) so Homebrew, ~/.local/bin, and cargo PATH changes are active in future shells."
+    if bool_is_true "$USE_POWERLEVEL10K_PROMPT"; then
+      append_next_step "USE_POWERLEVEL10K_PROMPT=1 was requested, but APPLY_DOTFILES=0 leaves your existing ~/.zshrc untouched. Re-run with APPLY_DOTFILES=1 if you want pcprep to manage and enable the Powerlevel10k prompt for zsh."
+    fi
+  fi
+
+  verify_expect_mlx="$INSTALL_MLX"
+  if [ "$(uname -m)" != "arm64" ]; then
+    verify_expect_mlx=0
+  fi
+
+  verify_expect_powerlevel10k=0
+  if bool_is_true "$USE_POWERLEVEL10K_PROMPT" && bool_is_true "$APPLY_DOTFILES"; then
+    verify_expect_powerlevel10k=1
   fi
 
   if ! bool_is_true "$NO_NET"; then
@@ -860,12 +904,13 @@ main() {
     EXPECT_AI_ENV="$INSTALL_AI_ENV" \
     EXPECT_MINICONDA="$INSTALL_MINICONDA" \
     EXPECT_DOTFILES="$APPLY_DOTFILES" \
+    EXPECT_POWERLEVEL10K="$verify_expect_powerlevel10k" \
     EXPECT_OLLAMA="$INSTALL_OLLAMA" \
     EXPECT_DEV_FONTS="$INSTALL_DEV_FONTS" \
     EXPECT_RUST="$INSTALL_RUST" \
     EXPECT_GO="$INSTALL_GO" \
     EXPECT_TAILSCALE="$INSTALL_TAILSCALE" \
-    EXPECT_MLX="$INSTALL_MLX" \
+    EXPECT_MLX="$verify_expect_mlx" \
     EXPECT_LLAMA_CPP="$INSTALL_LLAMA_CPP" \
     EXPECT_EXTRA_CLIS="$INSTALL_EXTRA_CLIS" \
     EXPECT_FIREFOX="$INSTALL_FIREFOX" \

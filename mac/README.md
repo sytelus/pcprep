@@ -48,6 +48,12 @@ Bootstrap without Miniconda:
 INSTALL_MINICONDA=0 bash mac/prepare_new_box.sh
 ```
 
+Bootstrap with the managed compact Powerlevel10k zsh prompt:
+
+```bash
+USE_POWERLEVEL10K_PROMPT=1 bash mac/prepare_new_box.sh
+```
+
 Local-only rerun:
 
 ```bash
@@ -141,6 +147,8 @@ Useful toggles:
 - `INSTALL_MINICONDA=0`: skip the default Miniconda install.
 - `APPLY_MACOS_DEFAULTS=0`: skip `apply_defaults.sh`.
 - `APPLY_DOTFILES=0`: skip `apply_dotfiles.sh`.
+- `USE_POWERLEVEL10K_PROMPT=1`: install Powerlevel10k and enable the managed
+  compact Powerlevel10k prompt for zsh instead of the plain built-in prompt.
 - `ENABLE_FIREWALL=0`: leave the macOS firewall unchanged.
 - `ENABLE_FIREWALL_STEALTH=1`: also enable firewall stealth mode.
 - `ENABLE_TOUCH_ID_FOR_SUDO=0`: leave sudo authentication unchanged.
@@ -171,14 +179,17 @@ Path override:
 ## What The Scripts Manage
 
 - `~/.config/pcprep/macos-shellenv.sh`
-  This is sourced from `~/.zprofile` and `~/.bash_profile`. It sets up
-  Homebrew, `~/.local/bin`, Cargo, and Miniconda helper functions.
+  This is sourced from managed blocks in `~/.zprofile` and
+  `~/.bash_profile`, and also from the managed bash/zsh shell fragments for
+  non-login shells. It sets up Homebrew, `~/.local/bin`, Cargo, and
+  Miniconda helper functions.
 - `~/.config/pcprep/pcprep-shell.bash`
   Managed bash fragment sourced from a fenced block in `~/.bashrc`.
 - `~/.config/pcprep/pcprep-shell.zsh`
   Managed zsh fragment sourced from a fenced block in `~/.zshrc`.
 - `~/.config/pcprep/pcprep-p10k.zsh`
-  Managed compact Powerlevel10k prompt config used by the zsh fragment.
+  Managed compact Powerlevel10k config, used only when
+  `USE_POWERLEVEL10K_PROMPT=1`.
 - `~/.config/pcprep/pcprep-shell.common.sh`
   Shared bash/zsh environment and SSH/tmux helpers.
 - `~/.config/pcprep/pcprep-aliases.sh`
@@ -207,13 +218,15 @@ Path override:
   `ubuntu/.bash_aliases`. Linux-only entries are guarded in that file instead
   of being dropped, so Slurm / Kubernetes / remote-development aliases remain
   available on macOS.
-- zsh uses a managed compact Powerlevel10k prompt when Homebrew's
-  `powerlevel10k` formula is present. The recommended font for its glyphs is
-  MesloLGS Nerd Font, which is already part of `INSTALL_DEV_FONTS=1`.
+- The default managed zsh prompt is intentionally plain and short: `%2~ %# `.
+  If you want to try Powerlevel10k instead, run the bootstrap with
+  `USE_POWERLEVEL10K_PROMPT=1`; the managed Powerlevel10k layout is still kept
+  intentionally compact.
 - Login bash on macOS reads `~/.bash_profile`, not `~/.bashrc`, so the mac
-  dotfile setup adds a small managed block to `~/.bash_profile` that sources
-  `~/.bashrc`. New `bash` shells therefore pick up the same Homebrew shellenv,
-  history settings, and shared aliases by default after the scripts run.
+  setup uses one managed `~/.bash_profile` block for shellenv and one managed
+  block that sources `~/.bashrc`. New `bash` shells therefore pick up the same
+  Homebrew shellenv, history settings, and shared aliases by default after the
+  scripts run.
 - The bootstrap front-loads sudo authentication and refreshes the cached sudo
   timestamp in the background during long runs, so password or Touch ID prompts
   should usually happen once per bootstrap rather than once per privileged step.
@@ -225,6 +238,9 @@ Path override:
   TensorFlow / Keras, and the mainstream LLM tooling stack (`transformers`,
   `datasets`, `wandb`, `accelerate`, `einops`, `tokenizers`,
   `sentencepiece`, `lightning`, plus PyTorch and TensorBoard).
+- MLX is treated as an Apple-Silicon extra on top of that stack. On Intel
+  Macs, `setup_python_ai.sh` skips MLX automatically even if `INSTALL_MLX=1`
+  is left at its default.
 - Miniconda is installed by default into `~/miniconda3`, but it is left off
   `PATH` and `auto_activate_base` is disabled. Use `condaon` to activate conda
   base, `condaon ENV_NAME` for a named environment, and `condaoff` to fully
@@ -240,9 +256,12 @@ Path override:
 
 ## Reversal
 
-- Remove the `>>> pcprep macos zshrc >>>`, `>>> pcprep macos bashrc >>>`, and
-  `>>> pcprep macos bash_profile >>>` blocks from `~/.zshrc`, `~/.bashrc`, and
-  `~/.bash_profile` to stop loading the managed shell fragments.
+- Remove the `>>> pcprep macos zprofile shellenv >>>`,
+  `>>> pcprep macos bash_profile shellenv >>>`,
+  `>>> pcprep macos zshrc >>>`, `>>> pcprep macos bashrc >>>`, and
+  `>>> pcprep macos bash_profile >>>` blocks from `~/.zprofile`, `~/.zshrc`,
+  `~/.bashrc`, and `~/.bash_profile` to stop loading the managed shell
+  fragments and shellenv.
 - Delete `~/.config/pcprep/pcprep-shell.zsh`,
   `~/.config/pcprep/pcprep-p10k.zsh`,
   `~/.config/pcprep/pcprep-shell.bash`,
@@ -252,6 +271,3 @@ Path override:
 - Run `bash mac/revert_defaults.sh` to undo the macOS preference changes.
 - Remove any copy-if-absent files from your home directory manually if you do
   not want them.
-
-See `todo.md` for the candidate list behind the current defaults and
-`unimplemented.md` for the items intentionally left out.

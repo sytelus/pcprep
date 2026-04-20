@@ -4,8 +4,6 @@
 
 # --- General environment ----------------------------------------------
 export PYTHONHASHSEED=0
-export GIT_TEST_ASSUME_ALL_SAFE=1
-
 
 # --- AI data / cache layout -------------------------------------------
 export DATA_ROOT="$HOME/data"

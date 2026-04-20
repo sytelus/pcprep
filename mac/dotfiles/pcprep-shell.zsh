@@ -43,31 +43,52 @@ if [ -n "${ZSH_VERSION:-}" ]; then
 
 fi
 
-# Prompt: prefer the managed Powerlevel10k setup when the Homebrew formula is
-# installed; otherwise fall back to a tiny stock zsh prompt so shells stay
-# usable even before brew bundle has completed.
-_pcprep_p10k_theme=
-for _pcprep_p10k_candidate in \
-  "${HOMEBREW_PREFIX:-}/share/powerlevel10k/powerlevel10k.zsh-theme" \
-  "/opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme" \
-  "/usr/local/share/powerlevel10k/powerlevel10k.zsh-theme"
-do
-  if [ -n "$_pcprep_p10k_candidate" ] && [ -r "$_pcprep_p10k_candidate" ]; then
-    _pcprep_p10k_theme="$_pcprep_p10k_candidate"
-    break
-  fi
-done
+# Load the same Homebrew / ~/.local/bin / cargo / conda helpers that login
+# shells get from ~/.zprofile so plain `exec zsh` or nested interactive zsh
+# shells behave the same as a fresh Terminal or iTerm2 tab.
+if [ -f "$HOME/.config/pcprep/macos-shellenv.sh" ]; then
+  . "$HOME/.config/pcprep/macos-shellenv.sh"
+fi
 
-if [ -n "${ZSH_VERSION:-}" ] && [ -n "$_pcprep_p10k_theme" ] && [ -r "$HOME/.config/pcprep/pcprep-p10k.zsh" ]; then
-  POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
-  source "$_pcprep_p10k_theme"
-  source "$HOME/.config/pcprep/pcprep-p10k.zsh"
+_pcprep_use_powerlevel10k=0
+case "${USE_POWERLEVEL10K_PROMPT:-0}" in
+  1|y|Y|yes|YES|true|TRUE|on|ON)
+    _pcprep_use_powerlevel10k=1
+    ;;
+esac
+
+if [ "$_pcprep_use_powerlevel10k" -eq 1 ]; then
+  _pcprep_p10k_theme=
+  for _pcprep_p10k_candidate in \
+    "${HOMEBREW_PREFIX:-}/share/powerlevel10k/powerlevel10k.zsh-theme" \
+    "/opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme" \
+    "/usr/local/share/powerlevel10k/powerlevel10k.zsh-theme"
+  do
+    if [ -n "$_pcprep_p10k_candidate" ] && [ -r "$_pcprep_p10k_candidate" ]; then
+      _pcprep_p10k_theme="$_pcprep_p10k_candidate"
+      break
+    fi
+  done
+
+  if [ -n "$_pcprep_p10k_theme" ] && [ -r "$HOME/.config/pcprep/pcprep-p10k.zsh" ]; then
+    POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+    source "$_pcprep_p10k_theme"
+    source "$HOME/.config/pcprep/pcprep-p10k.zsh"
+  else
+    # Fallback gracefully if the user enabled the richer prompt but the theme
+    # files are not installed yet.
+    PROMPT='%2~ %# '
+    RPROMPT=
+  fi
 else
+  # Keep the default prompt deliberately short, with no theme/plugin
+  # dependency: just the last two path components and the normal zsh prompt
+  # character.
   PROMPT='%2~ %# '
   RPROMPT=
 fi
 
-unset _pcprep_p10k_candidate _pcprep_p10k_theme
+unset _pcprep_p10k_candidate _pcprep_p10k_theme _pcprep_use_powerlevel10k
 
 # Shell-agnostic environment, aliases, and SSH/tmux helpers live in a common
 # fragment so macOS bash and zsh share the same day-to-day development setup.

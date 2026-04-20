@@ -120,6 +120,24 @@ ensure_line_in_file() {
   fi
 }
 
+# Remove an exact line from a file if it exists (fixed-string, whole-line
+# match).  Used for one-time migration away from older unmanaged snippets when
+# we replace them with fenced managed blocks.
+remove_exact_line_from_file() {
+  local target_file="$1"
+  local unwanted_line="$2"
+  local temp_file
+
+  if [ ! -f "$target_file" ]; then
+    return 0
+  fi
+
+  temp_file="$(mktemp "${TMPDIR:-/tmp}/pcprep-mac.XXXXXX")"
+  grep -Fvx "$unwanted_line" "$target_file" > "$temp_file" || true
+  cat "$temp_file" > "$target_file"
+  rm -f "$temp_file"
+}
+
 # Maintain a fenced "managed block" inside a file.  On each call we strip any
 # existing block bounded by block_start/block_end and append a fresh copy of
 # block_content between those markers.  This gives us idempotent updates to
@@ -257,6 +275,27 @@ brew_prefix_guess() {
       printf '%s\n' "/opt/homebrew"
       ;;
   esac
+}
+
+# Resolve a versioned Homebrew Python binary from a formula name such as
+# "python@3.12".  Prints the full interpreter path on success, nothing on
+# failure.
+find_brew_python_bin() {
+  local python_formula="$1"
+  local python_minor="${python_formula#python@}"
+  local prefix
+
+  if ! command_exists brew; then
+    return 1
+  fi
+
+  prefix="$(brew --prefix "$python_formula" 2>/dev/null || true)"
+  if [ -n "$prefix" ] && [ -x "$prefix/bin/python${python_minor}" ]; then
+    printf '%s\n' "$prefix/bin/python${python_minor}"
+    return 0
+  fi
+
+  return 1
 }
 
 # Queue a user-visible reminder to be printed at the end of the run.  Used for

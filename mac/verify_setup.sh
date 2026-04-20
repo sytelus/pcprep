@@ -39,6 +39,7 @@ EXPECT_GUI_APPS="${EXPECT_GUI_APPS:-1}"
 EXPECT_AI_ENV="${EXPECT_AI_ENV:-1}"
 EXPECT_MINICONDA="${EXPECT_MINICONDA:-1}"
 EXPECT_DOTFILES="${EXPECT_DOTFILES:-1}"
+EXPECT_POWERLEVEL10K="${EXPECT_POWERLEVEL10K:-0}"
 
 # Optional install expectations — mirror INSTALL_* in prepare_new_box.sh.
 # Default ON so running verify_setup.sh standalone after a normal bootstrap
@@ -48,12 +49,19 @@ EXPECT_DEV_FONTS="${EXPECT_DEV_FONTS:-1}"
 EXPECT_RUST="${EXPECT_RUST:-1}"
 EXPECT_GO="${EXPECT_GO:-1}"
 EXPECT_TAILSCALE="${EXPECT_TAILSCALE:-1}"
-EXPECT_MLX="${EXPECT_MLX:-1}"
 EXPECT_LLAMA_CPP="${EXPECT_LLAMA_CPP:-1}"
 EXPECT_EXTRA_CLIS="${EXPECT_EXTRA_CLIS:-1}"
 EXPECT_FIREFOX="${EXPECT_FIREFOX:-1}"
 EXPECT_CHROME="${EXPECT_CHROME:-1}"
 MINICONDA_DIR="${MINICONDA_DIR:-$HOME/miniconda3}"
+
+if [ -n "${EXPECT_MLX+x}" ]; then
+  EXPECT_MLX="${EXPECT_MLX:-0}"
+elif [ "$(uname -m)" = "arm64" ]; then
+  EXPECT_MLX=1
+else
+  EXPECT_MLX=0
+fi
 
 FAILURES=0
 
@@ -170,55 +178,11 @@ EOF
   rm -rf "$temp_dir"
 }
 
-# Resolve the same preferred Python interpreter that setup_python_ai.sh targets.
-find_python_bin() {
-  local prefix
-
-  if ! command_exists brew; then
-    return 1
-  fi
-
-  prefix="$(brew --prefix "$PYTHON_FORMULA" 2>/dev/null || true)"
-  if [ -n "$prefix" ] && [ -x "$prefix/bin/python${PYTHON_MINOR}" ]; then
-    printf '%s\n' "$prefix/bin/python${PYTHON_MINOR}"
-    return 0
-  fi
-
-  return 1
-}
-
 check_python_import_stack() {
   local python_bin="$1"
   local check_label="$2"
 
-  if "$python_bin" - <<'PYTHON_CHECK'
-import importlib
-
-packages = [
-    ("rich", "rich"),
-    ("pytest", "pytest"),
-    ("pandas", "pandas"),
-    ("scikit-learn", "sklearn"),
-    ("matplotlib", "matplotlib"),
-    ("jupyter", "jupyter"),
-    ("tensorflow", "tensorflow"),
-    ("tensorboard", "tensorboard"),
-    ("keras", "keras"),
-    ("transformers", "transformers"),
-    ("datasets", "datasets"),
-    ("wandb", "wandb"),
-    ("accelerate", "accelerate"),
-    ("einops", "einops"),
-    ("tokenizers", "tokenizers"),
-    ("sentencepiece", "sentencepiece"),
-    ("lightning", "lightning"),
-]
-
-for label, module_name in packages:
-    module = importlib.import_module(module_name)
-    version = getattr(module, "__version__", "unknown")
-    print(f"{label}: {version}")
-PYTHON_CHECK
+  if "$python_bin" "$SCRIPT_DIR/check_python_stack.py"
   then
     pass "$check_label"
   else
@@ -322,14 +286,13 @@ check_command micro "micro"
 check_command fdupes "fdupes"
 check_command xz "xz"
 check_brew_formula screen "GNU Screen"
-check_brew_formula powerlevel10k "Powerlevel10k prompt"
 check_command cmake "CMake"
 check_command ninja "Ninja"
 check_command pkg-config "pkg-config"
 check_command "python${PYTHON_MINOR}" "Python ${PYTHON_MINOR} (from ${PYTHON_FORMULA})"
 check_c_cpp_toolchain
 
-PYTHON_BIN="$(find_python_bin || true)"
+PYTHON_BIN="$(find_brew_python_bin "$PYTHON_FORMULA" || true)"
 
 # Validate the full CLI manifest in one shot.  Any missing formula surfaces
 # a single failure line here with the command to re-install.
@@ -458,6 +421,15 @@ if bool_is_true "$EXPECT_DEV_FONTS"; then
 fi
 
 if bool_is_true "$EXPECT_DOTFILES"; then
+  check_path_exists "$HOME/.config/pcprep/macos-shellenv.sh" "Managed shellenv fragment"
+  check_path_exists "$HOME/.config/pcprep/pcprep-shell.zsh" "Managed zsh shell fragment"
+  check_path_exists "$HOME/.config/pcprep/pcprep-shell.bash" "Managed bash shell fragment"
+  check_path_exists "$HOME/.config/pcprep/pcprep-shell.common.sh" "Managed shared shell fragment"
+  check_path_exists "$HOME/.config/pcprep/pcprep-aliases.sh" "Managed alias layer"
+fi
+
+if bool_is_true "$EXPECT_POWERLEVEL10K"; then
+  check_brew_formula powerlevel10k "Powerlevel10k prompt"
   check_path_exists "$HOME/.config/pcprep/pcprep-p10k.zsh" "Managed Powerlevel10k config"
 fi
 
