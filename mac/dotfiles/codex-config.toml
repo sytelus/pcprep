@@ -1,0 +1,38 @@
+# pcprep Codex CLI defaults.  Staged by mac/apply_dotfiles.sh into
+# ~/.codex/config.toml only when no file is present — we never overwrite a
+# user-edited config.  Ported verbatim from ubuntu/.codex/config.toml so
+# the user's reasoning/model preferences carry across platforms.
+
+model = "gpt-5.4"
+model_reasoning_effort = "xhigh"
+model_reasoning_summary = "detailed"
+model_verbosity = "high"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+sandbox_workspace_write.network_access = true
+network_access = true
+personality = "pragmatic"
+web_search = "live"
+
+
+[shell_environment_policy]
+# Default Codex behavior drops environment variables whose NAMES contain
+# KEY/SECRET/TOKEN.  We flip that off because several AI tool chains
+# (HuggingFace, W&B, OpenAI) rely on env vars whose names include those
+# strings.  Do NOT enable this on shared/multi-tenant machines.
+ignore_default_excludes = true
+# Inherit every env var from the parent shell so commands Codex runs see
+# the same environment as your terminal.
+inherit = "all"
+
+[features]
+unified_exec = true             # background terminal sessions
+shell_snapshot = true           # cache the shell environment across commands
+view_image_tool = true          # let the agent render images from the repo
+steer = true                    # mid-generation steering
+elevated_windows_sandbox = true # no-op on macOS (kept for config parity)
+shell_tools = true              # expose richer shell commands to the agent
+
+
+[tui]
+notifications = true

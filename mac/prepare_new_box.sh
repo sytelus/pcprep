@@ -24,6 +24,11 @@ INSTALL_CODEX="${INSTALL_CODEX:-1}"
 INSTALL_CLAUDE_CODE="${INSTALL_CLAUDE_CODE:-1}"
 INSTALL_AI_ENV="${INSTALL_AI_ENV:-1}"
 APPLY_MACOS_DEFAULTS="${APPLY_MACOS_DEFAULTS:-1}"
+# APPLY_DOTFILES runs mac/apply_dotfiles.sh after the `defaults write` pass.
+# Installs a managed zsh fragment with history/AI-cache/aliases and copies
+# staged ~/.tmux.conf, ~/.claude/settings.json, ~/.codex/config.toml
+# (copy-if-absent, so existing user edits are preserved).
+APPLY_DOTFILES="${APPLY_DOTFILES:-1}"
 ENABLE_FIREWALL="${ENABLE_FIREWALL:-1}"
 ENABLE_FIREWALL_STEALTH="${ENABLE_FIREWALL_STEALTH:-0}"
 ENABLE_TOUCH_ID_FOR_SUDO="${ENABLE_TOUCH_ID_FOR_SUDO:-1}"
@@ -454,11 +459,31 @@ configure_ssh_keychain_support() {
   fi
 
   log "Creating a minimal SSH config that works well with the macOS keychain."
+  # Field-by-field rationale:
+  #   IgnoreUnknown UseKeychain : older ssh builds error on UseKeychain; this
+  #                               gates the next line so the config stays
+  #                               portable between macOS ssh releases.
+  #   AddKeysToAgent yes        : first use of a key loads it into ssh-agent
+  #                               so later connections don't re-prompt for
+  #                               the passphrase.
+  #   UseKeychain yes           : store/retrieve the passphrase via the
+  #                               macOS Keychain, so it survives reboots.
+  #   ServerAliveInterval 60    : every 60 s the client sends a keepalive.
+  #   ServerAliveCountMax 20    : tolerate 20 missed keepalives (~20 min of
+  #                               network outage) before dropping the
+  #                               connection.  Avoids NAT / corporate
+  #                               firewall idle-timeout disconnects on long
+  #                               training-run shells.
+  # We deliberately DO NOT add `StrictHostKeyChecking no` or send host keys
+  # to /dev/null the way ubuntu/.ssh/config does — those are security
+  # downgrades that make MITM attacks possible.
   cat > "$ssh_config" <<'EOF'
 Host *
     IgnoreUnknown UseKeychain
     AddKeysToAgent yes
     UseKeychain yes
+    ServerAliveInterval 60
+    ServerAliveCountMax 20
 EOF
   chmod 600 "$ssh_config"
 }
@@ -615,6 +640,13 @@ main() {
 
   if bool_is_true "$APPLY_MACOS_DEFAULTS"; then
     "$SCRIPT_DIR/apply_defaults.sh"
+  fi
+
+  # Layer opinionated dotfiles (tmux / claude / codex / managed zsh) AFTER
+  # the system defaults pass so nothing in apply_defaults.sh can overwrite
+  # files we just staged.
+  if bool_is_true "$APPLY_DOTFILES"; then
+    "$SCRIPT_DIR/apply_dotfiles.sh"
   fi
 
   maybe_enable_touch_id_for_sudo
