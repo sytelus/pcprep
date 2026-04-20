@@ -6,7 +6,7 @@ The scope is intentionally narrower than the tutorial in [macos-expert-tutorial.
 
 - It keeps the high-value developer fixes from the tutorial.
 - It avoids highly personal shell customization such as Oh My Zsh, Powerlevel10k, Karabiner remaps, and aggressive Dock or trackpad changes.
-- It separates system bootstrap from the Python AI environment so repairing one layer does not require rebuilding the other.
+- It keeps Python tooling on the Homebrew-managed interpreter rather than touching Apple's system Python.
 
 ## Files
 
@@ -14,7 +14,7 @@ The scope is intentionally narrower than the tutorial in [macos-expert-tutorial.
 - `apply_defaults.sh`: reversible macOS preference tweaks for developers
 - `revert_defaults.sh`: removes the preferences set by `apply_defaults.sh`
 - `apply_dotfiles.sh`: copies shared dotfiles from `ubuntu/` + installs a managed zsh fragment
-- `setup_python_ai.sh`: creates a dedicated AI Python environment under `~/.venvs/`
+- `setup_python_ai.sh`: installs the AI Python package set into Homebrew Python
 - `verify_setup.sh`: validates the resulting installation
 - `Brewfile.core`: curated CLI packages
 - `Brewfile.cask`: curated GUI packages
@@ -35,7 +35,7 @@ Run the full bootstrap:
 bash mac/prepare_new_box.sh
 ```
 
-Re-run only the Python environment refresh:
+Re-run only the Homebrew Python AI package refresh:
 
 ```bash
 bash mac/setup_python_ai.sh
@@ -65,7 +65,7 @@ Every `INSTALL_*` flag below defaults to `1` (enabled). Set to `0` to skip.
 - `INSTALL_GITHUB_COPILOT_CLI=0`: skip the GitHub Copilot CLI install
 - `INSTALL_CODEX_APP=0`: skip the Codex desktop app install
 - `INSTALL_CLAUDE_APP=0`: skip the Claude desktop app install
-- `INSTALL_AI_ENV=0`: skip Python AI environment creation
+- `INSTALL_AI_ENV=0`: skip installing AI Python packages into Homebrew Python
 - `INSTALL_CODEX=0`: skip the Codex CLI install
 - `INSTALL_CLAUDE_CODE=0`: skip the Claude Code install
 - `ENABLE_FIREWALL=0`: leave the macOS firewall unchanged
@@ -83,12 +83,13 @@ Every `INSTALL_*` flag below defaults to `1` (enabled). Set to `0` to skip.
 - `INSTALL_DEV_FONTS=0`: skip JetBrains Mono, MesloLG Nerd Font, and Fira Code
 - `INSTALL_FIREFOX=0`: skip Firefox
 - `INSTALL_CHROME=0`: skip Google Chrome (installs the persistent Keystone updater)
-- `INSTALL_MLX=0`: skip adding `mlx` + `mlx-lm` to the AI environment
+- `INSTALL_MLX=0`: skip adding `mlx` + `mlx-lm` to Homebrew Python
 
 ## Notes on intentional omissions
 
 - GNU tools are installed, but not forced ahead of BSD tools in `PATH`. That keeps the machine safer for stock macOS scripts while still making GNU variants available.
 - Conda is not installed. The base setup uses Homebrew Python 3.12 plus `uv`, which is simpler and easier to repair on a general-purpose developer laptop.
+- AI Python packages are installed into the Homebrew-managed interpreter, not into Apple's system Python and not into a repo-owned `~/.venvs/...` environment.
 - Ollama and Tailscale install their **CLI formulas only**, not the GUI casks. The casks ship login items that auto-start background daemons; the formulas leave daemon lifecycle in the user's hands so the idle battery cost is only paid when the services are actually in use. Start them with `ollama serve` / `sudo brew services start tailscale` as needed.
 - Oh My Zsh, Powerlevel10k, and the usual `.zshrc` rewrites are not performed. The scripts intentionally do not own the user's shell rc.
 - No automated Safari tweaks, FileVault toggles, or Setup Assistant changes — all are TCC-protected or pre-login and require manual confirmation in System Settings.

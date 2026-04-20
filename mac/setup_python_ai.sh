@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Create or refresh a dedicated Python environment for AI development on macOS.
-# This script intentionally avoids installing into the system interpreter.
+# Install or refresh the AI Python package set directly into the Homebrew
+# Python interpreter on macOS.  This intentionally avoids Apple's system
+# Python while also avoiding a separate project-specific virtualenv.
 
 set -Eeuo pipefail
 
@@ -13,12 +14,12 @@ trap 'on_err "${BASH_COMMAND}" "${LINENO}" "$?"' ERR
 
 require_macos
 
-AI_ENV_NAME="${AI_ENV_NAME:-ai-dev-mac}"
-AI_ENV_DIR="${AI_ENV_DIR:-$HOME/.venvs/$AI_ENV_NAME}"
 PYTHON_FORMULA="${PYTHON_FORMULA:-python@3.12}"
+PYTHON_MINOR="${PYTHON_FORMULA#python@}"
 INSTALL_JUPYTER_KERNEL="${INSTALL_JUPYTER_KERNEL:-1}"
 # Apple's MLX framework for native Metal inference.  Installed into the same
-# venv as PyTorch so developers can switch frameworks without swapping envs.
+# Homebrew Python interpreter as PyTorch so developers can use one default
+# Python toolchain for day-to-day AI work.
 # Defaults ON to match the rest of the INSTALL_* opt-outs in prepare_new_box.sh.
 INSTALL_MLX="${INSTALL_MLX:-1}"
 NO_NET="${NO_NET:-0}"
@@ -30,23 +31,15 @@ if bool_is_true "$NO_NET"; then
 fi
 
 find_python_bin() {
-  local candidate
+  local prefix
 
-  if command_exists brew; then
-    candidate="$(brew --prefix "$PYTHON_FORMULA" 2>/dev/null || true)"
-    if [ -n "$candidate" ] && [ -x "$candidate/bin/python3.12" ]; then
-      printf '%s\n' "$candidate/bin/python3.12"
-      return 0
-    fi
+  if ! command_exists brew; then
+    return 1
   fi
 
-  if command_exists python3.12; then
-    command -v python3.12
-    return 0
-  fi
-
-  if command_exists python3; then
-    command -v python3
+  prefix="$(brew --prefix "$PYTHON_FORMULA" 2>/dev/null || true)"
+  if [ -n "$prefix" ] && [ -x "$prefix/bin/python${PYTHON_MINOR}" ]; then
+    printf '%s\n' "$prefix/bin/python${PYTHON_MINOR}"
     return 0
   fi
 
@@ -59,51 +52,38 @@ fi
 
 PYTHON_BIN="$(find_python_bin || true)"
 if [ -z "$PYTHON_BIN" ]; then
-  die "No suitable Python interpreter was found. Install $PYTHON_FORMULA first."
+  die "Homebrew $PYTHON_FORMULA was not found. Install it first via mac/prepare_new_box.sh."
 fi
 
 log "Using Python interpreter: $PYTHON_BIN"
-ensure_dir "$(dirname "$AI_ENV_DIR")"
 
-# Reuse an existing environment when present so reruns remain resumable and do
-# not discard working packages or local notebooks bound to this interpreter.
-if [ -x "$AI_ENV_DIR/bin/python" ]; then
-  log "Reusing existing environment at $AI_ENV_DIR"
-else
-  uv venv --python "$PYTHON_BIN" "$AI_ENV_DIR"
-fi
-
-# Install packaging tooling and the AI stack with "uv pip --python".
-# Two things to note:
-#   1. "uv venv" does not seed pip/setuptools/wheel into the venv, so a call
-#      like "$VENV/bin/python -m pip install" would fail with "No module named
-#      pip" on a freshly created environment.
-#   2. "uv pip install --python <interp>" installs directly into the target
-#      interpreter's site-packages using uv's resolver and does not require
-#      pip to already be present in the venv.
+# Install packaging tooling and the AI stack with "uv pip --python" directly
+# into the selected Homebrew Python interpreter.
 # Packaging basics go in first so downstream sdist builds (e.g. sentencepiece)
 # can still find pip/setuptools/wheel if they need them during compilation.
-uv pip install --python "$AI_ENV_DIR/bin/python" --upgrade pip setuptools wheel
+uv pip install --python "$PYTHON_BIN" --upgrade pip setuptools wheel
 
 # Install the short, mainstream AI stack from the pinned requirements file.
-uv pip install --python "$AI_ENV_DIR/bin/python" --upgrade -r "$SCRIPT_DIR/requirements-ai.txt"
+uv pip install --python "$PYTHON_BIN" --upgrade -r "$SCRIPT_DIR/requirements-ai.txt"
 
-# Optionally layer Apple's MLX stack on top of the PyTorch environment.  Kept
-# in a separate requirements file so users who want to stay on pure PyTorch can
-# set INSTALL_MLX=0 and skip the extra download and disk footprint.
+# Optionally layer Apple's MLX stack on top of the same interpreter.  Kept in a
+# separate requirements file so users who want to stay on pure PyTorch can set
+# INSTALL_MLX=0 and skip the extra download and disk footprint.
 if bool_is_true "$INSTALL_MLX"; then
-  log "Installing MLX extras into the AI environment (INSTALL_MLX=1)."
-  uv pip install --python "$AI_ENV_DIR/bin/python" --upgrade -r "$SCRIPT_DIR/requirements-mlx.txt"
+  log "Installing MLX extras into the Homebrew Python interpreter (INSTALL_MLX=1)."
+  uv pip install --python "$PYTHON_BIN" --upgrade -r "$SCRIPT_DIR/requirements-mlx.txt"
 fi
 
 if bool_is_true "$INSTALL_JUPYTER_KERNEL"; then
-  # Registering the kernel makes the environment easy to select from Jupyter
-  # and VS Code without manually browsing for an interpreter each time.
-  "$AI_ENV_DIR/bin/python" -m ipykernel install --user --name "$AI_ENV_NAME" --display-name "Python ($AI_ENV_NAME)"
+  # Register the Homebrew interpreter under a neutral, version-based name so
+  # notebooks and editors can select it easily without any "AI env" branding.
+  KERNEL_NAME="python-homebrew-${PYTHON_MINOR}"
+  KERNEL_DISPLAY_NAME="Python ${PYTHON_MINOR} (Homebrew)"
+  "$PYTHON_BIN" -m ipykernel install --user --name "$KERNEL_NAME" --display-name "$KERNEL_DISPLAY_NAME"
 fi
 
 log "Verifying the PyTorch installation and MPS backend."
-"$AI_ENV_DIR/bin/python" <<'PYTHON_CHECK'
+"$PYTHON_BIN" <<'PYTHON_CHECK'
 import sys
 import torch
 
@@ -113,5 +93,4 @@ print(f"MPS built: {torch.backends.mps.is_built()}")
 print(f"MPS available: {torch.backends.mps.is_available()}")
 PYTHON_CHECK
 
-log "AI environment is ready at $AI_ENV_DIR"
-log "Activate it with: source \"$AI_ENV_DIR/bin/activate\""
+log "AI Python packages are installed into the Homebrew interpreter at $PYTHON_BIN"

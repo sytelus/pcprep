@@ -691,7 +691,7 @@ main() {
   if bool_is_true "$INSTALL_AI_ENV" && ! bool_is_true "$NO_NET"; then
     "$SCRIPT_DIR/setup_python_ai.sh"
   elif bool_is_true "$INSTALL_AI_ENV"; then
-    warn "Skipping AI environment creation because NO_NET=1."
+    warn "Skipping Homebrew Python AI package installation because NO_NET=1."
   fi
 
   append_next_step "Run 'gh auth login' if you want GitHub CLI authentication and git credential helpers to work immediately."

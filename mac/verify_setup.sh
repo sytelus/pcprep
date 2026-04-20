@@ -23,9 +23,6 @@ source "$SCRIPT_DIR/common.sh"
 
 require_macos
 
-AI_ENV_NAME="${AI_ENV_NAME:-ai-dev-mac}"
-AI_ENV_DIR="${AI_ENV_DIR:-$HOME/.venvs/$AI_ENV_NAME}"
-
 # Python formula we expect to find on PATH.  Derived from the same env var
 # setup_python_ai.sh uses so the two scripts always agree on which minor
 # version to validate.  "python@3.12" -> "3.12".
@@ -82,6 +79,23 @@ check_command() {
   else
     fail "$required_label is missing. Expected command: $command_name"
   fi
+}
+
+# Resolve the same preferred Python interpreter that setup_python_ai.sh targets.
+find_python_bin() {
+  local prefix
+
+  if ! command_exists brew; then
+    return 1
+  fi
+
+  prefix="$(brew --prefix "$PYTHON_FORMULA" 2>/dev/null || true)"
+  if [ -n "$prefix" ] && [ -x "$prefix/bin/python${PYTHON_MINOR}" ]; then
+    printf '%s\n' "$prefix/bin/python${PYTHON_MINOR}"
+    return 0
+  fi
+
+  return 1
 }
 
 # Assert that a filesystem path (file, directory, or app bundle) exists.
@@ -172,6 +186,8 @@ check_command node "Node.js"
 check_command npm  "npm"
 check_command "python${PYTHON_MINOR}" "Python ${PYTHON_MINOR} (from ${PYTHON_FORMULA})"
 
+PYTHON_BIN="$(find_python_bin || true)"
+
 # Validate the full CLI manifest in one shot.  Any missing formula surfaces
 # a single failure line here with the command to re-install.
 check_brewfile "$SCRIPT_DIR/Brewfile.core" "Brewfile.core formulas"
@@ -221,23 +237,23 @@ if bool_is_true "$EXPECT_DOCKER"; then
 fi
 
 if bool_is_true "$EXPECT_AI_ENV"; then
-  if [ -x "$AI_ENV_DIR/bin/python" ]; then
-    pass "AI environment exists at $AI_ENV_DIR"
+  if [ -n "$PYTHON_BIN" ] && [ -x "$PYTHON_BIN" ]; then
+    pass "Homebrew Python interpreter exists at $PYTHON_BIN"
     # Capture interpreter output so the PASS / FAIL status line lands near
     # its own heading rather than being visually separated by Python stdout.
-    if "$AI_ENV_DIR/bin/python" - <<'PYTHON_CHECK'
+    if "$PYTHON_BIN" - <<'PYTHON_CHECK'
 import torch
 
 print(f"PyTorch: {torch.__version__}")
 print(f"MPS available: {torch.backends.mps.is_available()}")
 PYTHON_CHECK
     then
-      pass "AI environment imports PyTorch successfully."
+      pass "Homebrew Python imports PyTorch successfully."
     else
-      fail "AI environment exists but PyTorch verification failed."
+      fail "Homebrew Python exists but PyTorch verification failed."
     fi
   else
-    fail "Expected AI environment is missing at $AI_ENV_DIR"
+    fail "Expected Homebrew Python interpreter is missing for AI package verification."
   fi
 fi
 
@@ -293,15 +309,16 @@ if bool_is_true "$EXPECT_CHROME"; then
 fi
 
 if bool_is_true "$EXPECT_MLX"; then
-  # MLX is a Python package; verify by importing inside the AI environment.
-  if [ -x "$AI_ENV_DIR/bin/python" ]; then
-    if "$AI_ENV_DIR/bin/python" -c "import mlx" >/dev/null 2>&1; then
-      pass "MLX is importable in the AI environment."
+  # MLX is a Python package; verify by importing inside the Homebrew Python
+  # interpreter that setup_python_ai.sh installs into.
+  if [ -n "$PYTHON_BIN" ] && [ -x "$PYTHON_BIN" ]; then
+    if "$PYTHON_BIN" -c "import mlx" >/dev/null 2>&1; then
+      pass "MLX is importable in the Homebrew Python interpreter."
     else
-      fail "MLX is expected but not importable in $AI_ENV_DIR."
+      fail "MLX is expected but not importable in $PYTHON_BIN."
     fi
   else
-    fail "AI environment is missing; cannot verify MLX."
+    fail "Homebrew Python interpreter is missing; cannot verify MLX."
   fi
 fi
 
