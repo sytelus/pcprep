@@ -325,7 +325,15 @@ torchver() {
 }
 
 # remove pass phrase from ssh keys
-alias removepass='find ~/.ssh -type f \( -name 'id_*' -o -name 'sb_*' \) ! -name '*.pub' -exec sh -c 'ssh-keygen -l -f "{}" >/dev/null 2>&1 && echo "Processing: {}" && ssh-keygen -p -f "{}"' \;'
+removepass() {
+  find "$HOME/.ssh" -type f \( -name 'id_*' -o -name 'sb_*' \) ! -name '*.pub' -exec sh -c '
+    key="$1"
+    if ssh-keygen -l -f "$key" >/dev/null 2>&1; then
+      echo "Processing: $key"
+      ssh-keygen -p -f "$key"
+    fi
+  ' sh {} \;
+}
 function treesize {
   local target="${1:-.}"
   if pcprep_is_macos; then
