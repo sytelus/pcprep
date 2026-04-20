@@ -77,6 +77,7 @@ Normal runs end with:
 - Azure CLI dynamic extension installs preconfigured under `~/.azure/cliextensions`
 - Homebrew Python AI packages installed into `python@3.12`
 - Miniconda installed by default, but left dormant and off `PATH`
+- Existing manually installed GUI app bundles are reused or adopted instead of causing the bootstrap to fail
 
 ## Feature Flags
 

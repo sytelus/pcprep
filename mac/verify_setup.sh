@@ -9,8 +9,9 @@
 #     1. Hand-picked command checks for a small, high-signal set of tools
 #        (brew, git, uv, node, npm, python).  These must be on PATH for the
 #        rest of the environment to work.
-#     2. A single `brew bundle check` per manifest covers the full Brewfile
-#        without this script having to re-list every formula or cask.
+#     2. `brew bundle check` covers the full core CLI Brewfile.  GUI apps are
+#        checked explicitly because prepare_new_box.sh may adopt a preexisting
+#        app bundle instead of insisting Homebrew owns it.
 #     3. Optional EXPECT_* flags mirror the INSTALL_* flags in
 #        prepare_new_box.sh so verification can be narrowed the same way the
 #        install was narrowed.
@@ -256,6 +257,33 @@ check_brew_cask() {
   fi
 }
 
+check_brew_cask_or_app_bundle() {
+  local cask="$1"
+  local label="$2"
+  local app_path
+
+  shift 2
+
+  if ! command_exists brew; then
+    fail "$label not verified (brew command missing)."
+    return
+  fi
+
+  if brew list --cask "$cask" >/dev/null 2>&1; then
+    pass "$label is installed (cask: $cask)."
+    return
+  fi
+
+  for app_path in "$@"; do
+    if [ -d "$app_path" ]; then
+      pass "$label exists at $app_path."
+      return
+    fi
+  done
+
+  fail "$label is not installed (expected cask: $cask or app bundle in Applications)."
+}
+
 # Assert that every item in a Brewfile is installed.  Uses `brew bundle check`
 # which returns non-zero if anything is missing.  Much cleaner than duplicating
 # the Brewfile contents as individual check_command calls.
@@ -337,16 +365,37 @@ if bool_is_true "$EXPECT_GITHUB_COPILOT_CLI"; then
 fi
 
 if bool_is_true "$EXPECT_CODEX_APP"; then
-  check_brew_cask codex-app "Codex app"
+  check_brew_cask_or_app_bundle \
+    codex-app \
+    "Codex app" \
+    "/Applications/Codex.app" \
+    "$HOME/Applications/Codex.app"
 fi
 
 if bool_is_true "$EXPECT_CLAUDE_APP"; then
-  check_brew_cask claude "Claude app"
+  check_brew_cask_or_app_bundle \
+    claude \
+    "Claude app" \
+    "/Applications/Claude.app" \
+    "$HOME/Applications/Claude.app"
 fi
 
 if bool_is_true "$EXPECT_GUI_APPS"; then
-  # Cask manifest covers iTerm2 + VS Code + Rectangle in one check.
-  check_brewfile "$SCRIPT_DIR/Brewfile.cask" "Brewfile.cask casks"
+  check_brew_cask_or_app_bundle \
+    iterm2 \
+    "iTerm2" \
+    "/Applications/iTerm.app" \
+    "$HOME/Applications/iTerm.app"
+  check_brew_cask_or_app_bundle \
+    visual-studio-code \
+    "Visual Studio Code" \
+    "/Applications/Visual Studio Code.app" \
+    "$HOME/Applications/Visual Studio Code.app"
+  check_brew_cask_or_app_bundle \
+    rectangle \
+    "Rectangle" \
+    "/Applications/Rectangle.app" \
+    "$HOME/Applications/Rectangle.app"
   # Code CLI is a user-local symlink created by maybe_link_vscode_cli, not a
   # cask file, so check it explicitly.
   check_command code "VS Code CLI"
@@ -481,15 +530,27 @@ if bool_is_true "$EXPECT_EXTRA_CLIS"; then
   check_brew_formula sevenzip "7-Zip"
   check_command unar "unar"
   check_command ffmpeg "FFmpeg"
-  check_brew_cask appcleaner "AppCleaner"
+  check_brew_cask_or_app_bundle \
+    appcleaner \
+    "AppCleaner" \
+    "/Applications/AppCleaner.app" \
+    "$HOME/Applications/AppCleaner.app"
 fi
 
 if bool_is_true "$EXPECT_FIREFOX"; then
-  check_brew_cask firefox "Firefox"
+  check_brew_cask_or_app_bundle \
+    firefox \
+    "Firefox" \
+    "/Applications/Firefox.app" \
+    "$HOME/Applications/Firefox.app"
 fi
 
 if bool_is_true "$EXPECT_CHROME"; then
-  check_brew_cask google-chrome "Google Chrome"
+  check_brew_cask_or_app_bundle \
+    google-chrome \
+    "Google Chrome" \
+    "/Applications/Google Chrome.app" \
+    "$HOME/Applications/Google Chrome.app"
 fi
 
 if bool_is_true "$EXPECT_MLX"; then

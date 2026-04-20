@@ -270,6 +270,28 @@ install_brew_bundle_file() {
   brew bundle --file="$bundle_file" --no-upgrade
 }
 
+install_core_gui_apps() {
+  # Install the small curated GUI set one cask at a time so we can adopt an
+  # already-present app bundle instead of failing when the user installed that
+  # app manually before running pcprep.
+  log "Installing core GUI applications."
+  brew_install_cask_app_if_missing \
+    iterm2 \
+    "iTerm2" \
+    "/Applications/iTerm.app" \
+    "$HOME/Applications/iTerm.app"
+  brew_install_cask_app_if_missing \
+    visual-studio-code \
+    "Visual Studio Code" \
+    "/Applications/Visual Studio Code.app" \
+    "$HOME/Applications/Visual Studio Code.app"
+  brew_install_cask_app_if_missing \
+    rectangle \
+    "Rectangle" \
+    "/Applications/Rectangle.app" \
+    "$HOME/Applications/Rectangle.app"
+}
+
 maybe_update_brew() {
   if bool_is_true "$NO_NET"; then
     warn "NO_NET=1 is set. Skipping 'brew update'."
@@ -291,12 +313,11 @@ maybe_install_docker() {
     return 0
   fi
 
-  if brew list --cask docker >/dev/null 2>&1; then
-    log "Docker Desktop is already installed."
-  else
-    log "Installing Docker Desktop."
-    brew install --cask docker
-  fi
+  brew_install_cask_app_if_missing \
+    docker \
+    "Docker Desktop" \
+    "/Applications/Docker.app" \
+    "$HOME/Applications/Docker.app"
 
   append_next_step "Launch Docker Desktop once so macOS grants permissions and the Docker daemon can finish initialization."
   # Docker Desktop's Linux VM idles at roughly 1-3W continuously once started, which
@@ -327,6 +348,41 @@ brew_install_if_missing() {
   else
     brew install "$name"
   fi
+}
+
+brew_install_cask_app_if_missing() {
+  # Homebrew casks fail when the target .app bundle already exists but is not
+  # Homebrew-managed. Prefer adopting that existing app into Homebrew cask
+  # management over overwriting it or erroring out mid-bootstrap.
+  #   $1: cask name
+  #   $2: human-readable label
+  #   $3+: candidate app bundle paths to adopt if already present
+  local name="$1"
+  local label="$2"
+  local app_path
+  local app_dir
+
+  shift 2
+
+  if brew list --cask "$name" >/dev/null 2>&1; then
+    log "$label is already installed."
+    return 0
+  fi
+
+  for app_path in "$@"; do
+    if [ -d "$app_path" ]; then
+      app_dir="$(dirname "$app_path")"
+      log "$label already exists at $app_path. Adopting it into Homebrew Cask management."
+      if brew install --cask --adopt --appdir="$app_dir" "$name"; then
+        return 0
+      fi
+      warn "Homebrew could not adopt the existing $label app bundle at $app_path. Leaving the existing app in place and continuing."
+      return 0
+    fi
+  done
+
+  log "Installing $label."
+  brew install --cask "$name"
 }
 
 maybe_install_extra_clis() {
@@ -371,7 +427,11 @@ maybe_install_extra_clis() {
   brew_install_if_missing formula ffmpeg "FFmpeg"
   # GUI-driven app uninstaller.  Its optional "SmartDelete" helper is dormant
   # until enabled in-app, so installing the cask costs effectively nothing.
-  brew_install_if_missing cask appcleaner "AppCleaner"
+  brew_install_cask_app_if_missing \
+    appcleaner \
+    "AppCleaner" \
+    "/Applications/AppCleaner.app" \
+    "$HOME/Applications/AppCleaner.app"
 }
 
 maybe_install_llama_cpp() {
@@ -542,7 +602,11 @@ maybe_install_firefox() {
     warn "INSTALL_FIREFOX=0 set. Skipping Firefox."
     return 0
   fi
-  brew_install_if_missing cask firefox "Firefox"
+  brew_install_cask_app_if_missing \
+    firefox \
+    "Firefox" \
+    "/Applications/Firefox.app" \
+    "$HOME/Applications/Firefox.app"
 }
 
 maybe_install_chrome() {
@@ -554,7 +618,11 @@ maybe_install_chrome() {
     warn "INSTALL_CHROME=0 set. Skipping Google Chrome."
     return 0
   fi
-  brew_install_if_missing cask google-chrome "Google Chrome"
+  brew_install_cask_app_if_missing \
+    google-chrome \
+    "Google Chrome" \
+    "/Applications/Google Chrome.app" \
+    "$HOME/Applications/Google Chrome.app"
   append_next_step "Chrome installs Google's Keystone auto-updater as a persistent launchd agent that runs even when Chrome is quit. If you rarely use Chrome, you can set 'defaults write com.google.Keystone.Agent checkInterval 0' to pause its polling."
 }
 
@@ -575,14 +643,22 @@ maybe_install_ai_apps() {
   # Install the desktop apps explicitly so they are easy to opt out of without
   # tying them to the generic GUI app bundle.
   if bool_is_true "$INSTALL_CODEX_APP"; then
-    brew_install_if_missing cask codex-app "Codex app"
+    brew_install_cask_app_if_missing \
+      codex-app \
+      "Codex app" \
+      "/Applications/Codex.app" \
+      "$HOME/Applications/Codex.app"
     append_next_step "Launch Codex.app and sign in with your ChatGPT account to finish setup."
   else
     warn "INSTALL_CODEX_APP=0 set. Skipping Codex app."
   fi
 
   if bool_is_true "$INSTALL_CLAUDE_APP"; then
-    brew_install_if_missing cask claude "Claude app"
+    brew_install_cask_app_if_missing \
+      claude \
+      "Claude app" \
+      "/Applications/Claude.app" \
+      "$HOME/Applications/Claude.app"
     append_next_step "Launch Claude.app and sign in with your Anthropic account to finish setup."
   else
     warn "INSTALL_CLAUDE_APP=0 set. Skipping Claude app."
@@ -851,7 +927,7 @@ main() {
     install_brew_bundle_file "$SCRIPT_DIR/Brewfile.core" "core CLI packages"
 
     if bool_is_true "$INSTALL_GUI_APPS"; then
-      install_brew_bundle_file "$SCRIPT_DIR/Brewfile.cask" "core GUI applications"
+      install_core_gui_apps
       maybe_link_vscode_cli
     fi
 
