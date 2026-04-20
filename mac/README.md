@@ -62,6 +62,9 @@ Every `INSTALL_*` flag below defaults to `1` (enabled). Set to `0` to skip.
 - `INSTALL_GUI_APPS=0`: skip iTerm2, VS Code, and Rectangle
 - `INSTALL_DOCKER=0`: skip Docker Desktop
 - `INSTALL_GITHUB_CLI=0`: skip the GitHub CLI install
+- `INSTALL_GITHUB_COPILOT_CLI=0`: skip the GitHub Copilot CLI install
+- `INSTALL_CODEX_APP=0`: skip the Codex desktop app install
+- `INSTALL_CLAUDE_APP=0`: skip the Claude desktop app install
 - `INSTALL_AI_ENV=0`: skip Python AI environment creation
 - `INSTALL_CODEX=0`: skip the Codex CLI install
 - `INSTALL_CLAUDE_CODE=0`: skip the Claude Code install

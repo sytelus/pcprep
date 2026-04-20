@@ -20,6 +20,9 @@ NO_NET="${NO_NET:-0}"
 SKIP_BREW_UPDATE="${SKIP_BREW_UPDATE:-0}"
 INSTALL_GUI_APPS="${INSTALL_GUI_APPS:-1}"
 INSTALL_DOCKER="${INSTALL_DOCKER:-1}"
+INSTALL_GITHUB_COPILOT_CLI="${INSTALL_GITHUB_COPILOT_CLI:-1}"
+INSTALL_CODEX_APP="${INSTALL_CODEX_APP:-1}"
+INSTALL_CLAUDE_APP="${INSTALL_CLAUDE_APP:-1}"
 INSTALL_CODEX="${INSTALL_CODEX:-1}"
 INSTALL_CLAUDE_CODE="${INSTALL_CLAUDE_CODE:-1}"
 INSTALL_AI_ENV="${INSTALL_AI_ENV:-1}"
@@ -338,6 +341,37 @@ maybe_install_chrome() {
   append_next_step "Chrome installs Google's Keystone auto-updater as a persistent launchd agent that runs even when Chrome is quit. If you rarely use Chrome, you can set 'defaults write com.google.Keystone.Agent checkInterval 0' to pause its polling."
 }
 
+maybe_install_github_copilot_cli() {
+  # GitHub Copilot CLI ships as a Homebrew cask.  Keeping it explicit here
+  # makes the bootstrap intent obvious and keeps authentication guidance next
+  # to the install step instead of buried in generic Brewfile comments.
+  if ! bool_is_true "$INSTALL_GITHUB_COPILOT_CLI"; then
+    warn "INSTALL_GITHUB_COPILOT_CLI=0 set. Skipping GitHub Copilot CLI."
+    return 0
+  fi
+
+  brew_install_if_missing cask copilot-cli "GitHub Copilot CLI"
+  append_next_step "Run 'copilot' and use '/login' to authenticate GitHub Copilot CLI with your Copilot-enabled GitHub account."
+}
+
+maybe_install_ai_apps() {
+  # Install the desktop apps explicitly so they are easy to opt out of without
+  # tying them to the generic GUI app bundle.
+  if bool_is_true "$INSTALL_CODEX_APP"; then
+    brew_install_if_missing cask codex-app "Codex app"
+    append_next_step "Launch Codex.app and sign in with your ChatGPT account to finish setup."
+  else
+    warn "INSTALL_CODEX_APP=0 set. Skipping Codex app."
+  fi
+
+  if bool_is_true "$INSTALL_CLAUDE_APP"; then
+    brew_install_if_missing cask claude "Claude app"
+    append_next_step "Launch Claude.app and sign in with your Anthropic account to finish setup."
+  else
+    warn "INSTALL_CLAUDE_APP=0 set. Skipping Claude app."
+  fi
+}
+
 maybe_link_vscode_cli() {
   local vscode_cli
   local user_link
@@ -630,6 +664,8 @@ main() {
     maybe_install_dev_fonts
     maybe_install_firefox
     maybe_install_chrome
+    maybe_install_github_copilot_cli
+    maybe_install_ai_apps
     maybe_install_ai_clis
   else
     warn "Skipping network-backed installs because NO_NET=1."
@@ -669,6 +705,9 @@ main() {
   if ! bool_is_true "$NO_NET"; then
     EXPECT_GUI_APPS="$INSTALL_GUI_APPS" \
     EXPECT_DOCKER="$INSTALL_DOCKER" \
+    EXPECT_GITHUB_COPILOT_CLI="$INSTALL_GITHUB_COPILOT_CLI" \
+    EXPECT_CODEX_APP="$INSTALL_CODEX_APP" \
+    EXPECT_CLAUDE_APP="$INSTALL_CLAUDE_APP" \
     EXPECT_CODEX="$INSTALL_CODEX" \
     EXPECT_CLAUDE="$INSTALL_CLAUDE_CODE" \
     EXPECT_AI_ENV="$INSTALL_AI_ENV" \

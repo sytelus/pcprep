@@ -33,8 +33,11 @@ PYTHON_FORMULA="${PYTHON_FORMULA:-python@3.12}"
 PYTHON_MINOR="${PYTHON_FORMULA#python@}"
 
 EXPECT_CLAUDE="${EXPECT_CLAUDE:-1}"
+EXPECT_CLAUDE_APP="${EXPECT_CLAUDE_APP:-1}"
 EXPECT_CODEX="${EXPECT_CODEX:-1}"
+EXPECT_CODEX_APP="${EXPECT_CODEX_APP:-1}"
 EXPECT_DOCKER="${EXPECT_DOCKER:-1}"
+EXPECT_GITHUB_COPILOT_CLI="${EXPECT_GITHUB_COPILOT_CLI:-1}"
 EXPECT_GUI_APPS="${EXPECT_GUI_APPS:-1}"
 EXPECT_AI_ENV="${EXPECT_AI_ENV:-1}"
 
@@ -181,6 +184,19 @@ fi
 
 if bool_is_true "$EXPECT_CLAUDE"; then
   check_command claude "Claude Code"
+fi
+
+if bool_is_true "$EXPECT_GITHUB_COPILOT_CLI"; then
+  check_brew_cask copilot-cli "GitHub Copilot CLI"
+  check_command copilot "GitHub Copilot CLI command"
+fi
+
+if bool_is_true "$EXPECT_CODEX_APP"; then
+  check_brew_cask codex-app "Codex app"
+fi
+
+if bool_is_true "$EXPECT_CLAUDE_APP"; then
+  check_brew_cask claude "Claude app"
 fi
 
 if bool_is_true "$EXPECT_GUI_APPS"; then
