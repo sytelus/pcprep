@@ -1,17 +1,40 @@
 # Core CLI tools chosen for a conservative but high-utility macOS developer box.
 # The goal is to fix real macOS shortcomings without turning the machine into a
 # grab bag of personal preferences.
+#
+# Reading guide for the comments below:
+# - "Replaces via PATH" means macOS already ships some version of the tool, but
+#   once Homebrew's shellenv is active the Homebrew binary can win in normal
+#   interactive shells.  This does NOT overwrite /usr/bin or /bin.
+# - "Side-by-side" means Homebrew keeps Apple's tool untouched and installs the
+#   alternate implementation alongside it, usually under a g-prefixed name.
+# - "Does not exist" means a stock macOS install does not normally provide that
+#   developer-facing CLI at all.
 
 tap "homebrew/bundle"
 
-# Newer Git and Git LFS are table stakes for modern development, especially when
-# models or large artifacts live in repositories.
+# Git: macOS usually provides Apple's Git (or a shim that prompts for Command
+# Line Tools), but Homebrew Git is newer.  Replaces via PATH in interactive
+# shells once `brew shellenv` is loaded; `/usr/bin/git` still remains intact.
 brew "git"
+# git-lfs: does not exist on stock macOS.
 brew "git-lfs"
+# gh: does not exist on stock macOS.
 brew "gh"
 
-# GNU userland tools reduce friction for developers coming from Linux. We install
-# them, but the scripts intentionally do not force them ahead of BSD tools in PATH.
+# macOS already ships BSD userland; these formulas install the GNU variants
+# side-by-side.  By default you call them with g-prefixed names such as `gfind`,
+# `gsed`, `gtar`, `ggrep`, `gawk`, `gls`, etc.  This repo intentionally does NOT
+# force them ahead of BSD tools in PATH because doing so can break stock macOS
+# scripts that expect BSD semantics.
+#
+# If you explicitly want the GNU names to replace the BSD names in your shell:
+#   export PATH="$(brew --prefix)/opt/coreutils/libexec/gnubin:$PATH"
+#   export PATH="$(brew --prefix)/opt/findutils/libexec/gnubin:$PATH"
+#   export PATH="$(brew --prefix)/opt/gnu-sed/libexec/gnubin:$PATH"
+#   export PATH="$(brew --prefix)/opt/gnu-tar/libexec/gnubin:$PATH"
+#   export PATH="$(brew --prefix)/opt/grep/libexec/gnubin:$PATH"
+#   export PATH="$(brew --prefix)/opt/gawk/libexec/gnubin:$PATH"
 brew "coreutils"
 brew "findutils"
 brew "gnu-sed"
@@ -19,8 +42,13 @@ brew "gnu-tar"
 brew "grep"
 brew "gawk"
 
-# Everyday terminal tools that most developers on macOS actively use.
+# curl: macOS already ships `/usr/bin/curl`.  Homebrew curl is newer, but it is
+# keg-only rather than linked into the main Homebrew prefix, so it does NOT
+# replace the system copy just because `brew shellenv` ran.  Use
+# `$(brew --prefix curl)/bin/curl` explicitly, or prepend that directory to PATH
+# if you want the Homebrew build to win in interactive shells.
 brew "curl"
+# The rest of this section does not exist on stock macOS.
 brew "wget"
 brew "jq"
 brew "yq"
@@ -35,27 +63,34 @@ brew "btop"
 # bat is a near-universal upgrade over "cat" for reading source files.
 brew "bat"
 # direnv loads project-local environment variables when you cd into a directory.
-# Opt-in per project via an .envrc file, so it has no effect unless a repo enables it.
+# Does not exist on stock macOS.  Opt-in per project via an .envrc file, so it
+# has no effect unless a repo enables it.
 brew "direnv"
 
-# Build helpers that prevent common Python and native-extension failures.
+# These build helpers do not exist on stock macOS as dependable general-purpose
+# CLIs, but they prevent common Python and native-extension failures.
 brew "cmake"
 brew "ninja"
 brew "pkg-config"
 
-# Stable language runtimes for the workflows this repo cares about.
-# Python 3.12 is widely supported across the AI ecosystem, and uv gives a fast,
-# dependable path to isolated virtual environments without adopting Conda by default.
+# Python: do not rely on stock macOS for a stable, developer-managed Python.
+# We pin an explicit Homebrew 3.12 runtime.  `python3.12` lives in
+# `$(brew --prefix)/bin`; unversioned symlinks such as `python`, `python3`,
+# `pip`, and `pip3` live in
+# `$(brew --prefix)/opt/python@3.12/libexec/bin`.
+# If you want those unversioned commands to resolve to 3.12 first:
+#   export PATH="$(brew --prefix)/opt/python@3.12/libexec/bin:$PATH"
 brew "python@3.12"
+# uv: does not exist on stock macOS.
 brew "uv"
 
-# Claude Code and Codex are distributed through npm, so Node.js needs to exist
-# before we attempt to install either CLI.
+# Node.js: does not exist on stock macOS.  Required because Claude Code and
+# Codex are distributed through npm.
 brew "node"
 
 # Apple ships Bash 3.2 — frozen at the 2007 GPLv2 release. Homebrew's Bash 5.x
 # installs side-by-side into $(brew --prefix)/bin/bash without replacing
-# /bin/bash, so macOS's own scripts keep using the stock shell while our scripts
-# gain associative arrays, `readarray`, case-transform parameter expansions, and
-# more than a decade of bug/security fixes.
+# /bin/bash.  Once `brew shellenv` is active, typing `bash` in an interactive
+# shell usually resolves to Homebrew Bash; scripts with `#!/bin/bash` still use
+# Apple's Bash until you change the shebang or your login shell.
 brew "bash"
