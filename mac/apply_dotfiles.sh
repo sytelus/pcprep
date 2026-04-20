@@ -67,6 +67,23 @@ copy_if_absent() {
   log "Installed $label at $dst."
 }
 
+# Copy a repo-managed file into ~/.local/bin only when no file is already
+# there, then ensure the destination is executable.  This keeps parity with
+# ubuntu/cp_dotfiles.sh while still honoring the "don't clobber user edits"
+# rule used elsewhere in this script.
+install_local_bin_asset() {
+  local src="$1"
+  local dst="$2"
+  local label="$3"
+
+  copy_if_absent "$src" "$dst" "$label"
+
+  if [ -e "$dst" ] && [ ! -x "$dst" ]; then
+    chmod +x "$dst"
+    log "Marked $label executable at $dst."
+  fi
+}
+
 # ----------------------------------------------------------- tmux config
 
 # ~/.tmux.conf: fully portable between Linux and macOS.  Copy-if-absent so
@@ -95,6 +112,31 @@ copy_if_absent \
   "$UBUNTU_DOTFILES_DIR/.codex/config.toml" \
   "$HOME/.codex/config.toml" \
   "Codex CLI configuration"
+
+# --------------------------------------------------------- Local bin helpers
+
+# Cross-machine helper scripts copied from ubuntu/ into ~/.local/bin.  Most of
+# these are Linux-oriented and may only be useful when the same home directory
+# or repo is shared with Linux hosts, but copying them here is harmless and
+# keeps the per-user toolbox consistent across machines.
+for local_bin_file in \
+  rundocker.sh \
+  azmount.yaml \
+  azmount.sh \
+  mount_cifs.sh \
+  start_tmux.sh \
+  sysinfo.sh \
+  treesize.sh \
+  measure_flops.py \
+  kill_vscode_srv.sh \
+  security_status.sh \
+  unban.sh
+do
+  install_local_bin_asset \
+    "$UBUNTU_DOTFILES_DIR/$local_bin_file" \
+    "$HOME/.local/bin/$local_bin_file" \
+    "$local_bin_file"
+done
 
 # ------------------------------------------------------ Managed zsh fragment
 

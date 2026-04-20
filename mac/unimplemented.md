@@ -224,10 +224,6 @@ This document audits `macos-expert-tutorial.md` against the `mac/` setup scripts
   Section: Part 7 – Option A.
   Why: Redundant with installed tooling – `uv` + Homebrew `python@3.12` serve the same role with less surface area.
 
-- **Miniforge / Miniconda**.
-  Section: Part 7 – Option B.
-  Why: Redundant with installed tooling (called out explicitly in README).
-
 - **Ollama**.
   Section: Part 9.
   Why: Out of scope for Python/PyTorch/Codex/Claude stated target (called out explicitly in README).

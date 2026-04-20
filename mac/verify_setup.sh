@@ -37,6 +37,7 @@ EXPECT_DOCKER="${EXPECT_DOCKER:-1}"
 EXPECT_GITHUB_COPILOT_CLI="${EXPECT_GITHUB_COPILOT_CLI:-1}"
 EXPECT_GUI_APPS="${EXPECT_GUI_APPS:-1}"
 EXPECT_AI_ENV="${EXPECT_AI_ENV:-1}"
+EXPECT_MINICONDA="${EXPECT_MINICONDA:-1}"
 
 # Optional install expectations — mirror INSTALL_* in prepare_new_box.sh.
 # Default ON so running verify_setup.sh standalone after a normal bootstrap
@@ -51,6 +52,7 @@ EXPECT_LLAMA_CPP="${EXPECT_LLAMA_CPP:-1}"
 EXPECT_EXTRA_CLIS="${EXPECT_EXTRA_CLIS:-1}"
 EXPECT_FIREFOX="${EXPECT_FIREFOX:-1}"
 EXPECT_CHROME="${EXPECT_CHROME:-1}"
+MINICONDA_DIR="${MINICONDA_DIR:-$HOME/miniconda3}"
 
 FAILURES=0
 
@@ -254,6 +256,23 @@ PYTHON_CHECK
     fi
   else
     fail "Expected Homebrew Python interpreter is missing for AI package verification."
+  fi
+fi
+
+if bool_is_true "$EXPECT_MINICONDA"; then
+  if [ -x "$MINICONDA_DIR/bin/conda" ]; then
+    pass "Miniconda is installed at $MINICONDA_DIR."
+    if "$MINICONDA_DIR/bin/conda" config --show auto_activate_base >/dev/null 2>&1; then
+      if "$MINICONDA_DIR/bin/conda" config --show auto_activate_base 2>/dev/null | grep -Eq 'auto_activate_base: false'; then
+        pass "Miniconda auto_activate_base is disabled."
+      else
+        fail "Miniconda is installed but auto_activate_base is not disabled."
+      fi
+    else
+      fail "Miniconda is installed but conda config could not be queried."
+    fi
+  else
+    fail "Expected Miniconda install is missing at $MINICONDA_DIR."
   fi
 fi
 

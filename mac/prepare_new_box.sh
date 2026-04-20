@@ -26,6 +26,11 @@ INSTALL_CLAUDE_APP="${INSTALL_CLAUDE_APP:-1}"
 INSTALL_CODEX="${INSTALL_CODEX:-1}"
 INSTALL_CLAUDE_CODE="${INSTALL_CLAUDE_CODE:-1}"
 INSTALL_AI_ENV="${INSTALL_AI_ENV:-1}"
+# Dormant-by-default Conda bootstrap.  We install Miniconda by default so the
+# bits are already present if the user later needs conda, but we keep it off
+# PATH and out of auto-activation so Homebrew Python + uv remain the baseline.
+INSTALL_MINICONDA="${INSTALL_MINICONDA:-1}"
+MINICONDA_DIR="${MINICONDA_DIR:-$HOME/miniconda3}"
 APPLY_MACOS_DEFAULTS="${APPLY_MACOS_DEFAULTS:-1}"
 # APPLY_DOTFILES runs mac/apply_dotfiles.sh after the `defaults write` pass.
 # Installs a managed zsh fragment with history/AI-cache/aliases and copies
@@ -168,6 +173,30 @@ export PATH=\"\$HOME/.local/bin:\$PATH\"
 # user's ~/.zshrc / ~/.bash_profile to add cargo manually.
 if [ -d \"\$HOME/.cargo/bin\" ]; then
   export PATH=\"\$HOME/.cargo/bin:\$PATH\"
+fi
+
+# Optional Miniconda helpers.  We deliberately do NOT add Miniconda to PATH
+# by default, so Homebrew Python + uv stay the default toolchain for every new
+# shell.  Use condaon to activate base (or a named env), and condaoff to
+# fully deactivate conda again when you want the shell back on the Homebrew /
+# system path.
+if [ -f \"$MINICONDA_DIR/etc/profile.d/conda.sh\" ]; then
+  condaon() {
+    . \"$MINICONDA_DIR/etc/profile.d/conda.sh\"
+    if [ \"\$#\" -gt 0 ]; then
+      conda activate \"\$1\"
+    else
+      conda activate base
+    fi
+  }
+
+  condaoff() {
+    if command -v conda >/dev/null 2>&1; then
+      while [ \"${CONDA_SHLVL:-0}\" -gt 0 ]; do
+        conda deactivate >/dev/null 2>&1 || break
+      done
+    fi
+  }
 fi"
   upsert_managed_block \
     "$brew_shellenv_file" \
@@ -295,6 +324,67 @@ maybe_install_go() {
     return 0
   fi
   brew_install_if_missing formula go "Go toolchain"
+}
+
+miniconda_installer_url() {
+  # Use Anaconda's architecture-specific "latest" installer so the bootstrap
+  # does not need hand-maintained point-release URLs.
+  case "$(uname -m)" in
+    arm64)
+      printf '%s\n' "https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh"
+      ;;
+    x86_64)
+      printf '%s\n' "https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh"
+      ;;
+    *)
+      die "Unsupported macOS CPU architecture for Miniconda install: $(uname -m)"
+      ;;
+  esac
+}
+
+maybe_install_miniconda() {
+  # Install Miniconda into ~/miniconda3 (or MINICONDA_DIR) without running
+  # `conda init` and without prepending it to PATH.  That keeps uv, Homebrew
+  # Python, and Apple's system Python behavior unchanged until the user
+  # explicitly activates a conda shell with `condaon`.
+  local installer_url
+  local installer_path
+
+  if ! bool_is_true "$INSTALL_MINICONDA"; then
+    warn "INSTALL_MINICONDA=0 set. Skipping Miniconda."
+    return 0
+  fi
+
+  if [ -e "$MINICONDA_DIR" ] && [ ! -x "$MINICONDA_DIR/bin/conda" ]; then
+    die "MINICONDA_DIR exists but does not look like a Miniconda install: $MINICONDA_DIR"
+  fi
+
+  if [ -x "$MINICONDA_DIR/bin/conda" ]; then
+    log "Miniconda is already installed at $MINICONDA_DIR."
+  else
+    if bool_is_true "$NO_NET"; then
+      warn "NO_NET=1 is set and Miniconda is not already installed at $MINICONDA_DIR. Skipping Miniconda."
+      return 0
+    fi
+    if ! command_exists curl; then
+      die "curl is required to download the Miniconda installer."
+    fi
+
+    installer_url="$(miniconda_installer_url)"
+    installer_path="$(mktemp "${TMPDIR:-/tmp}/miniconda-installer.XXXXXX.sh")"
+
+    log "Installing Miniconda at $MINICONDA_DIR without shell init or PATH takeover."
+    curl -fsSL "$installer_url" -o "$installer_path"
+    bash "$installer_path" -b -u -p "$MINICONDA_DIR"
+    rm -f "$installer_path"
+  fi
+
+  # Keep base dormant unless the user explicitly opts in for a given shell.
+  "$MINICONDA_DIR/bin/conda" config --system --set auto_activate_base false >/dev/null
+
+  append_next_step "Miniconda is installed at $MINICONDA_DIR but intentionally left off PATH so Homebrew Python + uv remain the default toolchain."
+  append_next_step "Open a new shell and run 'condaon' to activate conda base, or 'condaon ENV_NAME' to activate a specific environment. Run 'condaoff' to fully deactivate conda again."
+  append_next_step "Miniconda installs by default now. If you want to skip it on a future run, set INSTALL_MINICONDA=0."
 }
 
 maybe_install_ollama() {
@@ -645,11 +735,13 @@ main() {
     fi
 
     maybe_install_docker
-    # Opt-in-by-default installs (all INSTALL_* flags default to 1).  Grouped
-    # formulas-first, casks-second so the longer download queue runs together.
+    # Optional installs.  All INSTALL_* flags default to 1; Miniconda is
+    # installed by default but kept dormant.  Group formulas-first so the
+    # longer download queue runs together.
     maybe_install_extra_clis
     maybe_install_llama_cpp
     maybe_install_go
+    maybe_install_miniconda
     maybe_install_ollama
     maybe_install_tailscale
     maybe_install_rust
@@ -702,6 +794,7 @@ main() {
     EXPECT_CODEX="$INSTALL_CODEX" \
     EXPECT_CLAUDE="$INSTALL_CLAUDE_CODE" \
     EXPECT_AI_ENV="$INSTALL_AI_ENV" \
+    EXPECT_MINICONDA="$INSTALL_MINICONDA" \
     EXPECT_OLLAMA="$INSTALL_OLLAMA" \
     EXPECT_DEV_FONTS="$INSTALL_DEV_FONTS" \
     EXPECT_RUST="$INSTALL_RUST" \
