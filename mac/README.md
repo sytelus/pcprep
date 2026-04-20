@@ -1,9 +1,9 @@
 # macOS Setup Scripts
 
 Re-runnable bootstrap for a macOS developer machine. The `mac/` scripts install
-Homebrew-managed tools, shared dotfiles, a Homebrew Python + `uv` AI stack,
-conservative Git defaults, and a small set of macOS defaults without taking
-over the whole machine.
+Homebrew-managed tools, shared dotfiles, a `uv`-managed `main` Python
+environment based on Homebrew Python, conservative Git defaults, and a small
+set of macOS defaults without taking over the whole machine.
 
 ## Before You Run It
 
@@ -49,7 +49,7 @@ Local-only rerun:
 NO_NET=1 bash mac/prepare_new_box.sh
 ```
 
-Refresh only the Homebrew Python AI packages:
+Refresh only the managed `main` Python environment:
 
 ```bash
 bash mac/setup_python_ai.sh
@@ -66,7 +66,7 @@ bash mac/verify_setup.sh
 - Homebrew core CLI tools from [Brewfile.core](/home/shitals/GitHubSrc/pcprep/mac/Brewfile.core:1)
 - Optional GUI apps from [Brewfile.cask](/home/shitals/GitHubSrc/pcprep/mac/Brewfile.cask:1)
 - Shared dotfiles and helper scripts via [apply_dotfiles.sh](/home/shitals/GitHubSrc/pcprep/mac/apply_dotfiles.sh:1)
-- Homebrew Python 3.12 AI environment via [setup_python_ai.sh](/home/shitals/GitHubSrc/pcprep/mac/setup_python_ai.sh:1)
+- Managed `main` Python environment based on Homebrew Python 3.12 via [setup_python_ai.sh](/home/shitals/GitHubSrc/pcprep/mac/setup_python_ai.sh:1)
 - Conservative macOS defaults via [apply_defaults.sh](/home/shitals/GitHubSrc/pcprep/mac/apply_defaults.sh:1)
 - Final validation via [verify_setup.sh](/home/shitals/GitHubSrc/pcprep/mac/verify_setup.sh:1)
 
@@ -75,7 +75,7 @@ Normal runs end with:
 - `tmux`, `zellij`, and `screen` available on `PATH`
 - Apple Clang C/C++ compilation working, plus `cmake`, `ninja`, and `pkg-config`
 - Azure CLI dynamic extension installs preconfigured under `~/.azure/cliextensions`
-- Homebrew Python AI packages installed into `python@3.12`
+- Managed `main` Python environment installed at `~/.venvs/main` by default
 - Miniconda installed by default, but left dormant and off `PATH`
 - Existing manually installed GUI app bundles are reused or adopted instead of causing the bootstrap to fail
 
@@ -94,8 +94,9 @@ Common toggles:
 | `INSTALL_CLAUDE_APP` | `1` | Install Claude.app |
 | `INSTALL_CODEX` | `1` | Install the Codex CLI npm package |
 | `INSTALL_CLAUDE_CODE` | `1` | Install the Claude Code npm package |
-| `INSTALL_AI_ENV` | `1` | Install the Homebrew Python AI package set |
+| `INSTALL_AI_ENV` | `1` | Install the managed `main` Python environment |
 | `INSTALL_MINICONDA` | `1` | Install Miniconda into `~/miniconda3` without `conda init` |
+| `AUTO_ACTIVATE_MAIN` | `1` | Auto-activate the managed `main` Python environment in interactive shells |
 | `USE_POWERLEVEL10K_PROMPT` | `0` | Install Powerlevel10k and use the managed compact Powerlevel10k zsh prompt |
 | `APPLY_MACOS_DEFAULTS` | `1` | Apply the managed macOS defaults |
 | `APPLY_DOTFILES` | `1` | Install the managed bash/zsh fragments and copy shared dotfiles |
@@ -122,6 +123,7 @@ Optional developer extras, all default `1`:
 Other supported path/config overrides:
 
 - `MINICONDA_DIR=/custom/path`
+- `MAIN_VENV_DIR=/custom/path`
 - `user_name=...`
 - `user_email=...`
 
@@ -152,10 +154,25 @@ Miniconda:
 
 Python / AI stack:
 
-- Installed into Homebrew `python@3.12`, not Apple’s Python
+- Built from Homebrew `python@3.12`, not Apple’s Python
+- Installed into the managed `main` environment at `MAIN_VENV_DIR` instead of into Homebrew’s base interpreter
+- Interactive shells auto-activate `main` by default
+- Use `mainoff` to return to plain Homebrew Python in the current shell
+- Use `mainon` to re-enter `main`
+- Set `AUTO_ACTIVATE_MAIN=0` if you do not want `main` auto-activated in new shells
 - Includes notebook/data-science basics, TensorFlow/Keras, PyTorch, TensorBoard,
   and the mainstream LLM tooling stack
+- Registers a Jupyter kernel named `Python 3.12 (main)`
+- `setup_python_ai.sh` and `verify_setup.sh` validate against the repo's requirements files, so the full managed package list is checked rather than a hand-picked subset
 - MLX is treated as an Apple-Silicon-only layer on top of that stack
+
+Python switching:
+
+- Default interactive shell: `main` is active unless `AUTO_ACTIVATE_MAIN=0`
+- Plain Homebrew Python: run `mainoff`
+- Miniconda: run `condaon` or `condaon ENV_NAME`; it deactivates `main` first
+- Leave Miniconda: run `condaoff`, then `mainon` if you want `main` back immediately
+- Apple Python: use `/usr/bin/python3` explicitly, or `applepy` as a short wrapper
 
 Terminal multiplexers:
 

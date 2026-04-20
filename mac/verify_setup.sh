@@ -55,6 +55,7 @@ EXPECT_EXTRA_CLIS="${EXPECT_EXTRA_CLIS:-1}"
 EXPECT_FIREFOX="${EXPECT_FIREFOX:-1}"
 EXPECT_CHROME="${EXPECT_CHROME:-1}"
 MINICONDA_DIR="${MINICONDA_DIR:-$HOME/miniconda3}"
+MAIN_VENV_DIR="$(default_main_venv_dir)"
 
 if [ -n "${EXPECT_MLX+x}" ]; then
   EXPECT_MLX="${EXPECT_MLX:-0}"
@@ -201,8 +202,9 @@ EOF
 check_python_import_stack() {
   local python_bin="$1"
   local check_label="$2"
+  shift 2
 
-  if "$python_bin" "$SCRIPT_DIR/check_python_stack.py"
+  if "$python_bin" "$SCRIPT_DIR/check_python_stack.py" "$@"
   then
     pass "$check_label"
   else
@@ -344,6 +346,7 @@ check_command "python${PYTHON_MINOR}" "Python ${PYTHON_MINOR} (from ${PYTHON_FOR
 check_c_cpp_toolchain
 
 PYTHON_BIN="$(find_brew_python_bin "$PYTHON_FORMULA" || true)"
+MAIN_PYTHON_BIN="$(find_main_python_bin "$PYTHON_FORMULA" || true)"
 
 # Validate the full CLI manifest in one shot.  Any missing formula surfaces
 # a single failure line here with the command to re-install.
@@ -415,27 +418,28 @@ if bool_is_true "$EXPECT_DOCKER"; then
 fi
 
 if bool_is_true "$EXPECT_AI_ENV"; then
-  if [ -n "$PYTHON_BIN" ] && [ -x "$PYTHON_BIN" ]; then
-    pass "Homebrew Python interpreter exists at $PYTHON_BIN"
+  if [ -n "$MAIN_PYTHON_BIN" ] && [ -x "$MAIN_PYTHON_BIN" ]; then
+    pass "Managed main Python interpreter exists at $MAIN_PYTHON_BIN"
     # Capture interpreter output so the PASS / FAIL status line lands near
     # its own heading rather than being visually separated by Python stdout.
-    if "$PYTHON_BIN" - <<'PYTHON_CHECK'
+    if "$MAIN_PYTHON_BIN" - <<'PYTHON_CHECK'
 import torch
 
 print(f"PyTorch: {torch.__version__}")
 print(f"MPS available: {torch.backends.mps.is_available()}")
 PYTHON_CHECK
     then
-      pass "Homebrew Python imports PyTorch successfully."
+      pass "Managed main Python imports PyTorch successfully."
     else
-      fail "Homebrew Python exists but PyTorch verification failed."
+      fail "Managed main Python interpreter exists but PyTorch verification failed."
     fi
 
     check_python_import_stack \
-      "$PYTHON_BIN" \
-      "Homebrew Python imports the requested AI and notebook packages successfully."
+      "$MAIN_PYTHON_BIN" \
+      "Managed main Python imports the full requested package stack successfully." \
+      "$SCRIPT_DIR/requirements-ai.txt"
   else
-    fail "Expected Homebrew Python interpreter is missing for AI package verification."
+    fail "Expected managed main Python environment is missing at $MAIN_VENV_DIR."
   fi
 fi
 
@@ -554,16 +558,13 @@ if bool_is_true "$EXPECT_CHROME"; then
 fi
 
 if bool_is_true "$EXPECT_MLX"; then
-  # MLX is a Python package; verify by importing inside the Homebrew Python
-  # interpreter that setup_python_ai.sh installs into.
-  if [ -n "$PYTHON_BIN" ] && [ -x "$PYTHON_BIN" ]; then
-    if "$PYTHON_BIN" -c "import mlx" >/dev/null 2>&1; then
-      pass "MLX is importable in the Homebrew Python interpreter."
-    else
-      fail "MLX is expected but not importable in $PYTHON_BIN."
-    fi
+  if [ -n "$MAIN_PYTHON_BIN" ] && [ -x "$MAIN_PYTHON_BIN" ]; then
+    check_python_import_stack \
+      "$MAIN_PYTHON_BIN" \
+      "Managed main Python imports the optional MLX package stack successfully." \
+      "$SCRIPT_DIR/requirements-mlx.txt"
   else
-    fail "Homebrew Python interpreter is missing; cannot verify MLX."
+    fail "Managed main Python interpreter is missing; cannot verify MLX."
   fi
 fi
 

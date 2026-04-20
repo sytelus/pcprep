@@ -34,6 +34,28 @@ if [ -f "$HOME/.config/pcprep/pcprep-aliases.sh" ]; then
 fi
 
 
+# --- Default Python mode ----------------------------------------------
+# Keep the managed "main" Python environment feeling like the default daily
+# Python without touching Homebrew's externally-managed site-packages. Skip
+# auto-activation when the user is already in another venv or a conda env.
+_pcprep_bool_true() {
+  case "${1:-0}" in
+    1|y|Y|yes|YES|true|TRUE|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if _pcprep_bool_true "${AUTO_ACTIVATE_MAIN:-1}" \
+  && [ -z "${VIRTUAL_ENV:-}" ] \
+  && [ "${CONDA_SHLVL:-0}" -eq 0 ] \
+  && [ -n "${MAIN_VENV_DIR:-}" ] \
+  && [ -f "${MAIN_VENV_DIR}/bin/activate" ]; then
+  . "${MAIN_VENV_DIR}/bin/activate" >/dev/null 2>&1 || true
+fi
+
+unset -f _pcprep_bool_true
+
+
 # --- Safer tmux auto-attach for SSH sessions --------------------------
 if [ -z "${TMUX:-}" ] && [ -n "${SSH_CONNECTION:-}" ] && command -v tmux >/dev/null 2>&1; then
   _pcprep_tmux_session="ssh_${HOST:-$(hostname -s)}"

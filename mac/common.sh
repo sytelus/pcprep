@@ -298,6 +298,37 @@ find_brew_python_bin() {
   return 1
 }
 
+# Return the default path for pcprep's managed macOS "main" Python virtualenv.
+# The default is intentionally short and stable (`~/.venvs/main`) so it feels
+# like the user's day-to-day Python, not an experimental project-specific env.
+# MAIN_VENV_DIR is the preferred override; AI_VENV_DIR remains accepted as a
+# backward-compatible alias.
+default_main_venv_dir() {
+  printf '%s\n' "${MAIN_VENV_DIR:-${AI_VENV_DIR:-$HOME/.venvs/main}}"
+}
+
+# Resolve the Python binary inside pcprep's managed "main" Python virtualenv.
+find_main_python_bin() {
+  local main_venv_dir
+
+  main_venv_dir="$(default_main_venv_dir)"
+  if [ -x "$main_venv_dir/bin/python" ]; then
+    printf '%s\n' "$main_venv_dir/bin/python"
+    return 0
+  fi
+
+  return 1
+}
+
+# Backward-compatible aliases for older local references.
+default_ai_venv_dir() {
+  default_main_venv_dir "$@"
+}
+
+find_ai_python_bin() {
+  find_main_python_bin "$@"
+}
+
 # Read a value from the user's global Git config files without invoking `git`.
 # This keeps early prompt-suppression logic safe even before Xcode CLT / Git is
 # guaranteed to be runnable. Supports simple section.key lookups such as

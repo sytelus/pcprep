@@ -159,9 +159,11 @@ ensure_homebrew() {
   local brew_shellenv_file
   local shellenv_block
   local shellenv_source_line
+  local main_venv_dir
 
   preferred_prefix="$(brew_prefix_guess)"
   brew_bin="$preferred_prefix/bin/brew"
+  main_venv_dir="$(default_main_venv_dir)"
 
   if command_exists brew; then
     brew_bin="$(command -v brew)"
@@ -193,6 +195,9 @@ fi
 PCPREP_MACOS_SHELLENV_LOADED=1
 
 export USE_POWERLEVEL10K_PROMPT=\"${USE_POWERLEVEL10K_PROMPT:-0}\"
+export MAIN_VENV_DIR=\"$main_venv_dir\"
+export AI_VENV_DIR=\"$main_venv_dir\"
+export AUTO_ACTIVATE_MAIN=\"${AUTO_ACTIVATE_MAIN:-1}\"
 
 if [ -x \"$brew_bin\" ]; then
   eval \"\$($brew_bin shellenv)\"
@@ -207,6 +212,42 @@ if [ -d \"\$HOME/.cargo/bin\" ]; then
   export PATH=\"\$HOME/.cargo/bin:\$PATH\"
 fi
 
+# Managed main Python environment.  It stays isolated from Homebrew's base
+# interpreter, but interactive shells can auto-activate it so it behaves like
+# the default day-to-day Python.  'mainoff' returns to the plain Homebrew
+# environment, 'condaon' deactivates it before entering Miniconda, and Apple's
+# Python remains available explicitly via '/usr/bin/python3' or 'applepy'.
+_pcprep_deactivate_current_venv() {
+  if [ -n \"\${VIRTUAL_ENV:-}\" ] && command -v deactivate >/dev/null 2>&1; then
+    deactivate >/dev/null 2>&1 || true
+  fi
+}
+
+applepy() {
+  /usr/bin/python3 \"\$@\"
+}
+
+if [ -f \"$main_venv_dir/bin/activate\" ]; then
+  mainon() {
+    if [ \"\${VIRTUAL_ENV:-}\" != \"$main_venv_dir\" ]; then
+      _pcprep_deactivate_current_venv
+    fi
+    if [ \"\${CONDA_SHLVL:-0}\" -gt 0 ] && [ -f \"$MINICONDA_DIR/etc/profile.d/conda.sh\" ]; then
+      . \"$MINICONDA_DIR/etc/profile.d/conda.sh\"
+      while [ \"\${CONDA_SHLVL:-0}\" -gt 0 ]; do
+        conda deactivate >/dev/null 2>&1 || break
+      done
+    fi
+    . \"$main_venv_dir/bin/activate\"
+  }
+
+  mainoff() {
+    if [ \"\${VIRTUAL_ENV:-}\" = \"$main_venv_dir\" ]; then
+      _pcprep_deactivate_current_venv
+    fi
+  }
+fi
+
 # Optional Miniconda helpers.  We deliberately do NOT add Miniconda to PATH
 # by default, so Homebrew Python + uv stay the default toolchain for every new
 # shell.  Use condaon to activate base (or a named env), and condaoff to
@@ -214,6 +255,11 @@ fi
 # system path.
 if [ -f \"$MINICONDA_DIR/etc/profile.d/conda.sh\" ]; then
   condaon() {
+    if [ \"\${VIRTUAL_ENV:-}\" = \"$main_venv_dir\" ]; then
+      mainoff
+    else
+      _pcprep_deactivate_current_venv
+    fi
     . \"$MINICONDA_DIR/etc/profile.d/conda.sh\"
     if [ \"\$#\" -gt 0 ]; then
       conda activate \"\$1\"
@@ -972,8 +1018,9 @@ main() {
 
   if bool_is_true "$INSTALL_AI_ENV" && ! bool_is_true "$NO_NET"; then
     "$SCRIPT_DIR/setup_python_ai.sh"
+    append_next_step "Open a new shell so the managed 'main' Python environment at $(default_main_venv_dir) auto-activates. Use 'mainoff' to return to plain Homebrew Python, 'mainon' to re-enter it, and 'condaon' when you want Miniconda instead."
   elif bool_is_true "$INSTALL_AI_ENV"; then
-    warn "Skipping Homebrew Python AI package installation because NO_NET=1."
+    warn "Skipping managed 'main' Python environment installation because NO_NET=1."
   fi
 
   append_next_step "Run 'gh auth login' if you want GitHub CLI authentication and git credential helpers to work immediately."
