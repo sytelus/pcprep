@@ -1,8 +1,6 @@
 # Small set of GUI applications that solve real developer pain points on macOS
 # and are broadly accepted rather than highly personal.
 
-tap "homebrew/bundle"
-
 # iTerm2 remains the most common upgrade over Terminal.app for pane-heavy work.
 cask "iterm2"
 

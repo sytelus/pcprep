@@ -11,8 +11,6 @@
 # - "Does not exist" means a stock macOS install does not normally provide that
 #   developer-facing CLI at all.
 
-tap "homebrew/bundle"
-
 # Git: macOS usually provides Apple's Git (or a shim that prompts for Command
 # Line Tools), but Homebrew Git is newer.  Replaces via PATH in interactive
 # shells once `brew shellenv` is loaded; `/usr/bin/git` still remains intact.
