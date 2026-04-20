@@ -485,6 +485,7 @@ maybe_install_dev_fonts() {
   brew_install_if_missing cask font-jetbrains-mono "JetBrains Mono"
   brew_install_if_missing cask font-meslo-lg-nerd-font "MesloLG Nerd Font"
   brew_install_if_missing cask font-fira-code "Fira Code"
+  append_next_step "Set your Terminal or iTerm2 profile font to 'MesloLGS Nerd Font' if you want the managed Powerlevel10k prompt to render its glyphs cleanly."
 }
 
 maybe_install_firefox() {

@@ -225,8 +225,9 @@ Path override:
   base, `condaon ENV_NAME` for a named environment, and `condaoff` to fully
   deactivate it again.
 - `INSTALL_EXTRA_CLIS=1` installs only CLI tools and one utility cask
-  (`AppCleaner`). Nothing in that bundle adds login items or background daemons
-  just by being installed.
+  (`AppCleaner`). It is the mac-compatible dormant subset of
+  `ubuntu/extra_install.sh`, and nothing in that bundle adds login items or
+  background daemons just by being installed.
 - Ollama and Tailscale install the Homebrew formulas only, not the GUI casks,
   so they do not auto-start background daemons.
 - Some post-install actions remain manual by design, such as app sign-in,

@@ -41,11 +41,33 @@ if [ -n "${ZSH_VERSION:-}" ]; then
   # were run.  Useful for reconstructing a session post-hoc.
   setopt EXTENDED_HISTORY
 
-  # Keep the default zsh prompt intentionally short: just a compact path
-  # showing the last two components plus the standard prompt char.
+fi
+
+# Prompt: prefer the managed Powerlevel10k setup when the Homebrew formula is
+# installed; otherwise fall back to a tiny stock zsh prompt so shells stay
+# usable even before brew bundle has completed.
+_pcprep_p10k_theme=
+for _pcprep_p10k_candidate in \
+  "${HOMEBREW_PREFIX:-}/share/powerlevel10k/powerlevel10k.zsh-theme" \
+  "/opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme" \
+  "/usr/local/share/powerlevel10k/powerlevel10k.zsh-theme"
+do
+  if [ -n "$_pcprep_p10k_candidate" ] && [ -r "$_pcprep_p10k_candidate" ]; then
+    _pcprep_p10k_theme="$_pcprep_p10k_candidate"
+    break
+  fi
+done
+
+if [ -n "${ZSH_VERSION:-}" ] && [ -n "$_pcprep_p10k_theme" ] && [ -r "$HOME/.config/pcprep/pcprep-p10k.zsh" ]; then
+  POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+  source "$_pcprep_p10k_theme"
+  source "$HOME/.config/pcprep/pcprep-p10k.zsh"
+else
   PROMPT='%2~ %# '
   RPROMPT=
 fi
+
+unset _pcprep_p10k_candidate _pcprep_p10k_theme
 
 # Shell-agnostic environment, aliases, and SSH/tmux helpers live in a common
 # fragment so macOS bash and zsh share the same day-to-day development setup.

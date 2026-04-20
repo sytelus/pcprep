@@ -159,6 +159,7 @@ ensure_dir "$PCPREP_CONFIG_DIR"
 cp "$MAC_DOTFILES_DIR/pcprep-shell.zsh" "$PCPREP_CONFIG_DIR/pcprep-shell.zsh"
 cp "$MAC_DOTFILES_DIR/pcprep-shell.bash" "$PCPREP_CONFIG_DIR/pcprep-shell.bash"
 cp "$MAC_DOTFILES_DIR/pcprep-shell.common.sh" "$PCPREP_CONFIG_DIR/pcprep-shell.common.sh"
+cp "$MAC_DOTFILES_DIR/pcprep-p10k.zsh" "$PCPREP_CONFIG_DIR/pcprep-p10k.zsh"
 cp "$UBUNTU_DOTFILES_DIR/.bash_aliases" "$PCPREP_CONFIG_DIR/pcprep-aliases.sh"
 log "Wrote managed bash/zsh shell fragments under $PCPREP_CONFIG_DIR"
 

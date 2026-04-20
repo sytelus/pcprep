@@ -114,3 +114,7 @@ brew "node"
 # shell usually resolves to Homebrew Bash; scripts with `#!/bin/bash` still use
 # Apple's Bash until you change the shebang or your login shell.
 brew "bash"
+# Powerlevel10k: compact, fast zsh prompt theme.  Does not change the default
+# shell by itself; it only provides the theme files that pcprep's managed zsh
+# fragment sources when present.
+brew "powerlevel10k"
