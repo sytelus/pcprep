@@ -177,6 +177,8 @@ Path override:
   Managed bash fragment sourced from a fenced block in `~/.bashrc`.
 - `~/.config/pcprep/pcprep-shell.zsh`
   Managed zsh fragment sourced from a fenced block in `~/.zshrc`.
+- `~/.config/pcprep/pcprep-p10k.zsh`
+  Managed compact Powerlevel10k prompt config used by the zsh fragment.
 - `~/.config/pcprep/pcprep-shell.common.sh`
   Shared bash/zsh environment and SSH/tmux helpers.
 - `~/.config/pcprep/pcprep-aliases.sh`
@@ -205,6 +207,9 @@ Path override:
   `ubuntu/.bash_aliases`. Linux-only entries are guarded in that file instead
   of being dropped, so Slurm / Kubernetes / remote-development aliases remain
   available on macOS.
+- zsh uses a managed compact Powerlevel10k prompt when Homebrew's
+  `powerlevel10k` formula is present. The recommended font for its glyphs is
+  MesloLGS Nerd Font, which is already part of `INSTALL_DEV_FONTS=1`.
 - Login bash on macOS reads `~/.bash_profile`, not `~/.bashrc`, so the mac
   dotfile setup adds a small managed block to `~/.bash_profile` that sources
   `~/.bashrc`. New `bash` shells therefore pick up the same Homebrew shellenv,
@@ -239,6 +244,7 @@ Path override:
   `>>> pcprep macos bash_profile >>>` blocks from `~/.zshrc`, `~/.bashrc`, and
   `~/.bash_profile` to stop loading the managed shell fragments.
 - Delete `~/.config/pcprep/pcprep-shell.zsh`,
+  `~/.config/pcprep/pcprep-p10k.zsh`,
   `~/.config/pcprep/pcprep-shell.bash`,
   `~/.config/pcprep/pcprep-shell.common.sh`,
   `~/.config/pcprep/pcprep-aliases.sh`, and

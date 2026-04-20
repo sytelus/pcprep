@@ -38,6 +38,7 @@ EXPECT_GITHUB_COPILOT_CLI="${EXPECT_GITHUB_COPILOT_CLI:-1}"
 EXPECT_GUI_APPS="${EXPECT_GUI_APPS:-1}"
 EXPECT_AI_ENV="${EXPECT_AI_ENV:-1}"
 EXPECT_MINICONDA="${EXPECT_MINICONDA:-1}"
+EXPECT_DOTFILES="${EXPECT_DOTFILES:-1}"
 
 # Optional install expectations — mirror INSTALL_* in prepare_new_box.sh.
 # Default ON so running verify_setup.sh standalone after a normal bootstrap
@@ -321,6 +322,7 @@ check_command micro "micro"
 check_command fdupes "fdupes"
 check_command xz "xz"
 check_brew_formula screen "GNU Screen"
+check_brew_formula powerlevel10k "Powerlevel10k prompt"
 check_command cmake "CMake"
 check_command ninja "Ninja"
 check_command pkg-config "pkg-config"
@@ -453,6 +455,10 @@ if bool_is_true "$EXPECT_DEV_FONTS"; then
   check_brew_cask font-jetbrains-mono     "JetBrains Mono"
   check_brew_cask font-meslo-lg-nerd-font "MesloLG Nerd Font"
   check_brew_cask font-fira-code          "Fira Code"
+fi
+
+if bool_is_true "$EXPECT_DOTFILES"; then
+  check_path_exists "$HOME/.config/pcprep/pcprep-p10k.zsh" "Managed Powerlevel10k config"
 fi
 
 if bool_is_true "$EXPECT_EXTRA_CLIS"; then
