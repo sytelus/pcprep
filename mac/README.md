@@ -1,54 +1,42 @@
 # macOS Setup Scripts
 
-Conservative, re-runnable bootstrap for a new macOS developer machine.
-
-The goal is to install a solid developer baseline without taking over the whole
-machine: Homebrew, core CLI and GUI tools, shared dotfiles, conservative Git
-defaults, a Homebrew Python + `uv` AI stack, and a small set of macOS defaults.
+Re-runnable bootstrap for a macOS developer machine. The `mac/` scripts install
+Homebrew-managed tools, shared dotfiles, a Homebrew Python + `uv` AI stack,
+conservative Git defaults, and a small set of macOS defaults without taking
+over the whole machine.
 
 ## Before You Run It
 
 - macOS only.
-- `~/.ssh` must already exist with your keys and config. `prepare_new_box.sh`
-  exits early if it is missing.
-- Internet is required for installs unless you run with `NO_NET=1`.
-- The script asks for Git name and email at the start if they are not already
-  configured. You can preseed them with `user_name=...` and `user_email=...`.
-- When sudo is available, the bootstrap asks up front, then keeps that sudo
-  session alive for the rest of the run so later privileged steps do not keep
-  re-prompting.
+- `~/.ssh` must already exist with your keys and config.
+- Internet is required unless you run with `NO_NET=1`.
+- The bootstrap asks for `git user.name` and `git user.email` at the start if
+  they are not already configured. You can preseed them with
+  `user_name=... user_email=...`.
+- When sudo is available, the bootstrap prompts once up front and keeps that
+  sudo session alive for the rest of the run.
 
-## Main Scripts
+## Main Commands
 
-- `prepare_new_box.sh`: full bootstrap entrypoint.
-- `apply_defaults.sh`: apply the managed macOS preference changes.
-- `revert_defaults.sh`: revert the preference changes from `apply_defaults.sh`.
-- `apply_dotfiles.sh`: copy shared configs from `ubuntu/` and install the
-  managed bash/zsh shell fragments.
-- `setup_python_ai.sh`: install the AI Python package set into Homebrew Python.
-- `verify_setup.sh`: validate the resulting machine state.
-
-## Usage
-
-Full bootstrap:
+Normal bootstrap:
 
 ```bash
 bash mac/prepare_new_box.sh
 ```
 
-Bootstrap with preseeded Git identity:
+Preseed Git identity:
 
 ```bash
 user_name="Your Name" user_email="you@example.com" bash mac/prepare_new_box.sh
 ```
 
-Bootstrap without Miniconda:
+Skip Miniconda:
 
 ```bash
 INSTALL_MINICONDA=0 bash mac/prepare_new_box.sh
 ```
 
-Bootstrap with the managed compact Powerlevel10k zsh prompt:
+Enable the managed compact Powerlevel10k zsh prompt:
 
 ```bash
 USE_POWERLEVEL10K_PROMPT=1 bash mac/prepare_new_box.sh
@@ -66,208 +54,155 @@ Refresh only the Homebrew Python AI packages:
 bash mac/setup_python_ai.sh
 ```
 
-Verify the final setup:
+Verify the current machine state:
 
 ```bash
 bash mac/verify_setup.sh
 ```
 
-## Terminal Multiplexers
+## What It Sets Up
 
-- After a normal `prepare_new_box.sh` run, both `tmux` and `zellij` should be
-  available on `PATH`.
-- Both work fine with `zsh`. They are terminal multiplexers, not shells, so
-  they run your shell inside panes and tabs rather than replacing zsh.
-- `tmux` is the more portable choice for SSH, remote hosts, and shared team
-  workflows.
-- `zellij` has nicer built-in defaults and a more discoverable UI.
-- Homebrew `screen` is also installed as a compatibility fallback, but `tmux`
-  and `zellij` remain the preferred defaults.
-- The Mac setup already seeds `~/.tmux.conf` copy-if-absent and auto-attaches
-  `tmux` for SSH sessions in the managed shell fragment.
+- Homebrew core CLI tools from [Brewfile.core](/home/shitals/GitHubSrc/pcprep/mac/Brewfile.core:1)
+- Optional GUI apps from [Brewfile.cask](/home/shitals/GitHubSrc/pcprep/mac/Brewfile.cask:1)
+- Shared dotfiles and helper scripts via [apply_dotfiles.sh](/home/shitals/GitHubSrc/pcprep/mac/apply_dotfiles.sh:1)
+- Homebrew Python 3.12 AI environment via [setup_python_ai.sh](/home/shitals/GitHubSrc/pcprep/mac/setup_python_ai.sh:1)
+- Conservative macOS defaults via [apply_defaults.sh](/home/shitals/GitHubSrc/pcprep/mac/apply_defaults.sh:1)
+- Final validation via [verify_setup.sh](/home/shitals/GitHubSrc/pcprep/mac/verify_setup.sh:1)
 
-Quick start:
+Normal runs end with:
 
-```bash
-tmux
-zellij
-```
+- `tmux`, `zellij`, and `screen` available on `PATH`
+- Apple Clang C/C++ compilation working, plus `cmake`, `ninja`, and `pkg-config`
+- Azure CLI dynamic extension installs preconfigured under `~/.azure/cliextensions`
+- Homebrew Python AI packages installed into `python@3.12`
+- Miniconda installed by default, but left dormant and off `PATH`
 
-## C/C++ Toolchain
+## Feature Flags
 
-- A clean macOS install is not a reliable C/C++ build environment until Apple
-  Command Line Tools are installed.
-- `prepare_new_box.sh` makes Xcode Command Line Tools a hard prerequisite. If
-  they are missing, it runs `xcode-select --install` and exits so you can
-  finish the Apple installer, then re-run the bootstrap.
-- After the bootstrap completes, you can compile C and C++ with Apple Clang,
-  and the script also installs Homebrew `cmake`, `ninja`, and `pkg-config` for
-  common native build workflows.
-- Homebrew `gcc` is also installed as an extra compiler toolchain, but it is
-  not made the default. Apple Clang remains the expected compiler for normal
-  macOS and Xcode-oriented builds.
-- The final `verify_setup.sh` pass now smoke-tests the toolchain by compiling
-  and running a tiny C program and a tiny C++ program.
+Common toggles:
 
-Basic examples:
+| Flag | Default | Effect |
+|---|---:|---|
+| `NO_NET` | `0` | Skip network-backed installs and run only local steps |
+| `SKIP_BREW_UPDATE` | `0` | Reuse existing Homebrew metadata |
+| `INSTALL_GUI_APPS` | `1` | Install the GUI Brewfile (`iTerm2`, VS Code, Rectangle) |
+| `INSTALL_DOCKER` | `1` | Install Docker Desktop |
+| `INSTALL_GITHUB_COPILOT_CLI` | `1` | Install the GitHub Copilot CLI cask |
+| `INSTALL_CODEX_APP` | `1` | Install Codex.app |
+| `INSTALL_CLAUDE_APP` | `1` | Install Claude.app |
+| `INSTALL_CODEX` | `1` | Install the Codex CLI npm package |
+| `INSTALL_CLAUDE_CODE` | `1` | Install the Claude Code npm package |
+| `INSTALL_AI_ENV` | `1` | Install the Homebrew Python AI package set |
+| `INSTALL_MINICONDA` | `1` | Install Miniconda into `~/miniconda3` without `conda init` |
+| `USE_POWERLEVEL10K_PROMPT` | `0` | Install Powerlevel10k and use the managed compact Powerlevel10k zsh prompt |
+| `APPLY_MACOS_DEFAULTS` | `1` | Apply the managed macOS defaults |
+| `APPLY_DOTFILES` | `1` | Install the managed bash/zsh fragments and copy shared dotfiles |
+| `ENABLE_FIREWALL` | `1` | Enable the macOS application firewall |
+| `ENABLE_FIREWALL_STEALTH` | `0` | Also enable firewall stealth mode |
+| `ENABLE_TOUCH_ID_FOR_SUDO` | `1` | Configure Touch ID for `sudo` where supported |
+| `UPGRADE_NODE_GLOBALS` | `0` | Upgrade Codex CLI / Claude Code instead of install-if-missing |
 
-```bash
-clang hello.c -o hello
-clang++ -std=c++17 hello.cpp -o hello
-cmake -S . -B build
-cmake --build build -j
-```
+Optional developer extras, all default `1`:
 
-If you need the full Apple SDKs for iOS or simulator builds, install full
-Xcode from the App Store and run:
+| Flag | Effect |
+|---|---|
+| `INSTALL_EXTRA_CLIS` | Install the mac-compatible dormant subset of `ubuntu/extra_install.sh` |
+| `INSTALL_OLLAMA` | Install the Ollama formula only, not the GUI cask |
+| `INSTALL_TAILSCALE` | Install the Tailscale formula only, not the GUI cask |
+| `INSTALL_RUST` | Install Rust through `rustup-init` |
+| `INSTALL_GO` | Install Go through Homebrew |
+| `INSTALL_DEV_FONTS` | Install JetBrains Mono, MesloLGS Nerd Font, and Fira Code |
+| `INSTALL_FIREFOX` | Install Firefox |
+| `INSTALL_CHROME` | Install Google Chrome |
+| `INSTALL_LLAMA_CPP` | Install `llama.cpp` |
+| `INSTALL_MLX` | Install MLX extras on Apple Silicon; skipped automatically on Intel Macs |
 
-```bash
-sudo xcodebuild -license accept
-```
+Other supported path/config overrides:
 
-## Defaults And Flags
+- `MINICONDA_DIR=/custom/path`
+- `user_name=...`
+- `user_email=...`
 
-Most feature flags default to `1`. The main exceptions are:
+`setup_python_ai.sh` also supports:
 
-- `NO_NET=0`
-- `SKIP_BREW_UPDATE=0`
-- `ENABLE_FIREWALL_STEALTH=0`
-- `UPGRADE_NODE_GLOBALS=0`
-
-Useful toggles:
-
-- `INSTALL_GUI_APPS=0`: skip the GUI Brewfile (`iTerm2`, VS Code, Rectangle).
-- `INSTALL_DOCKER=0`: skip Docker Desktop.
-- `INSTALL_GITHUB_COPILOT_CLI=0`: skip the Copilot CLI cask.
-- `INSTALL_CODEX_APP=0`: skip Codex.app.
-- `INSTALL_CLAUDE_APP=0`: skip Claude.app.
-- `INSTALL_CODEX=0`: skip the Codex CLI npm install.
-- `INSTALL_CLAUDE_CODE=0`: skip the Claude Code npm install.
-- `INSTALL_AI_ENV=0`: skip Python AI packages in Homebrew Python.
-- `INSTALL_MINICONDA=0`: skip the default Miniconda install.
-- `APPLY_MACOS_DEFAULTS=0`: skip `apply_defaults.sh`.
-- `APPLY_DOTFILES=0`: skip `apply_dotfiles.sh`.
-- `USE_POWERLEVEL10K_PROMPT=1`: install Powerlevel10k and enable the managed
-  compact Powerlevel10k prompt for zsh instead of the plain built-in prompt.
-- `ENABLE_FIREWALL=0`: leave the macOS firewall unchanged.
-- `ENABLE_FIREWALL_STEALTH=1`: also enable firewall stealth mode.
-- `ENABLE_TOUCH_ID_FOR_SUDO=0`: leave sudo authentication unchanged.
-- `SKIP_BREW_UPDATE=1`: use existing Homebrew metadata.
-- `UPGRADE_NODE_GLOBALS=1`: upgrade Codex CLI / Claude Code instead of
-  install-if-missing.
-
-Developer extras, all default `1`:
-
-- `INSTALL_EXTRA_CLIS=0`
-  Skips the dormant extra CLI bundle (`tlrc`, `ncdu`, `meson`, `kubectl`,
-  `rclone`, `ffmpeg`, archive helpers, and similar command-line tools).
-- `INSTALL_LLAMA_CPP=0`
-- `INSTALL_GO=0`
-- `INSTALL_OLLAMA=0`
-- `INSTALL_TAILSCALE=0`
-- `INSTALL_RUST=0`
-- `INSTALL_DEV_FONTS=0`
-- `INSTALL_FIREFOX=0`
-- `INSTALL_CHROME=0`
+- `INSTALL_JUPYTER_KERNEL=0`
 - `INSTALL_MLX=0`
 
-Path override:
+## Using Key Features
 
-- `MINICONDA_DIR=/custom/path`: install Miniconda somewhere other than
-  `~/miniconda3`.
+Prompt:
 
-## What The Scripts Manage
+- Default zsh prompt is the plain built-in `%2~ %# `.
+- Enable Powerlevel10k with `USE_POWERLEVEL10K_PROMPT=1`.
+- If Powerlevel10k glyphs look wrong, set your terminal font to
+  `MesloLGS Nerd Font`.
+- `USE_POWERLEVEL10K_PROMPT=1` only takes effect automatically when
+  `APPLY_DOTFILES=1`, because that is what manages `~/.zshrc`.
 
-- `~/.config/pcprep/macos-shellenv.sh`
-  This is sourced from managed blocks in `~/.zprofile` and
-  `~/.bash_profile`, and also from the managed bash/zsh shell fragments for
-  non-login shells. It sets up Homebrew, `~/.local/bin`, Cargo, and
-  Miniconda helper functions.
-- `~/.config/pcprep/pcprep-shell.bash`
-  Managed bash fragment sourced from a fenced block in `~/.bashrc`.
-- `~/.config/pcprep/pcprep-shell.zsh`
-  Managed zsh fragment sourced from a fenced block in `~/.zshrc`.
-- `~/.config/pcprep/pcprep-p10k.zsh`
-  Managed compact Powerlevel10k config, used only when
-  `USE_POWERLEVEL10K_PROMPT=1`.
-- `~/.config/pcprep/pcprep-shell.common.sh`
-  Shared bash/zsh environment and SSH/tmux helpers.
-- `~/.config/pcprep/pcprep-aliases.sh`
-  Managed copy of `ubuntu/.bash_aliases`, with Linux-only bits guarded so the
-  same alias set can be sourced from macOS bash and zsh.
-- Copy-if-absent shared files:
-  - `~/.inputrc`
-  - `~/.tmux.conf`
-  - `~/.claude/settings.json`
-  - `~/.codex/config.toml`
-  - helper files from `ubuntu/` copied into `~/.local/bin`
+Miniconda:
 
-## Important Behavior Notes
+- Installed by default into `~/miniconda3`
+- Not added to `PATH`
+- `auto_activate_base` is disabled
+- Use `condaon` to activate base
+- Use `condaon ENV_NAME` to activate a named environment
+- Use `condaoff` to fully deactivate conda
 
-- Homebrew tools are installed alongside Apple’s built-ins. Nothing overwrites
-  `/usr/bin` or `/bin`.
-- Homebrew `gcc` is installed side-by-side for projects that specifically need
-  GNU GCC, but the bootstrap does not export `CC`/`CXX` or otherwise switch the
-  default compiler away from Apple Clang.
-- Azure CLI (`az`) and AzCopy (`azcopy`) are part of the default core CLI set.
-  The bootstrap also enables non-interactive Azure CLI extension installs and
-  ensures the default macOS extension directory exists at
-  `~/.azure/cliextensions`. Run `az login` when you want to authenticate the
-  Azure CLI.
-- `apply_dotfiles.sh` gives bash and zsh a shared alias/helper layer based on
-  `ubuntu/.bash_aliases`. Linux-only entries are guarded in that file instead
-  of being dropped, so Slurm / Kubernetes / remote-development aliases remain
-  available on macOS.
-- The default managed zsh prompt is intentionally plain and short: `%2~ %# `.
-  If you want to try Powerlevel10k instead, run the bootstrap with
-  `USE_POWERLEVEL10K_PROMPT=1`; the managed Powerlevel10k layout is still kept
-  intentionally compact.
-- Login bash on macOS reads `~/.bash_profile`, not `~/.bashrc`, so the mac
-  setup uses one managed `~/.bash_profile` block for shellenv and one managed
-  block that sources `~/.bashrc`. New `bash` shells therefore pick up the same
-  Homebrew shellenv, history settings, and shared aliases by default after the
-  scripts run.
-- The bootstrap front-loads sudo authentication and refreshes the cached sudo
-  timestamp in the background during long runs, so password or Touch ID prompts
-  should usually happen once per bootstrap rather than once per privileged step.
-- GitHub CLI `gh` is part of `Brewfile.core`; there is no dedicated
-  `INSTALL_GITHUB_CLI` flag.
-- AI packages are installed into Homebrew `python@3.12`, not Apple’s Python.
-- The default mac AI package set includes notebook/data-science basics
-  (`rich`, `pytest`, `pandas`, `scikit-learn`, `matplotlib`, `jupyter`),
-  TensorFlow / Keras, and the mainstream LLM tooling stack (`transformers`,
-  `datasets`, `wandb`, `accelerate`, `einops`, `tokenizers`,
-  `sentencepiece`, `lightning`, plus PyTorch and TensorBoard).
-- MLX is treated as an Apple-Silicon extra on top of that stack. On Intel
-  Macs, `setup_python_ai.sh` skips MLX automatically even if `INSTALL_MLX=1`
-  is left at its default.
-- Miniconda is installed by default into `~/miniconda3`, but it is left off
-  `PATH` and `auto_activate_base` is disabled. Use `condaon` to activate conda
-  base, `condaon ENV_NAME` for a named environment, and `condaoff` to fully
-  deactivate it again.
-- `INSTALL_EXTRA_CLIS=1` installs only CLI tools and one utility cask
-  (`AppCleaner`). It is the mac-compatible dormant subset of
-  `ubuntu/extra_install.sh`, and nothing in that bundle adds login items or
-  background daemons just by being installed.
-- Ollama and Tailscale install the Homebrew formulas only, not the GUI casks,
-  so they do not auto-start background daemons.
-- Some post-install actions remain manual by design, such as app sign-in,
-  Docker Desktop first launch, and `gh auth login`.
+Python / AI stack:
+
+- Installed into Homebrew `python@3.12`, not Apple’s Python
+- Includes notebook/data-science basics, TensorFlow/Keras, PyTorch, TensorBoard,
+  and the mainstream LLM tooling stack
+- MLX is treated as an Apple-Silicon-only layer on top of that stack
+
+Terminal multiplexers:
+
+- `tmux` is the best default for SSH and remote hosts
+- `zellij` is available for a friendlier local UX
+- `screen` is present as a compatibility fallback
+
+C/C++ toolchain:
+
+- `prepare_new_box.sh` requires Apple Command Line Tools
+- `verify_setup.sh` compiles and runs a tiny C program and a tiny C++ program
+
+Azure CLI:
+
+- `az` and `azcopy` are part of the default CLI set
+- The bootstrap enables `extension.use_dynamic_install=yes_without_prompt`
+- Run `az login` when you want to authenticate
+
+## Managed Files
+
+Managed under `~/.config/pcprep/`:
+
+- `macos-shellenv.sh`
+- `pcprep-shell.bash`
+- `pcprep-shell.zsh`
+- `pcprep-shell.common.sh`
+- `pcprep-p10k.zsh`
+- `pcprep-aliases.sh`
+
+Managed blocks are added to:
+
+- `~/.zprofile`
+- `~/.zshrc`
+- `~/.bashrc`
+- `~/.bash_profile`
+
+Copy-if-absent files seeded from `ubuntu/`:
+
+- `~/.inputrc`
+- `~/.tmux.conf`
+- `~/.claude/settings.json`
+- `~/.codex/config.toml`
+- helper scripts copied into `~/.local/bin`
 
 ## Reversal
 
-- Remove the `>>> pcprep macos zprofile shellenv >>>`,
-  `>>> pcprep macos bash_profile shellenv >>>`,
-  `>>> pcprep macos zshrc >>>`, `>>> pcprep macos bashrc >>>`, and
-  `>>> pcprep macos bash_profile >>>` blocks from `~/.zprofile`, `~/.zshrc`,
-  `~/.bashrc`, and `~/.bash_profile` to stop loading the managed shell
-  fragments and shellenv.
-- Delete `~/.config/pcprep/pcprep-shell.zsh`,
-  `~/.config/pcprep/pcprep-p10k.zsh`,
-  `~/.config/pcprep/pcprep-shell.bash`,
-  `~/.config/pcprep/pcprep-shell.common.sh`,
-  `~/.config/pcprep/pcprep-aliases.sh`, and
-  `~/.config/pcprep/macos-shellenv.sh` if you no longer want the managed files.
-- Run `bash mac/revert_defaults.sh` to undo the macOS preference changes.
-- Remove any copy-if-absent files from your home directory manually if you do
-  not want them.
+- Remove the `pcprep` managed blocks from `~/.zprofile`, `~/.zshrc`,
+  `~/.bashrc`, and `~/.bash_profile`
+- Delete the managed files under `~/.config/pcprep/`
+- Run `bash mac/revert_defaults.sh`
+- Remove any copy-if-absent files from your home directory if you no longer
+  want them

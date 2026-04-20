@@ -1,4 +1,4 @@
-# Core Python environment for dependable AI development on Apple Silicon.
+# Core Python environment for dependable AI development on macOS.
 # Keep this list short and mainstream so the environment stays easy to repair.
 
 # Packaging basics
