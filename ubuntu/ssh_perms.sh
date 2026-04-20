@@ -1,11 +1,27 @@
 #!/bin/bash
 
-# rerun this file any time to remove passkeys and setup correct perms
+set -Eeuo pipefail
+
+# Re-run this file any time to normalize ~/.ssh permissions.  By default it
+# does not modify private-key passphrases; set
+# REMOVE_SSH_KEY_PASSPHRASES=1 to opt into stripping them.
+REMOVE_SSH_KEY_PASSPHRASES="${REMOVE_SSH_KEY_PASSPHRASES:-0}"
 
 # Create .ssh directory if it doesn't exist and set permissions
 mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
 
 shopt -s nullglob
+
+bool_is_true() {
+    case "${1:-0}" in
+        1|y|Y|yes|YES|true|TRUE|on|ON)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
 
 set_ssh_config_permissions() {
     local ssh_config="$HOME/.ssh/config"
@@ -24,10 +40,12 @@ is_private_key() {
 set_private_key_permissions() {
     local private_key="$1"
 
-    if ssh-keygen -p -f "$private_key" -N ""; then
-        echo "Removed passphrase for $private_key"
-    else
-        echo "Warning: failed to update $private_key (passphrase may remain)"
+    if bool_is_true "$REMOVE_SSH_KEY_PASSPHRASES"; then
+        if ssh-keygen -p -f "$private_key" -N ""; then
+            echo "Removed passphrase for $private_key"
+        else
+            echo "Warning: failed to update $private_key (passphrase may remain)"
+        fi
     fi
 
     chmod 600 "$private_key"

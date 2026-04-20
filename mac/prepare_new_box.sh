@@ -59,6 +59,24 @@ user_email="${user_email:-}"
 # NEXT_STEPS is already initialized by common.sh; we only declare HAVE_SUDO here.
 HAVE_SUDO=0
 
+ensure_existing_ssh_setup() {
+  if [ ! -d "$HOME/.ssh" ]; then
+    die "~/.ssh was not found. Create $HOME/.ssh with your SSH keys and config first, then re-run this script."
+  fi
+}
+
+apply_shared_ssh_permissions() {
+  local ssh_perms_script
+
+  ssh_perms_script="$SCRIPT_DIR/../ubuntu/ssh_perms.sh"
+  if [ ! -f "$ssh_perms_script" ]; then
+    die "Missing shared SSH permissions helper: $ssh_perms_script"
+  fi
+
+  log "Applying SSH permissions from ubuntu/ssh_perms.sh."
+  bash "$ssh_perms_script"
+}
+
 collect_preflight_inputs() {
   # Front-load every stdin-driven prompt so the rest of the bootstrap can run
   # unattended once package installs and config steps begin.  At present the
@@ -493,52 +511,6 @@ configure_git() {
   _ensure_git_identity_key "user.email" "email" "$user_email"
 }
 
-configure_ssh_keychain_support() {
-  local ssh_dir
-  local ssh_config
-
-  ssh_dir="$HOME/.ssh"
-  ssh_config="$ssh_dir/config"
-
-  ensure_dir "$ssh_dir"
-  chmod 700 "$ssh_dir"
-
-  if [ -f "$ssh_config" ]; then
-    warn "Existing ~/.ssh/config detected. Leaving it unchanged to avoid overriding host-specific rules."
-    append_next_step "If you want macOS to remember SSH key passphrases, add 'AddKeysToAgent yes' and 'UseKeychain yes' to ~/.ssh/config."
-    return 0
-  fi
-
-  log "Creating a minimal SSH config that works well with the macOS keychain."
-  # Field-by-field rationale:
-  #   IgnoreUnknown UseKeychain : older ssh builds error on UseKeychain; this
-  #                               gates the next line so the config stays
-  #                               portable between macOS ssh releases.
-  #   AddKeysToAgent yes        : first use of a key loads it into ssh-agent
-  #                               so later connections don't re-prompt for
-  #                               the passphrase.
-  #   UseKeychain yes           : store/retrieve the passphrase via the
-  #                               macOS Keychain, so it survives reboots.
-  #   ServerAliveInterval 60    : every 60 s the client sends a keepalive.
-  #   ServerAliveCountMax 20    : tolerate 20 missed keepalives (~20 min of
-  #                               network outage) before dropping the
-  #                               connection.  Avoids NAT / corporate
-  #                               firewall idle-timeout disconnects on long
-  #                               training-run shells.
-  # We deliberately DO NOT add `StrictHostKeyChecking no` or send host keys
-  # to /dev/null the way ubuntu/.ssh/config does — those are security
-  # downgrades that make MITM attacks possible.
-  cat > "$ssh_config" <<'EOF'
-Host *
-    IgnoreUnknown UseKeychain
-    AddKeysToAgent yes
-    UseKeychain yes
-    ServerAliveInterval 60
-    ServerAliveCountMax 20
-EOF
-  chmod 600 "$ssh_config"
-}
-
 npm_global_is_installed() {
   local package_name="$1"
   npm list -g --depth=0 "$package_name" >/dev/null 2>&1
@@ -648,7 +620,9 @@ maybe_enable_firewall() {
 
 main() {
   require_macos
+  ensure_existing_ssh_setup
   collect_preflight_inputs
+  apply_shared_ssh_permissions
 
   if ! bool_is_true "$NO_NET" && ! has_internet; then
     warn "Internet connectivity was not detected. Switching to NO_NET=1 and running local-only steps."
@@ -690,7 +664,6 @@ main() {
   fi
 
   configure_git
-  configure_ssh_keychain_support
 
   if bool_is_true "$APPLY_MACOS_DEFAULTS"; then
     "$SCRIPT_DIR/apply_defaults.sh"
