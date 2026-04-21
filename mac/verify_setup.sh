@@ -52,6 +52,7 @@ EXPECT_GO="${EXPECT_GO:-1}"
 EXPECT_TAILSCALE="${EXPECT_TAILSCALE:-1}"
 EXPECT_LLAMA_CPP="${EXPECT_LLAMA_CPP:-1}"
 EXPECT_EXTRA_CLIS="${EXPECT_EXTRA_CLIS:-1}"
+EXPECT_AZURE_STORAGE_EXPLORER="${EXPECT_AZURE_STORAGE_EXPLORER:-1}"
 EXPECT_FIREFOX="${EXPECT_FIREFOX:-1}"
 EXPECT_CHROME="${EXPECT_CHROME:-1}"
 MINICONDA_DIR="${MINICONDA_DIR:-$HOME/miniconda3}"
@@ -582,6 +583,15 @@ if bool_is_true "$EXPECT_EXTRA_CLIS"; then
     "AppCleaner" \
     "/Applications/AppCleaner.app" \
     "$HOME/Applications/AppCleaner.app"
+fi
+
+if bool_is_true "$EXPECT_AZURE_STORAGE_EXPLORER"; then
+  check_brew_cask_or_app_bundle \
+    microsoft-azure-storage-explorer \
+    "Azure Storage Explorer" \
+    "/Applications/Microsoft Azure Storage Explorer.app" \
+    "$HOME/Applications/Microsoft Azure Storage Explorer.app"
+  check_command dotnet ".NET runtime for Azure Storage Explorer"
 fi
 
 if bool_is_true "$EXPECT_FIREFOX"; then

@@ -91,6 +91,7 @@ INSTALL_TAILSCALE="${INSTALL_TAILSCALE:-1}"
 INSTALL_MLX="${INSTALL_MLX:-1}"
 INSTALL_LLAMA_CPP="${INSTALL_LLAMA_CPP:-1}"
 INSTALL_EXTRA_CLIS="${INSTALL_EXTRA_CLIS:-1}"
+INSTALL_AZURE_STORAGE_EXPLORER="${INSTALL_AZURE_STORAGE_EXPLORER:-1}"
 INSTALL_FIREFOX="${INSTALL_FIREFOX:-1}"
 INSTALL_CHROME="${INSTALL_CHROME:-1}"
 
@@ -710,6 +711,30 @@ maybe_install_chrome() {
   append_next_step "Chrome installs Google's Keystone auto-updater as a persistent launchd agent that runs even when Chrome is quit. If you rarely use Chrome, you can set 'defaults write com.google.Keystone.Agent checkInterval 0' to pause its polling."
 }
 
+maybe_install_azure_storage_explorer() {
+  # Azure Storage Explorer is available on macOS as a Homebrew cask. Current
+  # Microsoft macOS builds require a matching .NET runtime, so install one only
+  # when the machine does not already expose a usable `dotnet` command (for
+  # example from an existing .NET SDK/runtime install).
+  if ! bool_is_true "$INSTALL_AZURE_STORAGE_EXPLORER"; then
+    warn "INSTALL_AZURE_STORAGE_EXPLORER=0 set. Skipping Azure Storage Explorer."
+    return 0
+  fi
+
+  if command_exists dotnet; then
+    log ".NET runtime is already available via 'dotnet'."
+  else
+    brew_install_if_missing cask dotnet-runtime ".NET runtime for Azure Storage Explorer"
+  fi
+
+  brew_install_cask_app_if_missing \
+    microsoft-azure-storage-explorer \
+    "Azure Storage Explorer" \
+    "/Applications/Microsoft Azure Storage Explorer.app" \
+    "$HOME/Applications/Microsoft Azure Storage Explorer.app"
+  append_next_step "Launch Azure Storage Explorer and sign in to Azure or attach a specific storage resource when you need to browse blobs, queues, tables, or file shares."
+}
+
 maybe_install_github_copilot_cli() {
   # GitHub Copilot CLI ships as a Homebrew cask.  Keeping it explicit here
   # makes the bootstrap intent obvious and keeps authentication guidance next
@@ -1078,6 +1103,7 @@ main() {
     maybe_install_rust
     maybe_install_dev_fonts
     maybe_install_powerlevel10k
+    maybe_install_azure_storage_explorer
     maybe_install_firefox
     maybe_install_chrome
   else
@@ -1155,6 +1181,7 @@ main() {
     EXPECT_MLX="$verify_expect_mlx" \
     EXPECT_LLAMA_CPP="$INSTALL_LLAMA_CPP" \
     EXPECT_EXTRA_CLIS="$INSTALL_EXTRA_CLIS" \
+    EXPECT_AZURE_STORAGE_EXPLORER="$INSTALL_AZURE_STORAGE_EXPLORER" \
     EXPECT_FIREFOX="$INSTALL_FIREFOX" \
     EXPECT_CHROME="$INSTALL_CHROME" \
     EXPECT_SUDO_TIMESTAMP_TIMEOUT="$verify_expect_sudo_timestamp_timeout" \

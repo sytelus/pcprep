@@ -122,6 +122,7 @@ Optional developer extras, all default `1`:
 | `INSTALL_RUST` | Install Rust through `rustup-init` |
 | `INSTALL_GO` | Install Go through Homebrew |
 | `INSTALL_DEV_FONTS` | Install JetBrains Mono, MesloLGS Nerd Font, and Fira Code |
+| `INSTALL_AZURE_STORAGE_EXPLORER` | Install Azure Storage Explorer for macOS, plus a .NET runtime when `dotnet` is not already present |
 | `INSTALL_FIREFOX` | Install Firefox |
 | `INSTALL_CHROME` | Install Google Chrome |
 | `INSTALL_LLAMA_CPP` | Install `llama.cpp` |
