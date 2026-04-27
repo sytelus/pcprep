@@ -360,6 +360,16 @@ install_core_gui_apps() {
     "/Applications/iTerm.app" \
     "$HOME/Applications/iTerm.app"
   brew_install_cask_app_if_missing \
+    ghostty \
+    "Ghostty" \
+    "/Applications/Ghostty.app" \
+    "$HOME/Applications/Ghostty.app"
+  brew_install_cask_app_if_missing \
+    openinterminal \
+    "OpenInTerminal" \
+    "/Applications/OpenInTerminal.app" \
+    "$HOME/Applications/OpenInTerminal.app"
+  brew_install_cask_app_if_missing \
     visual-studio-code \
     "Visual Studio Code" \
     "/Applications/Visual Studio Code.app" \
@@ -1137,7 +1147,7 @@ main() {
   append_next_step "Run 'gh auth login' if you want GitHub CLI authentication and git credential helpers to work immediately."
   append_next_step "Run 'az login' if you want Azure CLI authentication. Azure CLI dynamic extension installs are preconfigured to use your user-scoped macOS directory."
   append_next_step "If you need the full Apple SDKs for iOS or simulator work, install Xcode from the App Store and then run 'sudo xcodebuild -license accept'."
-  append_next_step "Add Terminal or iTerm2 to Full Disk Access if a tool needs broader filesystem visibility."
+  append_next_step "Add Terminal, iTerm2, or Ghostty to Full Disk Access if a tool needs broader filesystem visibility."
 
   if ! bool_is_true "$APPLY_DOTFILES"; then
     append_next_step "Open a new terminal (or source ~/.config/pcprep/macos-shellenv.sh) so Homebrew, ~/.local/bin, and cargo PATH changes are active in future shells."

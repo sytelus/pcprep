@@ -4,6 +4,12 @@
 # iTerm2 remains the most common upgrade over Terminal.app for pane-heavy work.
 cask "iterm2"
 
+# Ghostty is a fast native terminal option with a modern GPU-rendered core.
+cask "ghostty"
+
+# OpenInTerminal adds Finder integration for quickly opening directories in a terminal.
+cask "openinterminal"
+
 # VS Code is still the most common editor base for AI-assisted development.
 cask "visual-studio-code"
 

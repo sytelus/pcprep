@@ -437,6 +437,16 @@ if bool_is_true "$EXPECT_GUI_APPS"; then
     "/Applications/iTerm.app" \
     "$HOME/Applications/iTerm.app"
   check_brew_cask_or_app_bundle \
+    ghostty \
+    "Ghostty" \
+    "/Applications/Ghostty.app" \
+    "$HOME/Applications/Ghostty.app"
+  check_brew_cask_or_app_bundle \
+    openinterminal \
+    "OpenInTerminal" \
+    "/Applications/OpenInTerminal.app" \
+    "$HOME/Applications/OpenInTerminal.app"
+  check_brew_cask_or_app_bundle \
     visual-studio-code \
     "Visual Studio Code" \
     "/Applications/Visual Studio Code.app" \

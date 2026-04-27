@@ -92,7 +92,7 @@ Common toggles:
 |---|---:|---|
 | `NO_NET` | `0` | Skip network-backed installs and run only local steps |
 | `SKIP_BREW_UPDATE` | `0` | Reuse existing Homebrew metadata |
-| `INSTALL_GUI_APPS` | `1` | Install the GUI Brewfile (`iTerm2`, VS Code, Rectangle) |
+| `INSTALL_GUI_APPS` | `1` | Install the GUI Brewfile (`iTerm2`, Ghostty, OpenInTerminal, VS Code, Rectangle) |
 | `INSTALL_DOCKER` | `1` | Install Docker Desktop |
 | `INSTALL_GITHUB_COPILOT_CLI` | `1` | Install the GitHub Copilot CLI cask |
 | `INSTALL_CODEX_APP` | `1` | Install Codex.app |
