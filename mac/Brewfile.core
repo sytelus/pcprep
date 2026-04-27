@@ -73,8 +73,11 @@ brew "btop"
 brew "bat"
 # micro: modern terminal editor that complements, rather than replaces, VS Code.
 brew "micro"
-# fdupes: useful filesystem hygiene tool for finding duplicate files.
+# fdupes: useful filesystem hygiene tool for finding duplicate files. The old
+# Linux `fslint` package has no current Homebrew formula, so fdupes remains the
+# compatible duplicate-file cleanup tool here.
 brew "fdupes"
+# macOS ships `/usr/bin/locate`; Homebrew has no separate `locate` formula.
 # direnv loads project-local environment variables when you cd into a directory.
 # Does not exist on stock macOS.  Opt-in per project via an .envrc file, so it
 # has no effect unless a repo enables it.
@@ -85,6 +88,8 @@ brew "direnv"
 brew "cmake"
 brew "ninja"
 brew "pkg-config"
+# SWIG is still needed by some native extension and scientific Python builds.
+brew "swig"
 # gcc: installs GNU GCC as an additional compiler toolchain, but does NOT
 # replace Apple's Clang defaults.  macOS and this repo still use Xcode CLT
 # `clang`/`clang++` as the default compiler path.  Homebrew GCC is kept

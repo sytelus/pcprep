@@ -92,7 +92,7 @@ Common toggles:
 |---|---:|---|
 | `NO_NET` | `0` | Skip network-backed installs and run only local steps |
 | `SKIP_BREW_UPDATE` | `0` | Reuse existing Homebrew metadata |
-| `INSTALL_GUI_APPS` | `1` | Install the GUI Brewfile (`iTerm2`, Ghostty, OpenInTerminal, VS Code, Rectangle) |
+| `INSTALL_GUI_APPS` | `1` | Install the GUI Brewfile (`iTerm2`, Ghostty, OpenInTerminal, VS Code, Rectangle, VLC) |
 | `INSTALL_DOCKER` | `1` | Install Docker Desktop |
 | `INSTALL_GITHUB_COPILOT_CLI` | `1` | Install the GitHub Copilot CLI cask |
 | `INSTALL_CODEX_APP` | `1` | Install Codex.app |
@@ -116,12 +116,12 @@ Optional developer extras, all default `1`:
 
 | Flag | Effect |
 |---|---|
-| `INSTALL_EXTRA_CLIS` | Install the mac-compatible dormant subset of `ubuntu/extra_install.sh` |
+| `INSTALL_EXTRA_CLIS` | Install the mac-compatible dormant subset of `ubuntu/extra_install.sh`, plus Hugo, TeX Live, .NET/Mono, DOSBox Staging, Git Time Metric, and `mgitstatus` |
 | `INSTALL_OLLAMA` | Install the Ollama formula only, not the GUI cask |
 | `INSTALL_TAILSCALE` | Install the Tailscale formula only, not the GUI cask |
 | `INSTALL_RUST` | Install Rust through `rustup-init` |
 | `INSTALL_GO` | Install Go through Homebrew |
-| `INSTALL_DEV_FONTS` | Install JetBrains Mono, MesloLGS Nerd Font, and Fira Code |
+| `INSTALL_DEV_FONTS` | Install JetBrains Mono, MesloLGS Nerd Font, Fira Code, Powerline Symbols, and FontBase |
 | `INSTALL_AZURE_STORAGE_EXPLORER` | Install Azure Storage Explorer for macOS, plus a .NET runtime when `dotnet` is not already present |
 | `INSTALL_FIREFOX` | Install Firefox |
 | `INSTALL_CHROME` | Install Google Chrome |

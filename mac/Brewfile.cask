@@ -15,3 +15,6 @@ cask "visual-studio-code"
 
 # Rectangle fills a native window-management gap without requiring intrusive setup.
 cask "rectangle"
+
+# VLC is a dependable cross-format media player with no always-on background service.
+cask "vlc"

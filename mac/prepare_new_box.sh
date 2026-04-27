@@ -379,6 +379,11 @@ install_core_gui_apps() {
     "Rectangle" \
     "/Applications/Rectangle.app" \
     "$HOME/Applications/Rectangle.app"
+  brew_install_cask_app_if_missing \
+    vlc \
+    "VLC media player" \
+    "/Applications/VLC.app" \
+    "$HOME/Applications/VLC.app"
 }
 
 maybe_update_brew() {
@@ -439,6 +444,23 @@ brew_install_if_missing() {
   fi
 }
 
+brew_tap_if_missing() {
+  # Add a third-party Homebrew tap only when an explicitly requested package
+  # lives outside homebrew/core.
+  #   $1: tap name (e.g. "git-time-metric/gtm")
+  #   $2: human-readable label for log output (optional, defaults to $1)
+  local tap_name="$1"
+  local label="${2:-$tap_name}"
+
+  if brew tap | grep -Fqx "$tap_name"; then
+    log "$label tap is already configured."
+    return 0
+  fi
+
+  log "Tapping $label."
+  brew tap "$tap_name"
+}
+
 brew_install_cask_app_if_missing() {
   # Homebrew casks fail when the target .app bundle already exists but is not
   # Homebrew-managed. Prefer adopting that existing app into Homebrew cask
@@ -472,6 +494,31 @@ brew_install_cask_app_if_missing() {
 
   log "Installing $label."
   brew install --cask "$name"
+}
+
+install_mgitstatus() {
+  # macOS equivalent of the Linux /usr/local/bin install: install the script
+  # into the user-local bin directory already managed by pcprep's shellenv.
+  local install_path="$HOME/.local/bin/mgitstatus"
+  local temp_file
+
+  if command_exists mgitstatus || [ -x "$install_path" ]; then
+    log "multi-git-status is already installed."
+    return 0
+  fi
+
+  if ! command_exists curl; then
+    die "curl is required to download multi-git-status."
+  fi
+
+  ensure_dir "$HOME/.local/bin"
+  temp_file="$(mktemp "${TMPDIR:-/tmp}/mgitstatus.XXXXXX")"
+
+  log "Installing multi-git-status to $install_path."
+  curl -fsSL "https://raw.githubusercontent.com/fboender/multi-git-status/master/mgitstatus" -o "$temp_file"
+  chmod 755 "$temp_file"
+  install -m 0755 "$temp_file" "$install_path"
+  rm -f "$temp_file"
 }
 
 maybe_install_extra_clis() {
@@ -515,6 +562,19 @@ maybe_install_extra_clis() {
   brew_install_if_missing formula sevenzip "7-Zip"
   brew_install_if_missing formula unar "unar"
   brew_install_if_missing formula ffmpeg "FFmpeg"
+  brew_install_if_missing formula hugo "Hugo"
+  # TeX Live is large, but it is a dormant user-invoked toolchain when installed
+  # through Homebrew's formula rather than a system-wide MacTeX package.
+  brew_install_if_missing formula texlive "TeX Live"
+  brew_install_if_missing formula dotnet ".NET SDK/runtime"
+  brew_install_if_missing formula mono "Mono"
+  # Avoid the legacy dosbox cask because it may require Rosetta on Apple
+  # Silicon. dosbox-staging is the native Homebrew formula equivalent.
+  brew_install_if_missing formula dosbox-staging "DOSBox Staging"
+  brew_tap_if_missing git-time-metric/gtm "Git Time Metric"
+  brew_install_if_missing formula gtm "Git Time Metric"
+  install_mgitstatus
+  append_next_step "If a .NET tool cannot locate the Homebrew SDK, set DOTNET_ROOT=\"$(brew --prefix dotnet)/libexec\"."
   # GUI-driven app uninstaller.  Its optional "SmartDelete" helper is dormant
   # until enabled in-app, so installing the cask costs effectively nothing.
   brew_install_cask_app_if_missing \
@@ -675,7 +735,13 @@ maybe_install_dev_fonts() {
   brew_install_if_missing cask font-jetbrains-mono "JetBrains Mono"
   brew_install_if_missing cask font-meslo-lg-nerd-font "MesloLG Nerd Font"
   brew_install_if_missing cask font-fira-code "Fira Code"
-  append_next_step "Set your Terminal, iTerm2, or editor font to JetBrains Mono, MesloLGS Nerd Font, or Fira Code if you want to use the installed developer fonts."
+  brew_install_if_missing cask font-powerline-symbols "Powerline Symbols"
+  brew_install_cask_app_if_missing \
+    fontbase \
+    "FontBase" \
+    "/Applications/FontBase.app" \
+    "$HOME/Applications/FontBase.app"
+  append_next_step "Set your Terminal, iTerm2, or editor font to JetBrains Mono, MesloLGS Nerd Font, Fira Code, or Powerline Symbols if you want to use the installed developer fonts."
 }
 
 maybe_install_powerlevel10k() {

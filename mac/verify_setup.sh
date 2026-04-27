@@ -384,11 +384,13 @@ check_command zellij "zellij"
 check_command pv "pv"
 check_command micro "micro"
 check_command fdupes "fdupes"
+check_command locate "locate"
 check_command xz "xz"
 check_brew_formula screen "GNU Screen"
 check_command cmake "CMake"
 check_command ninja "Ninja"
 check_command pkg-config "pkg-config"
+check_command swig "SWIG"
 check_command "python${PYTHON_MINOR}" "Python ${PYTHON_MINOR} (from ${PYTHON_FORMULA})"
 check_c_cpp_toolchain
 
@@ -456,6 +458,11 @@ if bool_is_true "$EXPECT_GUI_APPS"; then
     "Rectangle" \
     "/Applications/Rectangle.app" \
     "$HOME/Applications/Rectangle.app"
+  check_brew_cask_or_app_bundle \
+    vlc \
+    "VLC media player" \
+    "/Applications/VLC.app" \
+    "$HOME/Applications/VLC.app"
   # Code CLI is a user-local symlink created by maybe_link_vscode_cli, not a
   # cask file, so check it explicitly.
   check_command code "VS Code CLI"
@@ -547,6 +554,12 @@ if bool_is_true "$EXPECT_DEV_FONTS"; then
   check_brew_cask font-jetbrains-mono     "JetBrains Mono"
   check_brew_cask font-meslo-lg-nerd-font "MesloLG Nerd Font"
   check_brew_cask font-fira-code          "Fira Code"
+  check_brew_cask font-powerline-symbols  "Powerline Symbols"
+  check_brew_cask_or_app_bundle \
+    fontbase \
+    "FontBase" \
+    "/Applications/FontBase.app" \
+    "$HOME/Applications/FontBase.app"
 fi
 
 if bool_is_true "$EXPECT_DOTFILES"; then
@@ -588,6 +601,16 @@ if bool_is_true "$EXPECT_EXTRA_CLIS"; then
   check_brew_formula sevenzip "7-Zip"
   check_command unar "unar"
   check_command ffmpeg "FFmpeg"
+  check_command hugo "Hugo"
+  check_brew_formula texlive "TeX Live"
+  check_brew_formula dotnet ".NET SDK/runtime"
+  check_command dotnet ".NET CLI"
+  check_brew_formula mono "Mono"
+  check_command mono "Mono command"
+  check_brew_formula dosbox-staging "DOSBox Staging"
+  check_brew_formula gtm "Git Time Metric"
+  check_command gtm "Git Time Metric command"
+  check_command mgitstatus "multi-git-status"
   check_brew_cask_or_app_bundle \
     appcleaner \
     "AppCleaner" \
