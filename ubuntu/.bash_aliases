@@ -338,21 +338,13 @@ function treesize {
 
 
 function claudeyolo {
-  if claude --help 2>/dev/null | grep -q -- '--remote-control'; then
-    claude --dangerously-skip-permissions --remote-control "$@"
-  else
-    claude --dangerously-skip-permissions "$@"
-  fi
+  claude --dangerously-skip-permissions --remote-control "$@"
 }
 function codexyolo {
   codex --yolo "$@"
 }
 codexupdate() {
-  if pcprep_is_macos; then
-    npm install -g @openai/codex@latest
-  else
-    sudo npm install -g @openai/codex@latest
-  fi
+  npm install -g @openai/codex@latest
 }
 alias claudeupdate="claude update"
 alias z='zellij attach -c "$USER@$(hostname)"'
