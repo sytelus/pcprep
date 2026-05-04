@@ -1,13 +1,21 @@
 # Portable helpers so this alias file can be sourced from both Ubuntu bash and
 # the macOS managed zsh/bash setup without exploding on platform differences.
+\unalias pcprep_unalias 2>/dev/null
+pcprep_unalias() {
+  \unalias "$@" 2>/dev/null || true
+}
+
+pcprep_unalias pcprep_cmd_exists
 pcprep_cmd_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+pcprep_unalias pcprep_is_macos
 pcprep_is_macos() {
   [ "$(uname -s)" = "Darwin" ]
 }
 
+pcprep_unalias pcprep_is_linux
 pcprep_is_linux() {
   [ "$(uname -s)" = "Linux" ]
 }
@@ -24,6 +32,7 @@ pcprep_is_linux() {
 
 # git aliases
 alias grevertall='git reset --hard && git reset --hard origin/master && git clean -f -d'
+pcprep_unalias grevertfile
 function grevertfile {
   git checkout -- "$1"
 }
@@ -32,10 +41,12 @@ alias gstat='git status'
 alias gstatall='mgitstatus -e'
 alias gpush='git push'
 alias gpull='git pull'
+pcprep_unalias gcommit
 function gcommit {
   git add -A
   git commit -m "$1"
 }
+pcprep_unalias checkin
 function checkin {
   local msg="update"
   if [ "$#" -gt 0 ]; then
@@ -44,15 +55,18 @@ function checkin {
   git add -A && git commit -m "$msg" && git push
 }
 alias gpullr='git pull --rebase'
+pcprep_unalias gtag
 function gtag {
   git tag -a "$1" -m "$2"
   git push --tags
 }
 alias glog='git log --pretty=oneline -n 5'
 alias gcln='git clean -fdx'
+pcprep_unalias gbra
 function gbra {
   git checkout -b "$1"
 }
+pcprep_unalias gdelbra
 function gdelbra {
   git push origin -delete "$1" && git branch -d "$1"
 }
@@ -68,6 +82,7 @@ if [ -d "/mnt/c/Users/$USER/AppData/Local/lxss/rootfs" ]; then
 fi
 # alias ue4='~/GitHubSrc/UnrealEngine/Engine/Binaries/Linux/UE4Editor'
 
+pcprep_unalias findstr
 function findstr {
   eval grep -ri --include=\*.{"$1"} "$2" ./
 }
@@ -92,6 +107,7 @@ elif pcprep_is_macos; then
   alias ipconfig='ifconfig'
 fi
 
+pcprep_unalias whowhat
 whowhat() {
   if pcprep_is_macos; then
     ps -eo user,pid,ppid,%cpu,%mem,stat,time,comm \
@@ -109,6 +125,7 @@ if pcprep_cmd_exists nvidia-smi && pcprep_cmd_exists modprobe && pcprep_cmd_exis
 fi
 
 # move files and remove source
+pcprep_unalias smv
 function smv {
   rsync -az --remove-source-files "$@"
 }
@@ -117,7 +134,7 @@ function smv {
 alias dockerclean='docker rm $(docker ps --filter status=exited -q) ; docker rm $(docker ps --filter status=created -q)'
 alias dockerls='docker container ls'
 alias dockersize='docker ps --all --size'
-unalias version 2>/dev/null
+pcprep_unalias version
 function version {
   if pcprep_is_macos; then
     echo "=== macOS ==="
@@ -259,6 +276,7 @@ function version {
   fi
 }
 
+pcprep_unalias freespace
 freespace() {
   if pcprep_is_macos; then
     df -h | grep -vE '^Filesystem|/System/Volumes' | sort -k4 -hr
@@ -267,6 +285,7 @@ freespace() {
   fi
 }
 
+pcprep_unalias drives
 drives() {
   if pcprep_is_macos; then
     df -h
@@ -275,11 +294,13 @@ drives() {
   fi
 }
 
+pcprep_unalias disks
 disks() {
   drives "$@"
 }
 
 # Displays a full, hierarchical snapshot of all running processes.
+pcprep_unalias psex
 psex() {
   if pcprep_is_macos; then
     ps -axww -o pid,ppid,user,%cpu,%mem,stat,start,time,command
@@ -288,6 +309,7 @@ psex() {
   fi
 }
 
+pcprep_unalias pmy
 pmy() {
   if pcprep_is_macos; then
     ps -U "$USER" -u "$USER" -o pid,ppid,%cpu,%mem,stat,time,command
@@ -296,6 +318,7 @@ pmy() {
   fi
 }
 
+pcprep_unalias realview
 function realview {
   less +F "$1"
 }
@@ -305,6 +328,7 @@ alias cpz='rsync -avhz --info=progress2'
 alias mvx='rsync -avh --remove-source-files --info=progress2'
 
 # show torch version
+pcprep_unalias torchver
 torchver() {
   local py_exe=""
   if pcprep_cmd_exists python; then
@@ -326,6 +350,7 @@ torchver() {
 
 # remove pass phrase from ssh keys
 alias removepass='find ~/.ssh -type f \( -name 'id_*' -o -name 'sb_*' \) ! -name '*.pub' -exec sh -c 'ssh-keygen -l -f "{}" >/dev/null 2>&1 && echo "Processing: {}" && ssh-keygen -p -f "{}"' \;'
+pcprep_unalias treesize
 function treesize {
   local target="${1:-.}"
   if pcprep_is_macos; then
@@ -337,12 +362,15 @@ function treesize {
 }
 
 
+pcprep_unalias claudeyolo
 function claudeyolo {
   claude --dangerously-skip-permissions --remote-control "$@"
 }
+pcprep_unalias codexyolo
 function codexyolo {
   codex --yolo "$@"
 }
+pcprep_unalias codexupdate
 codexupdate() {
   npm install -g @openai/codex@latest
 }
@@ -357,6 +385,7 @@ alias sdrained='scontrol show --json node | jq -r '"'"'.nodes[] | select(any(.st
 alias sreason='scontrol show --json node | jq -r '"'"'.nodes[] | select(.reason != "") | [.hostname, (.state | join(",")), .reason] | join("\t")'"'"''
 alias salljobs='squeue -o "%.18i %.8u %.6D %.16S %.8P"'
 alias sjobs='squeue -o "%.7i %.9P %.8j %.8u %.2t %.10M %.6D %R" -u $USER'
+pcprep_unalias skill
 function skill {
   if [ -n "$1" ]; then
     job_id=$1
@@ -371,6 +400,7 @@ function skill {
   fi
 }
 alias skillall='read -p "Are you sure you want to cancel all Slurm jobs? (y/N) " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] && scancel -u $USER && echo "All Slurm jobs for user $USER have been cancelled" || echo "Operation cancelled or no jobs found for user $USER"'
+pcprep_unalias sresr
 function sresr {
   squeue --reservation="$1"
 }
@@ -378,41 +408,50 @@ function sresr {
 #### kubectl #####
 alias kpods='kubectl get pods -L created-by-name,submitter'
 alias kquota='kubectl describe resourcequota bonete61-compute-quota'
+pcprep_unalias knodes
 function knodes {
     kubectl get nodes --no-headers | awk '{print $2}' | sort | uniq -c
 }
 
 alias kjobsall='kubectl get vcjob -L created-by-name,submitter'
+pcprep_unalias k
 function k {
     kubectl "$@"
 }
 
+pcprep_unalias kpod
 function kpod {
     kubectl describe pod "$@"
 }
 
+pcprep_unalias kdel
 function kdel {
     kubectl delete vcjob "$@"
 }
 
+pcprep_unalias klog
 function klog {
     kubectl logs -f "$@"
 }
 
+pcprep_unalias kpods
 function kpods {
     kubectl get pods -L created-by-name,submitter | grep ${USERNAME}
 }
 
+pcprep_unalias kjob
 function kjob {
     kubectl get vcjob --show-labels "$@"
     kubectl get pods -l volcano.sh/job-name="$@"
 }
 
+pcprep_unalias rclone_du
 function rclone_du {
   rclone size "$@"
 }
 alias rclone-du=rclone_du
 
+pcprep_unalias kjobs
 kjobs() {
   local current_time=$(date +%s)
 
