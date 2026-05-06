@@ -1,6 +1,6 @@
 #!/bin/bash
 #fail if any errors
-set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
+set -eu -o pipefail # -o xtrace # fail if any command failes, log all commands, -o xtrace
 
 export NO_NET=${NO_NET:-}
 export user_name=${user_name:-}

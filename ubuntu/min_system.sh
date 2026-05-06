@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # fail if any errors
 set -euo pipefail
-set -o xtrace
+#set -o xtrace
 
 export DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
 export NO_NET=${NO_NET:-0}
