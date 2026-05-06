@@ -5,6 +5,7 @@ set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o
 export NO_NET=${NO_NET:-}
 export user_name=${user_name:-}
 export user_email=${user_email:-}
+export INSTALL_CUDA=${INSTALL_CUDA:-0}
 export INSTALL_PYTORCH=${INSTALL_PYTORCH:-1}
 export WSL_DISTRO_NAME=${WSL_DISTRO_NAME:-}
 
@@ -52,6 +53,17 @@ has_cuda_gpu() {
   fi
 
   return 1
+}
+
+bool_is_true() {
+    case "${1:-0}" in
+        1|y|Y|yes|YES|true|TRUE|on|ON)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 # Check if NO_NET is not set and test internet connectivity
@@ -121,18 +133,18 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
         sudo ln -sf "/mnt/c/Program Files/Tailscale/tailscale.exe" /Applications/Tailscale.app/Contents/MacOS/Tailscale
     fi
 else
-    if ! has_cuda_gpu; then
+    if ! bool_is_true "$INSTALL_CUDA"; then
+        echo "CUDA installation is disabled. Set INSTALL_CUDA=1 to enable it."
+    elif [ "$NO_NET" != "0" ]; then
+        echo "NO_NET=$NO_NET. Skipping CUDA installation."
+    elif ! has_cuda_gpu; then
         echo "No CUDA-capable GPU detected. Skipping CUDA installation."
+    # Check if nvcc is installed
+    elif ! command -v /usr/local/cuda/bin/nvcc &> /dev/null && ! command -v nvcc &> /dev/null; then
+        echo "CUDA not found. Installing CUDA 12.8."
+        sudo bash install_cuda12.8.sh
     else
-        # Check if nvcc is installed
-        if ! command -v /usr/local/cuda/bin/nvcc &> /dev/null && ! command -v nvcc &> /dev/null; then
-            read -p "CUDA not found. Do you want to install CUDA 12.6? (y/N): " install_cuda
-            if [[ $install_cuda =~ ^[Yy]$ ]]; then
-                bash install_cuda12.8.sh
-            else
-                echo "Skipping CUDA installation."
-            fi
-        fi
+        echo "CUDA already appears to be installed. Skipping CUDA installation."
     fi
 fi
 

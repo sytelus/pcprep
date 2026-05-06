@@ -2,6 +2,8 @@
 #fail if any errors
 set -eu -o pipefail -o xtrace # fail if any command failes, log all commands, -o xtrace
 
+export NO_NET=${NO_NET:-0}
+
 # Detect architecture
 ARCH=$(uname -m)
 case $ARCH in
@@ -44,7 +46,7 @@ if sudo -n true 2>/dev/null; then
     fi
 
     # update stdc, without this pytest discovery fails
-    if [ -n "${NO_NET}" ]; then
+    if [ "$NO_NET" = "0" ]; then
         sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
         sudo apt-get -y update
         sudo apt install -y gcc
@@ -117,7 +119,7 @@ else
 fi
 
 # requires internet
-if [ -n "${NO_NET}" ]; then
+if [ "$NO_NET" = "0" ]; then
     # Install micro editor
     pushd "$HOME/.local/bin"
     curl https://getmic.ro | MICRO_DESTDIR="$HOME/.local" sh
