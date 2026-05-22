@@ -47,7 +47,7 @@ RUN set -eux; \
       virt-what sudo freeglut3-dev libx11-dev libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libfreeimage3 \
       libfreeimage-dev vmtouch neofetch powerstat gcc libstdc++6 tmux screen \
       # ---- tools.txt (Everyday CLI QoL) ---- \
-      ripgrep fd-find bat fzf tldr tree ncdu gdu moreutils rename jq yq parallel entr rsync \
+      ripgrep fd-find bat fzf tldr tree ncdu gdu duf du-dust moreutils rename jq yq parallel entr rsync \
       pkg-config ninja-build meson autoconf automake libtool ccache clang clang-format clang-tidy lld gdb lldb valgrind strace ltrace \
       libssl-dev libffi-dev libbz2-dev liblzma-dev libsqlite3-dev \
       btop glances sysstat iotop ifstat iftop nethogs linux-tools-generic numactl hwloc lm-sensors smartmontools nvme-cli acpi \

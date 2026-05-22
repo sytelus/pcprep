@@ -34,6 +34,7 @@ BUILDER="${BUILDER:-gpu-devbox-builder}"
 
 # Get VCS reference for image labeling
 VCS_REF="${VCS_REF:-$(git -C "${BUILD_CONTEXT}" rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
+BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 # Compute relative path to Dockerfile from build context
 if [ -z "${DOCKERFILE:-}" ]; then
@@ -68,6 +69,8 @@ docker buildx build \
     --file "${DOCKERFILE}" \
     --builder "${BUILDER}" \
     --build-arg VCS_REF="${VCS_REF}" \
+    --build-arg BUILD_DATE="${BUILD_DATE}" \
+    --build-arg IMAGE_REF="${IMAGE}:${TAG}" \
     --build-arg INSTALL_PYTORCH_NIGHTLY="${INSTALL_PYTORCH_NIGHTLY}" \
     --build-arg INSTALL_VLLM="${INSTALL_VLLM}" \
     --platform "${PLATFORMS}" \

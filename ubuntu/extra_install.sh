@@ -113,8 +113,11 @@ install_qol() {
   install_pkg tldr || true
   install_pkg tree || true
 
-  # Prefer gdu if available, else ncdu
-  if apt_has_pkg gdu; then install_pkg gdu; else install_pkg ncdu || true; fi
+  # Disk usage tools: install all available variants
+  install_pkg ncdu || true
+  install_pkg gdu || true
+  install_pkg duf || true
+  install_pkg du-dust || true
 
   install_pkg moreutils || true
   # 'rename' may be 'rename' (perl-rename) or 'renameutils' on some systems; prefer 'rename'
