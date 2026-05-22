@@ -280,6 +280,7 @@ cat >/usr/local/bin/gpu-devbox-greeting <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Welcome to GPU devbox!"
+[ -r /etc/devbox-image-info ] && cat /etc/devbox-image-info
 cores=$( (nproc 2>/dev/null) || echo "N/A")
 mem_kb=$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
 mem_gb=$(awk -v kb="${mem_kb}" 'BEGIN{printf "%.1f", kb/1024/1024}')
@@ -317,6 +318,15 @@ chmod +x /etc/profile.d/00-gpu-devbox.sh
 mkdir -p /etc/skel
 cp -a /root/.bash_aliases /root/.inputrc /root/.tmux.conf /etc/skel/
 EOF
+
+# ---- Bake image identity (name, revision, build date, base) for the greeting ----
+# Placed near the end so changing BUILD_DATE/IMAGE_REF only invalidates the last layer.
+ARG BUILD_DATE=unknown
+ARG IMAGE_REF=gpu-devbox:unknown
+RUN set -eux; \
+    printf 'Image: %s (rev %s, built %s) | base: nvcr.io/nvidia/pytorch:25.11-py3 | src: https://github.com/sytelus/pcprep\n' \
+      "${IMAGE_REF}" "${VCS_REF:-unknown}" "${BUILD_DATE}" \
+      > /etc/devbox-image-info
 
 # Basic health check to verify Python and torch are functional.
 HEALTHCHECK --interval=60s --timeout=10s --start-period=5s --retries=3 \

@@ -287,6 +287,7 @@ cat >/usr/local/bin/devbox-greeting <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Welcome to CPU devbox!"
+[ -r /etc/devbox-image-info ] && cat /etc/devbox-image-info
 cores=$( (nproc 2>/dev/null) || echo "N/A")
 mem_kb=$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
 mem_gb=$(awk -v kb="${mem_kb}" 'BEGIN{printf "%.1f", kb/1024/1024}')
@@ -303,6 +304,15 @@ python -V 2>/dev/null || true
 EOS
 chmod +x /usr/local/bin/devbox-greeting
 EOF
+
+# ---- Bake image identity (name, revision, build date, base) for the greeting ----
+# Placed near the end so changing BUILD_DATE/IMAGE_REF only invalidates the last layer.
+ARG BUILD_DATE=unknown
+ARG IMAGE_REF=cpu-devbox:unknown
+RUN set -eux; \
+    printf 'Image: %s (rev %s, built %s) | base: ubuntu:24.04 | src: https://github.com/sytelus/pcprep\n' \
+      "${IMAGE_REF}" "${VCS_REF:-unknown}" "${BUILD_DATE}" \
+      > /etc/devbox-image-info
 
 # Basic health check to verify Python and conda are functional.
 HEALTHCHECK --interval=60s --timeout=10s --start-period=5s --retries=3 \

@@ -42,6 +42,7 @@ PUSH="${PUSH:-0}"
 
 # Get VCS reference for image labeling
 VCS_REF="${VCS_REF:-$(git -C "${BUILD_CONTEXT}" rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
+BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 # Compute relative path to Dockerfile from build context
 if [ -z "${DOCKERFILE:-}" ]; then
@@ -72,6 +73,8 @@ if docker buildx version >/dev/null 2>&1; then
         --file "${DOCKERFILE}"
         --platform "linux/arm64"
         --build-arg VCS_REF="${VCS_REF}"
+        --build-arg BUILD_DATE="${BUILD_DATE}"
+        --build-arg IMAGE_REF="${IMAGE}:${TAG}"
         --progress=plain
         -t "${IMAGE}:${TAG}"
     )
@@ -91,6 +94,8 @@ else
     docker build \
         --file "${DOCKERFILE}" \
         --build-arg VCS_REF="${VCS_REF}" \
+        --build-arg BUILD_DATE="${BUILD_DATE}" \
+        --build-arg IMAGE_REF="${IMAGE}:${TAG}" \
         --build-arg TARGETARCH=arm64 \
         --build-arg TARGETPLATFORM=linux/arm64 \
         -t "${IMAGE}:${TAG}" \
