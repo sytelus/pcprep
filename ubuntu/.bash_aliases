@@ -107,6 +107,14 @@ elif pcprep_is_macos; then
   alias ipconfig='ifconfig'
 fi
 
+if pcprep_cmd_exists hostnamectl; then
+  alias machinename='hostnamectl'
+elif pcprep_is_macos; then
+  alias machinename='system_profiler SPHardwareDataType SPSoftwareDataType'
+else
+  alias machinename='hostname'
+fi
+
 pcprep_unalias whowhat
 whowhat() {
   if pcprep_is_macos; then
