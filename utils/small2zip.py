@@ -31,6 +31,14 @@ away without re-deriving the guarantee:
 * **Append is copy-then-append, never in-place.** When adding to an existing
   archive we first copy it to the partial file and append there. Appending
   in-place would mutate the only known-good copy of already-archived data.
+* **"Already archived" is decided by content, not by size.** When appending, a
+  source is skipped only if a stored member has both the same size *and* the
+  same CRC32. Matching on size alone would let an in-place edit of unchanged
+  length be mistaken for the archived copy, and the source would then be deleted
+  while the archive still held the stale bytes. The check scans the whole
+  ``name``/``name__dup1``/``name__dup2`` sequence, not just the exact name, so a
+  file stored under a collision name on an earlier run is recognised on the next
+  one instead of being appended again (see ``_find_or_place``).
 * **Verification re-opens the archive from disk.** We never trust the in-memory
   writer. We re-open the finished file, and for every file we intended to store
   we check the entry exists, its uncompressed size matches, and (default) we
@@ -40,10 +48,23 @@ away without re-deriving the guarantee:
   verification confirmed, never a blanket ``rmtree``. Each file is re-``stat``ed
   immediately before unlink; if size or mtime moved since we archived it, the
   file was modified after archiving and is *kept*, not deleted.
-* **Any doubt => keep the data.** Unreadable file, symlink, verification miss,
-  cancellation, or a failed unlink all abort deletion for that folder. The
-  worst case is a folder that survives next to a valid archive (recoverable,
-  just re-run); never the reverse.
+* **Directories are archived, not just walked through.** Every sub-directory
+  gets its own zero-length member carrying its attributes. Without them an empty
+  directory would have no representation in the archive at all -- yet the prune
+  step would still remove it, destroying structure we never copied. Attributes
+  (Unix mode *and* the DOS read-only/hidden/system bits) are stored for files
+  and directories alike, and verification confirms them before any deletion:
+  this tool must not promise retention it has not checked.
+* **Nothing that points elsewhere is ever followed.** Symlinks *and* Windows
+  junctions are refused, because archiving through one would then delete files
+  outside the folder we were asked to process. Deletion walks the manifest, not
+  ``os.walk``, for the same reason. Metadata zip simply cannot hold (ACLs,
+  alternate data streams, owner/group) is *not* treated this way: it is dropped
+  and the folder is still reclaimed, because the guarantee is about contents.
+* **Any doubt => keep the data.** Unreadable file, symlink, junction,
+  verification miss, cancellation, or a failed unlink all abort deletion for
+  that folder. The worst case is a folder that survives next to a valid archive
+  (recoverable, just re-run); never the reverse.
 
 Performance notes
 -----------------
@@ -80,10 +101,11 @@ import sys
 import threading
 import time
 import zipfile
+import zlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Iterable, Iterator, Sequence
+from typing import Iterator, Sequence
 
 from rich.console import Console, Group
 from rich.logging import RichHandler
@@ -132,6 +154,16 @@ ZSTD_AVAILABLE = hasattr(zipfile, "ZIP_ZSTANDARD")
 if ZSTD_AVAILABLE:
     COMPRESSION_METHODS["zstd"] = (zipfile.ZIP_ZSTANDARD, True)
 
+#: Valid ``--level`` range per method. Validated up front because the underlying
+#: libraries reject a bad level *while closing the archive*, which surfaces as a
+#: baffling "Can't close the ZIP file while there is an open writing handle"
+#: rather than "bad level" -- and it would do so once per folder, mid-run.
+LEVEL_RANGES = {
+    "deflate": (0, 9),
+    "bzip2": (1, 9),
+    "zstd": (-7, 22),  # negative levels are zstd's "faster than fast" modes
+}
+
 DEFAULT_LOG_PATH = Path.home() / "small2zip.log"
 
 console = Console(stderr=False)
@@ -160,7 +192,17 @@ def _install_signal_handlers() -> None:
             "Finishing current file, then stopping safely...[/]"
         )
 
-    for sig in (signal.SIGINT, getattr(signal, "SIGTERM", signal.SIGINT)):
+    # SIGBREAK is Windows' Ctrl+Break. Without it that keystroke bypasses this
+    # handler entirely: the OS kills the process at STATUS_CONTROL_C_EXIT, so
+    # nothing unwinds and stale .partial files are left behind. (No data can be
+    # lost either way -- deletion never starts without a verified archive -- but
+    # a clean exit is much easier to reason about.)
+    signals = {signal.SIGINT}
+    for name in ("SIGTERM", "SIGBREAK"):
+        sig = getattr(signal, name, None)
+        if sig is not None:
+            signals.add(sig)
+    for sig in signals:
         try:
             signal.signal(sig, _handler)
         except (ValueError, OSError):  # not on main thread / unsupported
@@ -186,11 +228,15 @@ def human_size(num_bytes: float) -> str:
     if num_bytes < 1024:
         return f"{int(num_bytes)} B"
     value = float(num_bytes)
-    for unit in ("KiB", "MiB", "GiB", "TiB", "PiB"):
+    unit = ""
+    for unit in ("KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"):
         value /= 1024.0
         if value < 1024.0:
             return f"{value:,.1f} {unit}"
-    return f"{value:,.1f} EiB"
+    # Falling out means the value is still >= 1024 after scaling to the largest
+    # unit, so report it there. The bug this replaced labelled the value with
+    # the *next* unit up without dividing, reporting 1 EiB as "1,024.0 EiB".
+    return f"{value:,.1f} {unit}"
 
 
 def human_count(num: int) -> str:
@@ -219,11 +265,40 @@ class FolderStats:
         return self.total_bytes / self.file_count if self.file_count else 0.0
 
 
-def iter_top_level_dirs(root: Path, include_hidden: bool) -> list[Path]:
-    """Return first-level sub-directories of *root* (sorted, symlinks skipped).
+def _is_reparse_point(st: os.stat_result) -> bool:
+    """True for a Windows reparse point (junction, mount point, symlink).
 
-    Symlinked directories are excluded deliberately: following them can escape
-    *root* and can loop, and neither is acceptable for a destructive tool.
+    ``DirEntry.is_symlink()`` returns **False** for a junction -- CPython treats
+    only the symlink reparse tag as a link. A junction therefore looked like an
+    ordinary directory: this tool recursed through it, archived whatever it
+    pointed at, and then deleted those files, *outside* the folder it was told
+    to process. Reparse points are excluded wholesale for exactly the reason
+    symlinks are -- they can escape the tree and they can loop.
+
+    Always False on POSIX, where the symlink check already covers this.
+    """
+    return bool(
+        getattr(st, "st_file_attributes", 0)
+        & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+
+
+def _is_link_like(entry: os.DirEntry) -> bool:
+    """True if *entry* must not be followed or archived (symlink or junction)."""
+    if entry.is_symlink():
+        return True
+    try:
+        return _is_reparse_point(entry.stat(follow_symlinks=False))
+    except OSError:
+        return False  # caller's own stat will surface the error
+
+
+def iter_top_level_dirs(root: Path, include_hidden: bool) -> list[Path]:
+    """Return first-level sub-directories of *root* (sorted, links skipped).
+
+    Symlinked and junctioned directories are excluded deliberately: following
+    them can escape *root* and can loop, and neither is acceptable for a
+    destructive tool.
     """
     out: list[Path] = []
     with os.scandir(root) as it:
@@ -231,8 +306,9 @@ def iter_top_level_dirs(root: Path, include_hidden: bool) -> list[Path]:
             if not include_hidden and entry.name.startswith("."):
                 continue
             try:
-                # follow_symlinks=False => a symlinked dir reports False here.
-                if entry.is_dir(follow_symlinks=False):
+                # follow_symlinks=False => a symlinked dir reports False here,
+                # but a junction still reports True -- hence _is_link_like.
+                if entry.is_dir(follow_symlinks=False) and not _is_link_like(entry):
                     out.append(Path(entry.path))
             except OSError as exc:  # pragma: no cover - race with fs changes
                 log.warning("Cannot stat %s: %s", entry.path, exc)
@@ -256,7 +332,7 @@ def scan_folder(path: Path) -> FolderStats:
             with os.scandir(current) as it:
                 for entry in it:
                     try:
-                        if entry.is_symlink():
+                        if _is_link_like(entry):  # symlink or junction
                             stats.symlink_count += 1
                             continue
                         if entry.is_dir(follow_symlinks=False):
@@ -311,7 +387,9 @@ def scan_all(dirs: Sequence[Path], workers: int) -> list[FolderStats]:
                 cancel_event.set()
             finally:
                 if cancel_event.is_set():
-                    # Do not wait for the whole queue to drain on cancel.
+                    # Drop everything still queued. Threads already running are
+                    # not killable, but they poll _check_cancel and unwind fast;
+                    # the enclosing `with` then joins them.
                     pool.shutdown(wait=False, cancel_futures=True)
     return sorted(results, key=lambda s: s.name.lower())
 
@@ -381,16 +459,26 @@ def render_list(stats: Sequence[FolderStats], root: Path, sort: str) -> None:
 
 @dataclass(slots=True)
 class ManifestEntry:
-    """The contract linking one source file to one archive member.
+    """The contract linking one source path to one archive member.
 
     ``size``/``mtime_ns`` are captured at archive time so the delete stage can
     detect a file that changed after we read it and refuse to remove it.
+
+    Directories get entries too (``is_dir``, arcname with a trailing ``/``).
+    Without them an empty directory would have no archive representation at all,
+    yet the delete stage still prunes it -- structure destroyed with no copy.
+
+    ``external_attr`` is the permission/attribute word as it is stored in the
+    archive, so verification can confirm the archive really carries what we
+    recorded. See ``_external_attr`` for the layout.
     """
 
     src: str  # absolute source path
-    arcname: str  # member name inside the archive
+    arcname: str  # member name inside the archive ("/"-separated; dirs end in "/")
     size: int
     mtime_ns: int
+    is_dir: bool = False
+    external_attr: int = 0
 
 
 @dataclass(slots=True)
@@ -400,6 +488,7 @@ class FolderResult:
     name: str
     status: str = "pending"  # ok | skipped | failed | cancelled | dry-run
     archived_files: int = 0
+    archived_dirs: int = 0
     archived_bytes: int = 0
     deleted_files: int = 0
     undeleted: list[str] = field(default_factory=list)
@@ -407,12 +496,61 @@ class FolderResult:
     message: str = ""
 
 
+#: DOS attribute bits worth carrying. Deliberately excludes ARCHIVE (a backup
+#: marker that says nothing about the file) and DIRECTORY (set from is_dir).
+_DOS_ATTR_BITS = (
+    getattr(stat, "FILE_ATTRIBUTE_READONLY", 0x01)
+    | getattr(stat, "FILE_ATTRIBUTE_HIDDEN", 0x02)
+    | getattr(stat, "FILE_ATTRIBUTE_SYSTEM", 0x04)
+)
+_DOS_DIRECTORY = 0x10
+_DOS_READONLY = 0x01
+
+
+def _external_attr(st: os.stat_result, is_dir: bool) -> int:
+    """Build a zip ``external_attr`` word preserving both attribute models.
+
+    A zip's 32-bit attribute word carries two independent things, and portable
+    writers (Info-ZIP, 7-Zip) populate both -- so we do too:
+
+    * high 16 bits -- the Unix mode (``0o100644``, ``0o40755``, ...).
+    * low 8 bits -- the MS-DOS attribute byte (read-only / hidden / system /
+      directory).
+
+    Which half an extractor believes depends on ``create_system``, which zipfile
+    sets from the *writing* platform: archives written on Windows are tagged
+    MS-DOS, and Info-ZIP then derives modes from the DOS byte, ignoring the Unix
+    half entirely. That is precisely why filling only the Unix half is not
+    enough -- on Windows-written archives it is the half nobody reads.
+
+    Python's ``ZipInfo.from_file`` fills in only the Unix half. On Windows that
+    half is synthesised by CPython from the real attributes, so hidden and
+    system were being dropped entirely -- and since this tool then deletes the
+    source, dropped meant gone. Filling both halves keeps the archive faithful
+    on whichever platform eventually reads it.
+    """
+    attr = (stat.S_IMODE(st.st_mode) | (stat.S_IFDIR if is_dir else stat.S_IFREG)) << 16
+    dos = getattr(st, "st_file_attributes", None)
+    if dos is not None:  # Windows: use the real attribute bits
+        attr |= dos & _DOS_ATTR_BITS
+    elif not st.st_mode & stat.S_IWUSR:  # POSIX: mirror unwritable as read-only
+        attr |= _DOS_READONLY
+    if is_dir:
+        attr |= _DOS_DIRECTORY
+    return attr
+
+
 def _collect_files(folder: Path, result: FolderResult) -> tuple[list[ManifestEntry], list[str]]:
-    """Enumerate regular files under *folder* into prospective manifest entries.
+    """Enumerate files *and* sub-directories under *folder* as manifest entries.
 
     Returns ``(entries, blockers)``. A non-empty *blockers* list means the folder
     must not be deleted even if archiving succeeds (we cannot represent those
     paths faithfully in a zip, so removing them would lose data).
+
+    Sub-directories get their own entries so that empty ones survive and so
+    every folder's attributes are carried. *folder* itself is not an entry: it
+    is what the archive as a whole represents, and leaving it out keeps a
+    genuinely empty folder archive-free (there is nothing in it to lose).
     """
     entries: list[ManifestEntry] = []
     blockers: list[str] = []
@@ -425,52 +563,161 @@ def _collect_files(folder: Path, result: FolderResult) -> tuple[list[ManifestEnt
             with os.scandir(current) as it:
                 for entry in it:
                     try:
-                        if entry.is_symlink():
-                            # Zip cannot round-trip symlinks portably; keeping
-                            # them is the safe choice, so the folder survives.
+                        if _is_link_like(entry):
+                            # Zip cannot round-trip symlinks portably, and a
+                            # junction would let us archive-then-delete files
+                            # outside this folder entirely. Keeping them is the
+                            # safe choice, so the folder survives.
                             result.skipped_symlinks += 1
-                            blockers.append(f"symlink not archivable: {entry.path}")
-                            continue
-                        if entry.is_dir(follow_symlinks=False):
-                            stack.append(entry.path)
+                            blockers.append(f"symlink or junction not archivable: {entry.path}")
                             continue
                         st = entry.stat(follow_symlinks=False)
-                        if not stat.S_ISREG(st.st_mode):
+                        is_dir = entry.is_dir(follow_symlinks=False)
+                        if not is_dir and not stat.S_ISREG(st.st_mode):
                             blockers.append(f"not a regular file: {entry.path}")
                             continue
                         arcname = os.path.relpath(entry.path, root_str).replace(os.sep, "/")
+                        if is_dir:
+                            stack.append(entry.path)
+                            arcname += "/"  # zip's marker for a directory member
                         entries.append(
                             ManifestEntry(
                                 src=entry.path,
                                 arcname=arcname,
-                                size=st.st_size,
+                                size=0 if is_dir else st.st_size,
                                 mtime_ns=st.st_mtime_ns,
+                                is_dir=is_dir,
+                                external_attr=_external_attr(st, is_dir),
                             )
                         )
                     except OSError as exc:
                         blockers.append(f"{entry.path}: {exc}")
         except OSError as exc:
             blockers.append(f"{current}: {exc}")
+    # Directories first, then files, each sorted: dir members precede their
+    # contents (what extractors expect) and archives become reproducible.
+    entries.sort(key=lambda e: (not e.is_dir, e.arcname))
     return entries, blockers
 
 
-def _unique_arcname(existing: set[str], arcname: str) -> str:
-    """Return a name not already present in *existing*.
+def _count_entries(entries: Sequence[ManifestEntry], result: FolderResult) -> None:
+    """Record file/dir/byte totals. Directory members are counted separately so
+    the reported file count stays comparable with ``--list`` output."""
+    result.archived_files = sum(1 for e in entries if not e.is_dir)
+    result.archived_dirs = sum(1 for e in entries if e.is_dir)
+    result.archived_bytes = sum(e.size for e in entries)
 
-    Only used when appending to an archive that already holds a *different* file
-    under the same name. Renaming (rather than overwriting or skipping) is what
-    lets us keep the no-data-loss guarantee for both copies.
+
+def _arcname_candidates(arcname: str) -> Iterator[str]:
+    """Yield *arcname*, then ``name__dup1.ext``, ``name__dup2.ext``, ... forever.
+
+    The single source of truth for collision naming: both the "where can I write
+    this?" and the "is it already here?" questions walk this same sequence, so
+    they cannot drift apart.
+
+    Only the BASENAME is split. Splitting the whole arcname would treat a dot in
+    a directory component ("v1.2/data", "pkg/.bin/tool") as the extension
+    separator and rewrite the directory path, silently relocating the file
+    inside the archive. Arcnames always use "/" regardless of platform, and a
+    directory's trailing "/" is preserved so it stays a directory member.
     """
-    if arcname not in existing:
-        return arcname
-    base, dot, ext = arcname.rpartition(".")
-    stem, suffix = (base, "." + ext) if dot else (arcname, "")
+    yield arcname
+    body = arcname[:-1] if arcname.endswith("/") else arcname
+    trailer = "/" if arcname.endswith("/") else ""
+    head, sep, tail = body.rpartition("/")
+    stem, suffix = os.path.splitext(tail)
     i = 1
     while True:
-        candidate = f"{stem}__dup{i}{suffix}"
-        if candidate not in existing:
-            return candidate
+        yield f"{head}{sep}{stem}__dup{i}{suffix}{trailer}"
         i += 1
+
+
+def _find_or_place(
+    entry: ManifestEntry, index: dict[str, tuple[int, int, int]]
+) -> tuple[str, int | None]:
+    """Decide where *entry* belongs in the archive.
+
+    Returns ``(arcname, stored_attr)``. A non-None *stored_attr* means the
+    archive already holds this exact content under *arcname*, so it must not be
+    written again; the value is the attribute word actually stored there, which
+    is what the manifest records (see ``_archive_folder``).
+
+    Crucially this walks the *whole* ``__dupN`` sequence rather than checking
+    only the exact name. Checking just the exact name meant a source that had
+    been renamed on an earlier run was never recognised again, so every
+    subsequent run appended another byte-identical copy and the archive grew
+    without bound.
+
+    Content is compared by size *and* CRC32; a same-size edit must never be
+    mistaken for the archived copy (see ``_archive_folder`` for why).
+    """
+    crc: int | None = None
+    for candidate in _arcname_candidates(entry.arcname):
+        prior = index.get(candidate)
+        if prior is None:
+            return candidate, None  # free slot: write here
+        if entry.is_dir:
+            return candidate, prior[2]  # directories carry no content to compare
+        if prior[0] == entry.size:
+            if crc is None:
+                crc = _file_crc32(entry.src)
+            if prior[1] == crc:
+                return candidate, prior[2]  # byte-identical: already archived
+    raise AssertionError("unreachable: _arcname_candidates is infinite")
+
+
+#: Zip's DOS timestamp cannot express anything before 1980-01-01.
+_DOS_EPOCH = (1980, 1, 1, 0, 0, 0)
+
+
+def _dos_date_time(mtime_ns: int) -> tuple[int, int, int, int, int, int]:
+    """Convert an mtime to zip's DOS timestamp, clamped to what zip can express.
+
+    Zip refuses to write a header dated before 1980 at all. Clamping rather than
+    letting that ValueError escape is deliberate: a file with a 1970 mtime --
+    restored from an old archive, or written with a broken clock -- would
+    otherwise be *permanently* unarchivable, so its folder could never be
+    reclaimed no matter how often you re-ran. Losing a stored timestamp is a far
+    smaller cost than a folder that can never be processed.
+
+    The stored time is approximate regardless (2-second DOS resolution). This
+    tool's own change detection reads ``st_mtime_ns`` from disk and never
+    consults this value, so clamping cannot weaken the safety invariant.
+    """
+    try:
+        parts = time.localtime(mtime_ns / 1e9)[:6]
+    except (OSError, OverflowError, ValueError):  # nonsense mtime on disk
+        return _DOS_EPOCH
+    return _DOS_EPOCH if parts[0] < 1980 else parts
+
+
+def _zipinfo_for(entry: ManifestEntry, compression: int, level: int | None) -> zipfile.ZipInfo:
+    """Build the archive member header for *entry*.
+
+    Built explicitly rather than via ``ZipInfo.from_file`` for two reasons: the
+    timestamp needs clamping (above), and the full attribute word must be
+    carried -- ``from_file`` fills only the Unix half and drops the DOS bits
+    entirely (see ``_external_attr``).
+    """
+    info = zipfile.ZipInfo(entry.arcname, _dos_date_time(entry.mtime_ns))
+    info.external_attr = entry.external_attr
+    info.file_size = entry.size
+    # A directory member holds no bytes; compressing it is pure overhead.
+    info.compress_type = zipfile.ZIP_STORED if entry.is_dir else compression
+    info._compresslevel = None if entry.is_dir else level
+    return info
+
+
+def _file_crc32(path: str) -> int:
+    """Stream *path* and return its CRC32, in the same form ``ZipInfo.CRC`` uses."""
+    crc = 0
+    with open(path, "rb") as f:
+        while True:
+            _check_cancel()
+            buf = f.read(CHUNK_SIZE)
+            if not buf:
+                return crc
+            crc = zlib.crc32(buf, crc)
 
 
 def _archive_folder(
@@ -482,57 +729,140 @@ def _archive_folder(
     level: int | None,
     progress: Progress,
     task_id,
-) -> list[ManifestEntry]:
-    """Build *partial* containing every entry, returning the written manifest.
+) -> tuple[list[ManifestEntry], list[str]]:
+    """Build *partial* containing every entry.
+
+    Returns ``(written, failures)``. *written* is the manifest of entries proven
+    to be in the archive; *failures* names sources that could not be read (a
+    file vanished or got locked between enumeration and write). A non-empty
+    *failures* list blocks deletion of the folder, exactly like a blocker from
+    ``_collect_files`` -- but the rest of the folder is still archived, so one
+    locked file cannot waste the work of a million-file run.
 
     If *dest_zip* exists it is copied to *partial* first and appended to, so the
     existing archive is never mutated. The caller is responsible for verifying
     *partial* and only then swapping it into place.
     """
-    existing_names: set[str] = set()
-    existing_by_name: dict[str, int] = {}
+    # arcname -> (size, crc32, external_attr) for everything the archive holds.
+    # Doubles as the set of taken names, so there is no second structure to
+    # keep in sync.
+    existing_by_name: dict[str, tuple[int, int, int]] = {}
 
     if dest_zip.exists():
         progress.update(task_id, description=f"{folder.name} [dim]copying existing zip[/]")
         _copy_file(dest_zip, partial)
         with zipfile.ZipFile(partial, "r") as zf:
             for info in zf.infolist():
-                existing_names.add(info.filename)
-                existing_by_name[info.filename] = info.file_size
+                existing_by_name[info.filename] = (info.file_size, info.CRC, info.external_attr)
         mode = "a"
     else:
         mode = "w"
 
     written: list[ManifestEntry] = []
+    failures: list[str] = []
     kwargs = {"compresslevel": level} if level is not None else {}
     with zipfile.ZipFile(partial, mode, compression=compression, allowZip64=True, **kwargs) as zf:
         for entry in entries:
             _check_cancel()
-            prior = existing_by_name.get(entry.arcname)
-            if prior is not None and prior == entry.size:
-                # Identical name and size: assume already archived by a previous
-                # run. Re-adding would create a duplicate member for no gain.
-                # NOTE: this is a size-only heuristic; use --strict if the
-                # destination archive may contain unrelated same-named files.
-                written.append(entry)
+            try:
+                # Skip a re-add ONLY when the archive already holds this exact
+                # content. Matching on size alone is NOT sufficient: a file
+                # edited in place to the same length would be judged "already
+                # archived", and we would then delete the source while the
+                # archive still held the OLD bytes -- silent data loss, and a
+                # direct violation of this tool's one invariant.
+                arcname, stored_attr = _find_or_place(entry, existing_by_name)
+                if stored_attr is not None:
+                    # Already present. Record the attributes actually stored --
+                    # which may predate this run, or this version -- so the
+                    # manifest describes the archive rather than the disk, and
+                    # verification stays truthful.
+                    if stored_attr != entry.external_attr:
+                        log.debug(
+                            "attrs differ for existing member %s: archive=0x%08x source=0x%08x",
+                            arcname, stored_attr, entry.external_attr,
+                        )
+                    written.append(replace(entry, arcname=arcname, external_attr=stored_attr))
+                    progress.advance(task_id, entry.size)
+                    continue
+                if arcname != entry.arcname:
+                    log.warning(
+                        "name collision in %s: storing %s as %s", dest_zip, entry.arcname, arcname
+                    )
+                    entry = replace(entry, arcname=arcname)
+                info = _zipinfo_for(entry, compression, level)
+                if entry.is_dir:
+                    zf.writestr(info, b"")
+                else:
+                    with open(entry.src, "rb") as src, zf.open(info, "w") as dest:
+                        shutil.copyfileobj(src, dest, CHUNK_SIZE)
+                # Keep the index current: a later source file may legitimately
+                # be named "f__dup1.txt" and must not silently overwrite the
+                # slot we just allocated for a renamed "f.txt". zipfile appends
+                # the ZipInfo when the member closes, so this is the one we
+                # just wrote -- and its CRC is now populated.
+                written_info = zf.infolist()[-1]
+                existing_by_name[entry.arcname] = (
+                    written_info.file_size, written_info.CRC, entry.external_attr
+                )
+            except (OSError, ValueError, RuntimeError) as exc:
+                # One unusable source must not cost the folder its whole run:
+                # record it as a blocker, keep archiving the rest, keep the
+                # folder. RuntimeError covers a file that grows past the Zip64
+                # boundary between stat and write, which zipfile reports only
+                # when the member closes.
+                # If the read died *mid-member*, zipfile still closes out the
+                # truncated member, so the archive may hold a short copy under
+                # this name. That is harmless: the entry never enters the
+                # manifest, so it is neither verified nor deleted, and the intact
+                # source stays on disk. A later run sees the CRC differ and
+                # stores the good copy alongside it.
+                failures.append(f"could not archive {entry.src}: {exc}")
+                log.warning("unreadable source %s: %s", entry.src, exc)
                 progress.advance(task_id, entry.size)
                 continue
-            arcname = _unique_arcname(existing_names, entry.arcname)
-            if arcname != entry.arcname:
-                log.warning(
-                    "name collision in %s: storing %s as %s", dest_zip, entry.arcname, arcname
-                )
-                entry = ManifestEntry(entry.src, arcname, entry.size, entry.mtime_ns)
-            zf.write(entry.src, arcname)
-            existing_names.add(arcname)
             written.append(entry)
             progress.advance(task_id, entry.size)
-        # Flush zipfile's own buffers, then force the bytes to the platter.
-        # Without the fsync a power loss could leave a "verified" archive that
-        # does not actually exist on disk while the source is already gone.
-        zf.fp.flush()
-        os.fsync(zf.fp.fileno())
-    return written
+    # NOTE: the fsync MUST happen out here, after ZipFile.close() has run.
+    # zipfile writes the central directory during close(), and without that
+    # structure the archive is unreadable no matter how much file data survived.
+    # Syncing inside the `with` block would durably persist the member bytes but
+    # leave the central directory in the page cache -- a power loss after we
+    # published and deleted would then yield a corrupt archive with no sources.
+    _fsync_file(partial)
+    return written, failures
+
+
+def _fsync_file(path: Path) -> None:
+    """Force *path*'s contents to stable storage.
+
+    Opened O_RDWR because Windows' ``_commit`` (what ``os.fsync`` maps to there)
+    requires a writable handle.
+    """
+    fd = os.open(path, os.O_RDWR)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _fsync_parent_dir(path: Path) -> None:
+    """Best-effort: make *path*'s directory entry durable after a rename.
+
+    On POSIX, ``os.replace`` is atomic but the rename itself is only guaranteed
+    durable once the parent directory is synced; without this a crash could
+    revert the publish step. Not applicable on Windows (directories cannot be
+    opened for fsync), where the rename is journalled by NTFS -- hence the
+    broad exception guard rather than a platform check.
+    """
+    try:
+        fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        pass  # unsupported on this platform/filesystem; the rename still applied
 
 
 def _copy_file(src: Path, dst: Path) -> None:
@@ -577,7 +907,13 @@ def _verify_archive(
                         f"archive={info.file_size} source={entry.size}"
                     )
                     continue
-                if full:
+                if entry.is_dir and not info.is_dir():
+                    problems.append(f"not stored as a directory: {entry.arcname}")
+                    continue
+                # Content first: it is the actual guarantee. An attribute
+                # mismatch must never short-circuit this check, or a metadata
+                # nit would mask real corruption.
+                if full and not entry.is_dir:
                     try:
                         with zf.open(info, "r") as member:
                             while member.read(CHUNK_SIZE):
@@ -585,6 +921,16 @@ def _verify_archive(
                     except (zipfile.BadZipFile, OSError) as exc:
                         problems.append(f"unreadable member {entry.arcname}: {exc}")
                         continue
+                # We promise to retain attributes, so we confirm them before
+                # letting the source be deleted -- an unverified promise is not
+                # one this tool is allowed to make.
+                if info.external_attr != entry.external_attr:
+                    problems.append(
+                        f"attribute mismatch for {entry.arcname}: "
+                        f"archive=0x{info.external_attr:08x} "
+                        f"expected=0x{entry.external_attr:08x}"
+                    )
+                    continue
                 progress.advance(task_id, entry.size)
     except (zipfile.BadZipFile, OSError) as exc:
         problems.append(f"cannot open archive: {exc}")
@@ -600,6 +946,21 @@ def _force_remove(path: str) -> None:
         os.remove(path)
 
 
+def _discard_partial(partial: Path) -> None:
+    """Drop an incomplete archive. Never raises.
+
+    A ``.partial`` is by definition not authoritative, so failing to remove one
+    is cosmetic: the source data is intact either way and the next run replaces
+    it. Losing the real error here would be worse than the leftover file, so it
+    is logged.
+    """
+    try:
+        if partial.exists():
+            _force_remove(str(partial))
+    except OSError as exc:
+        log.warning("could not remove partial %s: %s", partial, exc)
+
+
 def _delete_sources(folder: Path, manifest: Sequence[ManifestEntry], result: FolderResult) -> None:
     """Delete exactly the verified files, then prune the emptied directories.
 
@@ -608,6 +969,11 @@ def _delete_sources(folder: Path, manifest: Sequence[ManifestEntry], result: Fol
     """
     for entry in manifest:
         _check_cancel()
+        if entry.is_dir:
+            # Directories are not unlinked here: they are pruned bottom-up
+            # below, and only if empty. Passing one to os.remove would fail and
+            # be misreported as an undeletable path.
+            continue
         try:
             st = os.stat(entry.src)
             if st.st_size != entry.size or st.st_mtime_ns != entry.mtime_ns:
@@ -624,15 +990,26 @@ def _delete_sources(folder: Path, manifest: Sequence[ManifestEntry], result: Fol
             result.undeleted.append(f"{entry.src}: {exc}")
             log.error("FAILED to delete %s: %s", entry.src, exc)
 
-    # Prune directories bottom-up. Any directory still holding something (a kept
-    # file, a symlink, a file created during the run) simply stays.
-    for dirpath, _dirnames, _filenames in os.walk(folder, topdown=False):
+    # Prune directories bottom-up from the MANIFEST -- never os.walk, which
+    # descends into junctions (it does not treat them as links either) and would
+    # happily rmdir its way outside the folder we were asked to process.
+    # Deepest first so children go before parents. Any directory still holding
+    # something -- a kept file, a blocker, a file created during the run -- just
+    # fails rmdir and stays, which is the outcome we want.
+    for dirpath in sorted(
+        (e.src for e in manifest if e.is_dir),
+        key=lambda p: p.count(os.sep),
+        reverse=True,
+    ):
         try:
             os.rmdir(dirpath)
         except OSError as exc:
-            if dirpath == str(folder):
-                result.undeleted.append(f"{dirpath}: {exc}")
             log.debug("could not rmdir %s: %s", dirpath, exc)
+    try:
+        os.rmdir(folder)
+    except OSError as exc:
+        result.undeleted.append(f"{folder}: {exc}")
+        log.debug("could not rmdir %s: %s", folder, exc)
 
 
 def process_folder(
@@ -647,11 +1024,16 @@ def process_folder(
     result = FolderResult(name=folder.name)
     dest_zip = root / f"{folder.name}.zip"
     partial = root / f"{folder.name}{PARTIAL_SUFFIX}"
-    task_id = progress.add_task(f"{folder.name} [dim]scanning[/]", total=None, start=True)
+    task_id = None
     started = time.monotonic()
-    log.info("=== BEGIN folder=%s archive=%s ===", folder, dest_zip)
 
+    # Everything lives inside the try, including setting up the progress task:
+    # this function promises never to raise, and run_delete relies on it. A
+    # leak here would abort the whole run and discard the results of folders
+    # that had already finished.
     try:
+        task_id = progress.add_task(f"{folder.name} [dim]scanning[/]", total=None, start=True)
+        log.info("=== BEGIN folder=%s archive=%s ===", folder, dest_zip)
         if dest_zip.exists() and args.strict:
             result.status = "skipped"
             result.message = "archive exists (--strict)"
@@ -659,11 +1041,11 @@ def process_folder(
             return result
 
         entries, blockers = _collect_files(folder, result)
-        result.archived_files = len(entries)
-        result.archived_bytes = sum(e.size for e in entries)
+        _count_entries(entries, result)
         log.info(
-            "folder=%s files=%d bytes=%d blockers=%d",
-            folder, len(entries), result.archived_bytes, len(blockers),
+            "folder=%s files=%d dirs=%d bytes=%d blockers=%d",
+            folder, result.archived_files, result.archived_dirs,
+            result.archived_bytes, len(blockers),
         )
         for b in blockers[:50]:
             log.warning("blocker in %s: %s", folder, b)
@@ -674,16 +1056,32 @@ def process_folder(
             result.status = "dry-run"
             result.message = (
                 "empty folder, would remove" if not entries and not blockers
-                else f"would archive {len(entries)} files"
+                else f"would archive {result.archived_files} files"
+                     + (f" + {result.archived_dirs} dirs" if result.archived_dirs else "")
             )
             return result
 
         if not entries and not blockers:
             # Empty tree: nothing to archive, so there is nothing to lose --
             # safe to remove the (possibly nested) empty directories.
+            if args.keep:
+                # --keep promises nothing is deleted. "It was only an empty
+                # folder" is not an exception the user agreed to.
+                result.status = "ok"
+                result.message = "empty folder (--keep, folder retained)"
+                return result
             _delete_sources(folder, [], result)
             result.status = "ok" if not result.undeleted else "failed"
             result.message = "empty folder removed" if not result.undeleted else "could not remove"
+            return result
+
+        if not entries:
+            # Blockers only. Archiving would publish an empty zip next to a
+            # folder we are keeping regardless -- clutter that also misreads as
+            # "this folder was archived" when nothing was.
+            result.status = "skipped"
+            result.message = f"nothing archivable ({len(blockers)} unarchivable paths)"
+            log.warning("KEEP %s: nothing archivable, %d blocker(s)", folder, len(blockers))
             return result
 
         # ---- 1. ARCHIVE (into the side file) --------------------------------
@@ -696,10 +1094,17 @@ def process_folder(
         )
         if partial.exists():
             log.warning("removing stale partial %s", partial)
-            _force_remove(str(partial))
-        manifest = _archive_folder(
+            _discard_partial(partial)
+        manifest, write_failures = _archive_folder(
             folder, dest_zip, partial, entries, compression, level, progress, task_id
         )
+        if write_failures:
+            # Sources we could not read are blockers too: the archive is still
+            # good for everything else, but the folder must survive.
+            blockers.extend(write_failures)
+            _count_entries(manifest, result)
+            for f in write_failures[:50]:
+                log.warning("archive failure in %s: %s", folder, f)
 
         # ---- 2. VERIFY (re-read from disk) ----------------------------------
         progress.update(task_id, description=f"{folder.name} [magenta]verifying[/]")
@@ -710,11 +1115,12 @@ def process_folder(
             for p in problems[:50]:
                 log.error("verify %s: %s", folder, p)
             log.error("ABORT %s: source folder left untouched", folder)
-            _force_remove(str(partial))  # partial is worthless; the source is intact
+            _discard_partial(partial)  # worthless; the source is intact
             return result
 
         # ---- 3. PUBLISH (atomic swap; only now is the archive authoritative)
         os.replace(partial, dest_zip)
+        _fsync_parent_dir(dest_zip)  # make the rename itself durable (POSIX)
         log.info("archive published: %s (%d entries)", dest_zip, len(manifest))
 
         if blockers:
@@ -745,26 +1151,22 @@ def process_folder(
         result.message = "cancelled before deletion" if result.deleted_files == 0 else "cancelled mid-delete"
         # Discard the partial: it is by definition incomplete. The source folder
         # is still complete (deletion had not started, or is logged above).
-        try:
-            if partial.exists():
-                _force_remove(str(partial))
-        except OSError:
-            pass
+        _discard_partial(partial)
         log.warning("CANCELLED folder=%s", folder)
         return result
     except Exception as exc:  # noqa: BLE001 - one bad folder must not kill the run
         result.status = "failed"
         result.message = str(exc)
         log.exception("UNEXPECTED failure on %s", folder)
-        try:
-            if partial.exists():
-                _force_remove(str(partial))
-        except OSError:
-            pass
+        _discard_partial(partial)
         return result
     finally:
         log.info("=== END folder=%s status=%s %s ===", folder, result.status, result.message)
-        progress.remove_task(task_id)
+        if task_id is not None:
+            try:
+                progress.remove_task(task_id)
+            except Exception:  # noqa: BLE001 - cosmetic teardown, never fatal
+                log.debug("could not remove progress task for %s", folder, exc_info=True)
 
 
 def run_delete(root: Path, dirs: Sequence[Path], args: argparse.Namespace) -> list[FolderResult]:
@@ -788,7 +1190,18 @@ def run_delete(root: Path, dirs: Sequence[Path], args: argparse.Namespace) -> li
             }
             try:
                 for fut in as_completed(futures):
-                    res = fut.result()  # process_folder never raises
+                    try:
+                        res = fut.result()  # process_folder promises not to raise
+                    except Exception as exc:  # noqa: BLE001 - belt and braces
+                        # Should be unreachable. If it ever happens, losing one
+                        # folder's *report* is survivable; losing the whole
+                        # run's results is not. Nothing was deleted, because
+                        # deletion only follows a successful verify.
+                        folder = futures[fut]
+                        log.exception("UNEXPECTED escape from process_folder %s", folder)
+                        res = FolderResult(
+                            name=folder.name, status="failed", message=f"internal error: {exc}"
+                        )
                     results.append(res)
                     progress.advance(overall)
                     _print_folder_line(progress, res)
@@ -871,6 +1284,18 @@ def render_summary(results: Sequence[FolderResult], log_path: Path | None) -> in
 
 
 def setup_logging(log_path: Path | None, verbose: bool) -> None:
+    """Attach log handlers. Safe to call more than once.
+
+    Raises ``OSError`` if *log_path* cannot be opened; the caller decides
+    whether that is fatal.
+    """
+    # Drop any handlers from a previous call. Without this a second invocation
+    # (tests, or an embedder calling main() twice) stacks another FileHandler on
+    # top: every line gets logged twice, and the old file handle leaks.
+    for handler in list(log.handlers):
+        log.removeHandler(handler)
+        handler.close()
+
     log.setLevel(logging.DEBUG if verbose else logging.INFO)
     log.propagate = False
     if log_path:
@@ -938,8 +1363,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--level", type=int, default=None,
-        help="Compression level: deflate 0-9, bzip2 1-9, zstd 1-22. "
-             "Default: library default.",
+        help="Compression level: deflate 0-9, bzip2 1-9, zstd -7-22 (negative "
+             "levels are zstd's fastest modes). No effect with 'store' or "
+             "'lzma'. Default: library default.",
     )
     p.add_argument(
         "--verify", choices=("full", "fast"), default="full",
@@ -1009,22 +1435,49 @@ def main(argv: Sequence[str] | None = None) -> int:
     _install_signal_handlers()
 
     log_path = None if args.no_log else Path(args.log_path).expanduser()
-    setup_logging(log_path, args.verbose)
+    try:
+        setup_logging(log_path, args.verbose)
+    except OSError as exc:
+        # The log is the audit trail for a destructive run, so a bad --log path
+        # is a configuration error worth stopping for -- not something to
+        # silently continue without.
+        console.print(f"[bold red]Cannot open log file[/] {log_path}: {exc}")
+        console.print("[dim]Choose another path with --log FILE, or pass --no-log.[/]")
+        return 2
 
     delete_mode = args.delete_path is not None
     raw_root = args.delete_path if delete_mode else (args.list_path or args.path or ".")
     root = Path(raw_root).expanduser().resolve()
 
+    if args.path is not None and (delete_mode or args.list_path is not None):
+        # Silently ignoring the extra path would look like it had been processed.
+        console.print(f"[bold red]Unexpected extra path:[/] {args.path}")
+        return 2
     if not root.is_dir():
         console.print(f"[bold red]Not a directory:[/] {root}")
         return 2
     if args.workers < 1:
         console.print("[bold red]--workers must be >= 1[/]")
         return 2
+    if args.level is not None:
+        if not COMPRESSION_METHODS[args.compress][1]:
+            console.print(f"[yellow]--level has no effect with --compress {args.compress}.[/]")
+        else:
+            low, high = LEVEL_RANGES[args.compress]
+            if not low <= args.level <= high:
+                console.print(
+                    f"[bold red]--level for {args.compress} must be "
+                    f"{low}..{high}[/] (got {args.level})"
+                )
+                return 2
 
     log.info("start argv=%s root=%s mode=%s", sys.argv[1:], root, "delete" if delete_mode else "list")
 
-    dirs = iter_top_level_dirs(root, args.include_hidden)
+    try:
+        dirs = iter_top_level_dirs(root, args.include_hidden)
+    except OSError as exc:  # unreadable root, or it vanished after the is_dir check
+        console.print(f"[bold red]Cannot read[/] {root}: {exc}")
+        return 2
     if not dirs:
         console.print(f"[yellow]No first-level folders found in[/] {root}")
         return 0

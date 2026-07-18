@@ -1,0 +1,15 @@
+# Dependencies for utils/small2zip.py
+#
+#   pip install -r utils/requirements.txt
+#
+# Everything else small2zip needs is in the standard library. Python 3.10+ is
+# required (`X | Y` unions, dataclass(slots=True)); `-c zstd` additionally needs
+# 3.14+ and is hidden on older interpreters.
+#
+# The test suite (test_small2zip.py) needs nothing beyond this -- it runs on
+# stdlib unittest, with pytest optional.
+
+# Terminal tables, progress bars and logging.
+# Floor is conservative: TaskProgressColumn landed in 12.3, but 13.0 is the
+# oldest release this has been exercised against. Tested with 15.0.
+rich>=13.0
