@@ -191,6 +191,13 @@ class TestArcnameCandidates(unittest.TestCase):
     def test_file_without_extension(self) -> None:
         self.assertEqual(take(s._arcname_candidates("README"), 2), ["README", "README__dup1"])
 
+    def test_dotfile_is_not_split_at_its_leading_dot(self) -> None:
+        """splitext treats ".gitignore" as all stem, and so must the dup names."""
+        self.assertEqual(
+            take(s._arcname_candidates("sub/.gitignore"), 2),
+            ["sub/.gitignore", "sub/.gitignore__dup1"],
+        )
+
     def test_candidates_are_unique(self) -> None:
         got = take(s._arcname_candidates("f.txt"), 25)
         self.assertEqual(len(set(got)), len(got))
@@ -705,6 +712,36 @@ class TestSafetyInvariant(TempRepo):
         self.assertEqual(res.status, "skipped")
         self.assertFalse((self.root / "d.zip").exists(), "empty archive must not be published")
         self.assertTrue((self.root / "d").exists())
+
+    def test_all_writes_failing_publishes_no_archive(self) -> None:
+        """Regression: write-time failures could still publish an empty zip.
+
+        The blockers-only guard covered collect-time failures, but when every
+        entry failed at WRITE time (all files locked or vanished) the empty
+        manifest sailed through verification and the empty archive was
+        published -- which under --strict then blocked the folder forever.
+        """
+        (self.root / "d").mkdir()
+        real_collect = s._collect_files
+
+        def phantoms_only(folder, result):
+            real_collect(folder, result)  # keep the walk honest
+            return (
+                [s.ManifestEntry(str(folder / f"gone{i}.txt"), f"gone{i}.txt", 5, 0)
+                 for i in range(2)],
+                [],
+            )
+
+        s._collect_files = phantoms_only
+        try:
+            res = self.run_folder(self.root / "d")
+        finally:
+            s._collect_files = real_collect
+
+        self.assertEqual(res.status, "skipped", res.message)
+        self.assertTrue((self.root / "d").exists(), "folder must survive")
+        self.assertFalse((self.root / "d.zip").exists(), "empty archive must not publish")
+        self.assertEqual([p.name for p in self.root.glob("*.partial")], [])
 
     def test_unexpected_exception_does_not_delete_or_crash(self) -> None:
         write_tree(self.root, {"d/a.txt": b"x"})
@@ -1233,6 +1270,16 @@ class TestLogging(TempRepo):
         s.setup_logging(None, False)
         self.assertEqual([type(h).__name__ for h in s.log.handlers], ["NullHandler"])
 
+    def test_logs_the_argv_it_was_given_not_the_hosts(self) -> None:
+        """Regression: main(argv) logged sys.argv -- the test runner's args --
+        so the audit trail for an embedded/programmatic run was wrong."""
+        path = self.root / "run.log"
+        with captured_console():
+            s.main(["-l", str(self.root), "--log", str(path)])
+        s.setup_logging(None, False)  # release the file handle before reading
+        content = path.read_text(encoding="utf-8")
+        self.assertIn(f"'-l', '{str(self.root)}'".replace("\\", "\\\\"), content)
+
 
 class TestMainEndToEnd(TempRepo):
     def test_delete_mode_archives_and_removes_every_folder(self) -> None:
@@ -1268,6 +1315,24 @@ class TestMainEndToEnd(TempRepo):
         self.assertEqual(code, 1)
         self.assertTrue((self.root / "a" / "1.txt").exists())
         self.assertEqual(list(self.root.glob("*.zip")), [])
+
+    def test_fast_verify_round_trips_through_the_cli(self) -> None:
+        """--verify fast must still archive, verify names/sizes, and delete."""
+        write_tree(self.root, {"a/1.txt": b"one", "a/sub/2.txt": b"two"})
+        with captured_console():
+            code = s.main(["-d", str(self.root), "-y", "--no-log", "--verify", "fast"])
+
+        self.assertEqual(code, 0)
+        self.assertFalse((self.root / "a").exists())
+        with zipfile.ZipFile(self.root / "a.zip") as zf:
+            self.assertIsNone(zf.testzip())
+            self.assertEqual(sorted(zf.namelist()), ["1.txt", "sub/", "sub/2.txt"])
+
+    def test_delete_mode_missing_directory_exits_nonzero(self) -> None:
+        with captured_console():
+            self.assertEqual(
+                s.main(["-d", str(self.root / "does-not-exist"), "-y", "--no-log"]), 2
+            )
 
     def test_deflate_round_trips_through_the_cli(self) -> None:
         """Covers the compression/level plumbing from argv down to the writer."""
@@ -1373,7 +1438,7 @@ class TestCli(TempRepo):
 
     @unittest.skipUnless(s.ZSTD_AVAILABLE, "zstd requires Python 3.14+")
     def test_zstd_is_offered_when_available(self) -> None:
-        self.assertIn("zstd", s.build_parser().parse_args(["-c", "zstd"]).compress)
+        self.assertEqual(s.build_parser().parse_args(["-c", "zstd"]).compress, "zstd")
 
 
 if __name__ == "__main__":

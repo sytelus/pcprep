@@ -348,6 +348,17 @@ per-file `DEBUG` detail when you need to trace an individual file. Warnings
 * **Timestamps before 1980 are clamped**, because zip cannot express them at
   all. Such a file would otherwise be permanently unarchivable and its folder
   never reclaimable, which is a far worse outcome than an approximate mtime.
+* **A corrupt pre-existing `<folder>.zip` fails its folder on every run.**
+  Appending starts by copying and reading the existing archive; if it cannot be
+  parsed, the folder is reported `FAIL` and left untouched — safe, but stuck.
+  Recover by moving the bad zip aside (it may still be partially extractable)
+  and re-running.
+* **Never run two instances against the same root.** The swap file
+  (`<folder>.zip.partial`) is not locked: a second instance treats the first's
+  in-flight partial as stale and deletes it, and whichever instance publishes
+  last overwrites the other's freshly appended archive. Each instance deletes
+  sources it verified against *its own* archive, so files present only in the
+  overwritten archive are lost. Concurrency belongs inside one instance (`-w`).
 * **Concurrent modification is not fully guarded.** A file created *after* the
   archive scan is not archived, and is left on disk (so the folder survives). A
   file *modified* after archiving is detected and kept, and one that becomes

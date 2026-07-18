@@ -450,6 +450,10 @@ def render_list(stats: Sequence[FolderStats], root: Path, sort: str) -> None:
         for s in stats:
             for e in s.errors[:5]:
                 log.warning("scan error: %s", e)
+            if len(s.errors) > 5:
+                log.warning(
+                    "scan error: ... and %d more in %s", len(s.errors) - 5, s.name
+                )
 
 
 # --------------------------------------------------------------------------- #
@@ -931,7 +935,11 @@ def _verify_archive(
                         f"expected=0x{entry.external_attr:08x}"
                     )
                     continue
-                progress.advance(task_id, entry.size)
+                if full:
+                    # The bar's total budgets a verify pass only in full mode
+                    # (see verify_factor in process_folder); advancing here in
+                    # fast mode would overrun the total.
+                    progress.advance(task_id, entry.size)
     except (zipfile.BadZipFile, OSError) as exc:
         problems.append(f"cannot open archive: {exc}")
     return problems
@@ -1105,6 +1113,16 @@ def process_folder(
             _count_entries(manifest, result)
             for f in write_failures[:50]:
                 log.warning("archive failure in %s: %s", folder, f)
+        if not manifest:
+            # Every entry failed at write time. Publishing would leave an empty
+            # (or unchanged) archive that reads as "this folder was archived" --
+            # and under --strict would then block the folder forever. Mirrors
+            # the blockers-only guard above, which covers collect-time failures.
+            result.status = "skipped"
+            result.message = f"nothing archived ({len(blockers)} unarchivable paths)"
+            log.warning("KEEP %s: nothing archived, %d blocker(s)", folder, len(blockers))
+            _discard_partial(partial)
+            return result
 
         # ---- 2. VERIFY (re-read from disk) ----------------------------------
         progress.update(task_id, description=f"{folder.name} [magenta]verifying[/]")
@@ -1471,7 +1489,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 return 2
 
-    log.info("start argv=%s root=%s mode=%s", sys.argv[1:], root, "delete" if delete_mode else "list")
+    # Log the argv actually parsed: when main() is called with an explicit argv
+    # (tests, embedding), sys.argv describes the host process, not this run.
+    effective_argv = list(argv) if argv is not None else sys.argv[1:]
+    log.info("start argv=%s root=%s mode=%s", effective_argv, root, "delete" if delete_mode else "list")
 
     try:
         dirs = iter_top_level_dirs(root, args.include_hidden)
