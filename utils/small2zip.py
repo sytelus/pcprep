@@ -1605,7 +1605,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  small2zip.py -l D:/data --sort size\n"
             "  small2zip.py -d D:/data --dry-run  # show what --delete would do\n"
             "  small2zip.py -d D:/data -y --compress deflate   # compress text-like payloads\n"
-            "  small2zip.py -d D:/data -s --dry-run   # preview which dirs --small would pick\n"
+            "  small2zip.py -s D:/data --dry-run  # preview which dirs --small would pick\n"
         ),
     )
     mode = p.add_mutually_exclusive_group()
@@ -1748,7 +1748,21 @@ def confirm_destructive(root: Path, nodes: Sequence[DirNode], keep: bool = False
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    argv_list = list(argv) if argv is not None else sys.argv[1:]
+    # Argparse hands a short option with an optional value its trailing
+    # characters as that value, so the natural typo "-sq" (meant: -s -q)
+    # would parse as --small targeting a directory literally named "q" -- a
+    # destructive run aimed by a typo, and -y would remove the confirmation
+    # that could catch it. Refuse every attached form; the spaced "-s DIR"
+    # is unambiguous.
+    for tok in argv_list:
+        if tok.startswith("-s") and tok != "-s" and not tok.startswith("--"):
+            console.print(
+                f"[bold red]Ambiguous option[/] '{tok}': write the target as "
+                "'-s DIR' (with a space), or separate the flags ('-s -q')."
+            )
+            return 2
+    args = build_parser().parse_args(argv_list)
     _install_signal_handlers()
 
     log_path = None if args.no_log else Path(args.log_path).expanduser()
@@ -1782,6 +1796,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             "[bold red]--small needs an explicit target:[/] use -s DIR, or -d DIR -s."
         )
         return 2
+    for flag, value in (("-d/--delete", args.delete_path), ("-s/--small", small_dir)):
+        if value is not None and not value.strip():
+            # Path("").resolve() is the CWD: an unset shell variable
+            # (`-d "$DIR"`) must not quietly aim a destructive run there.
+            console.print(
+                f"[bold red]{flag} got an empty directory[/] -- likely an "
+                "unset shell variable. Refusing to guess a target."
+            )
+            return 2
 
     delete_mode = args.delete_path is not None or small_dir is not None
     raw_root = args.delete_path or small_dir or args.list_path or args.path or "."
@@ -1822,6 +1845,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.quiet:
             console.print("[bold red]-q/--quiet applies only to --small runs.[/]")
             return 2
+    if delete_mode and args.sort != "name":
+        console.print("[bold red]--sort applies only to list mode.[/]")
+        return 2
     if args.level is not None:
         if not COMPRESSION_METHODS[args.compress][1]:
             console.print(f"[yellow]--level has no effect with --compress {args.compress}.[/]")
@@ -1836,8 +1862,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Log the argv actually parsed: when main() is called with an explicit argv
     # (tests, embedding), sys.argv describes the host process, not this run.
-    effective_argv = list(argv) if argv is not None else sys.argv[1:]
-    log.info("start argv=%s root=%s mode=%s", effective_argv, root, "delete" if delete_mode else "list")
+    log.info("start argv=%s root=%s mode=%s", argv_list, root, "delete" if delete_mode else "list")
 
     try:
         dirs = iter_top_level_dirs(root, args.include_hidden)

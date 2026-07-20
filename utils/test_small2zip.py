@@ -1444,6 +1444,48 @@ class TestSmallEndToEnd(TempRepo):
             self.assertEqual(s.main(["-s", "--no-log"]), 2)
         self.assertIn("target", buf.getvalue())
 
+    def test_positional_path_does_not_serve_as_small_target(self) -> None:
+        """The positional is the -l alternative; a destructive mode must get
+        its directory through its own flag, never by reinterpretation."""
+        write_tree(self.root, {"d/a.txt": b"x"})
+        with captured_console():
+            self.assertEqual(s.main([str(self.root), "-s", "--no-log"]), 2)
+        self.assertTrue((self.root / "d" / "a.txt").exists())
+
+    def test_small_dir_form_rejects_an_extra_positional(self) -> None:
+        with captured_console():
+            self.assertEqual(s.main(["-s", str(self.root), "other", "-y", "--no-log"]), 2)
+
+    def test_attached_short_option_values_are_rejected(self) -> None:
+        """Regression guard, destructive typo: '-sq' (meant: -s -q) parsed as
+        -s targeting a directory literally named 'q'; with -y that archived
+        and deleted it. Every attached form is refused -- only the spaced
+        '-s DIR' spelling names a target."""
+        write_tree(self.root, {"q/a.txt": b"x"})
+        for tok in ("-sq", "-sy", f"-s{self.root}"):
+            with self.subTest(tok=tok), captured_console() as buf:
+                self.assertEqual(s.main([tok, "-y", "--no-log"]), 2)
+                self.assertIn("Ambiguous", buf.getvalue())
+        self.assertTrue((self.root / "q" / "a.txt").exists())
+
+    def test_sort_applies_only_to_list_mode(self) -> None:
+        """A non-default --sort on a delete run would be silently ignored."""
+        write_tree(self.root, {"d/a.txt": b"x"})
+        with captured_console() as buf:
+            code = s.main(["-d", str(self.root), "-y", "--no-log", "--sort", "size"])
+        self.assertEqual(code, 2)
+        self.assertIn("--sort", buf.getvalue())
+        self.assertTrue((self.root / "d" / "a.txt").exists())
+
+    def test_empty_target_is_refused(self) -> None:
+        """Regression guard: -d "" / -s "" resolved to the CWD -- an unset
+        shell variable would have aimed the destructive run at whatever
+        directory the user happened to be in."""
+        for argv in (["-d", "", "-y", "--no-log"], ["-s", "", "-y", "--no-log"]):
+            with self.subTest(argv=argv), captured_console() as buf:
+                self.assertEqual(s.main(argv), 2)
+                self.assertIn("empty", buf.getvalue())
+
     def test_small_and_delete_targets_must_agree(self) -> None:
         other = self.root / "other"
         other.mkdir()

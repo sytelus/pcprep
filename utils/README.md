@@ -49,7 +49,11 @@ python small2zip.py -s D:/data -q -y      # no table, no prompt (scripted use)
 ```
 
 `-s D:/data` and `-d D:/data -s` are equivalent; like `-d`, `-s` never guesses
-a directory.
+a directory. The target must be spaced (`-s DIR`): attached forms like `-sq`
+are rejected, because argparse would read the trailing characters as a
+directory name — a typo away from aiming a destructive run at the wrong place.
+Empty targets (an unset `$DIR` in a script) are refused rather than resolved
+to the current directory.
 
 `--delete` requires an explicit directory — it never defaults to the current
 directory, because the cost of being wrong is unrecoverable.
@@ -72,7 +76,7 @@ directory, because the cost of being wrong is unrecoverable.
 | `--keep` | off | Create and verify archives, but delete nothing — including empty folders. |
 | `--dry-run` | off | Report what would happen; no writes, no deletes. |
 | `-y`, `--yes` | off | Skip the confirmation prompt. |
-| `--sort` | `name` | List-mode sort: `name` \| `size` \| `count` \| `avg`. |
+| `--sort` | `name` | List-mode sort: `name` \| `size` \| `count` \| `avg`. Rejected in delete mode rather than silently ignored. |
 | `--include-hidden` | **on** | Dot-folders are processed by default; pass `--no-include-hidden` to skip them (top level and `--small` candidacy). |
 | `--log FILE` | `~/small2zip.log` | Log destination. |
 | `--no-log` | off | Disable file logging. |
