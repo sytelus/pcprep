@@ -13,6 +13,14 @@ Two modes
       2. *verify* the archive
       3. only then permanently delete the folder from disk
 
+``--delete --small``
+    Archive only directories dominated by small files: a directory qualifies
+    when its subtree holds at least ``--small-files`` files with an average
+    size of at most ``--small-avg`` KiB. A directory that does not qualify is
+    kept, but its sub-directories are examined recursively and qualifying
+    subtrees at any depth go through the same zip -> verify -> delete pipeline,
+    each zip written next to its directory.
+
 Safety model (read this before changing anything)
 -------------------------------------------------
 The single hard invariant of this tool is:
@@ -39,6 +47,10 @@ away without re-deriving the guarantee:
   ``name``/``name__dup1``/``name__dup2`` sequence, not just the exact name, so a
   file stored under a collision name on an earlier run is recognised on the next
   one instead of being appended again (see ``_find_or_place``).
+* **The manifest describes what was stored, not what was scanned.** File
+  members re-check size/mtime on the open handle at write time, so a source
+  that changed after the pre-scan is archived as it is *now*, and verification
+  and deletion judge those recorded values -- never a stale snapshot.
 * **Verification re-opens the archive from disk.** We never trust the in-memory
   writer. We re-open the finished file, and for every file we intended to store
   we check the entry exists, its uncompressed size matches, and (default) we
@@ -71,6 +83,14 @@ Performance notes
 Workloads here are millions of small files, so the cost is syscalls, not CPU.
 * ``os.scandir`` is used everywhere -- it returns cached stat data from the
   directory read on both Windows and Linux, avoiding a second ``stat`` per file.
+* The delete pipeline walks the tree exactly once. The pre-scan caches both
+  per-directory aggregates and the full per-file enumeration (path, size,
+  mtime, attributes); ``--small`` selection and the archive stage replay it
+  from RAM (``_entries_from_tree``) instead of re-walking the disk. This
+  deliberately trades memory for syscalls -- roughly 0.5 GB per million files
+  -- because target machines are assumed to have RAM to spare. Safety never
+  rests on the cache's age: the delete stage still re-``stat``s every file
+  immediately before its unlink.
 * Top-level folders are processed concurrently in a thread pool. Threads (not
   processes) are correct here because the workload is I/O syscalls and zlib
   compression, both of which release the GIL.
@@ -164,6 +184,10 @@ LEVEL_RANGES = {
     "zstd": (-7, 22),  # negative levels are zstd's "faster than fast" modes
 }
 
+#: --small defaults: "at least this many files, at most this average size".
+SMALL_MIN_FILES_DEFAULT = 50_000
+SMALL_MAX_AVG_KIB_DEFAULT = 500
+
 DEFAULT_LOG_PATH = Path.home() / "small2zip.log"
 
 console = Console(stderr=False)
@@ -243,26 +267,17 @@ def human_count(num: int) -> str:
     return f"{num:,}"
 
 
+def _display_name(path: Path, root: Path) -> str:
+    """Path as shown in progress lines and tables: relative to *root* if under it."""
+    try:
+        return str(path.relative_to(root))
+    except ValueError:  # defensive: never expected for paths we selected
+        return str(path)
+
+
 # --------------------------------------------------------------------------- #
 # Scanning
 # --------------------------------------------------------------------------- #
-
-
-@dataclass(slots=True)
-class FolderStats:
-    """Aggregate stats for one first-level folder."""
-
-    name: str
-    path: Path
-    file_count: int = 0
-    total_bytes: int = 0
-    dir_count: int = 0
-    symlink_count: int = 0
-    errors: list[str] = field(default_factory=list)
-
-    @property
-    def avg_bytes(self) -> float:
-        return self.total_bytes / self.file_count if self.file_count else 0.0
 
 
 def _is_reparse_point(st: os.stat_result) -> bool:
@@ -315,42 +330,298 @@ def iter_top_level_dirs(root: Path, include_hidden: bool) -> list[Path]:
     return sorted(out, key=lambda p: p.name.lower())
 
 
-def scan_folder(path: Path) -> FolderStats:
-    """Recursively collect counts/sizes for one folder using ``os.scandir``.
+# --------------------------------------------------------------------------- #
+# List mode
+# --------------------------------------------------------------------------- #
 
-    Uses an explicit stack rather than recursion so that pathologically deep
-    trees cannot blow the Python stack. Sizes come from the ``DirEntry`` stat
-    cache populated by the directory scan itself -- this is the main reason this
-    is much faster than ``os.walk`` + ``os.path.getsize``.
+SORT_KEYS = {
+    "name": lambda n: n.path.name.lower(),
+    "size": lambda n: -n.total_bytes,
+    "count": lambda n: -n.file_count,
+    "avg": lambda n: -n.avg_bytes,
+}
+
+
+def render_list(nodes: Sequence["DirNode"], root: Path, sort: str) -> None:
+    table = Table(
+        title=f"First-level folders in {root}",
+        title_style="bold",
+        header_style="bold cyan",
+        show_footer=True,
+        row_styles=["", "on grey11"],
+    )
+    total_files = sum(n.file_count for n in nodes)
+    total_bytes = sum(n.total_bytes for n in nodes)
+    total_dirs = sum(n.dir_count for n in nodes)
+    grand_avg = total_bytes / total_files if total_files else 0.0
+
+    table.add_column("Folder", footer=f"[bold]TOTAL ({len(nodes)} folders)[/]", overflow="fold")
+    table.add_column("Files", justify="right", footer=f"[bold]{human_count(total_files)}[/]")
+    table.add_column("Subdirs", justify="right", footer=f"[bold]{human_count(total_dirs)}[/]")
+    table.add_column("Total size", justify="right", footer=f"[bold]{human_size(total_bytes)}[/]")
+    table.add_column("Avg size", justify="right", footer=f"[bold]{human_size(grand_avg)}[/]")
+    table.add_column("Issues", justify="right", footer="")
+
+    for n in sorted(nodes, key=SORT_KEYS[sort]):
+        if n.errors:
+            issues = f"[red]{n.errors} err[/]"
+        elif n.links:
+            issues = f"[yellow]{n.links} link[/]"
+        else:
+            issues = ""
+        table.add_row(
+            n.path.name,
+            human_count(n.file_count),
+            human_count(n.dir_count),
+            human_size(n.total_bytes),
+            human_size(n.avg_bytes),
+            issues,
+        )
+
+    console.print(table)
+    err_total = sum(n.errors for n in nodes)
+    if err_total:
+        # Per-path details were logged by the walker as it hit them.
+        console.print(
+            f"[yellow]{err_total} path(s) could not be read; see the log for details.[/]"
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Small-folder selection (--small)
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(slots=True)
+class DirNode:
+    """Recursive stats plus cached enumeration for one directory.
+
+    ``file_count`` / ``total_bytes`` / ``dir_count`` / ``links`` are SUBTREE
+    totals once ``_scan_dir_tree`` has aggregated them; ``children`` keeps the
+    tree so ``--small`` selection can descend into directories that do not meet
+    the criteria themselves.
+
+    ``files`` and ``blockers`` are DIRECT (this directory only) and hold the
+    per-entry data the manifest needs, so the archive stage can replay the
+    enumeration from RAM instead of re-walking the disk -- see
+    ``_entries_from_tree``. That trades memory for syscalls deliberately: this
+    tool assumes machines with plenty of RAM (see README, Performance).
+    ``mtime_ns``/``external_attr`` are this directory's own stat fields,
+    captured by its parent's scan, for its manifest entry.
     """
-    stats = FolderStats(name=path.name, path=path)
-    stack: list[str] = [str(path)]
+
+    path: Path
+    hidden: bool = False
+    collected: bool = False
+    mtime_ns: int = 0
+    external_attr: int = 0
+    file_count: int = 0
+    total_bytes: int = 0
+    dir_count: int = 0
+    links: int = 0
+    errors: int = 0
+    #: Subtree count of ``blockers`` entries (meaningful only when collected).
+    #: --small selection refuses directories where this is non-zero: they can
+    #: be archived but never deleted, so selecting them would never converge.
+    blocker_count: int = 0
+    files: list[ManifestEntry] = field(default_factory=list)
+    blockers: list[str] = field(default_factory=list)
+    children: list["DirNode"] = field(default_factory=list)
+
+    @property
+    def avg_bytes(self) -> float:
+        return self.total_bytes / self.file_count if self.file_count else 0.0
+
+
+def _scan_dir_tree(top: Path, collect: bool = True) -> DirNode:
+    """Build recursive stats -- and, with *collect*, the archive enumeration --
+    for *top* in ONE walk. This is the module's only directory walker.
+
+    One pass with an explicit stack (no recursion limit to blow, and
+    ``scandir`` returns stat data cached from the directory read itself), then
+    a bottom-up aggregation. The walk order guarantees parents are visited
+    before their children, so iterating the visit list in reverse folds each
+    child into its parent before the parent itself is folded upward -- no
+    subtree is ever scanned or summed twice.
+
+    ``collect=False`` (list mode) keeps only the counters, so listing a huge
+    volume does not pay the enumeration cache's memory bill; such a tree
+    cannot feed the archive stage (``_entries_from_tree`` refuses it).
+
+    Link-like entries (symlinks, junctions) are counted but never followed --
+    files behind them must not make a directory look archive-worthy when
+    archiving would refuse to touch them anyway -- and they block deletion of
+    their folder: zip cannot round-trip them, and following one would let us
+    archive-then-delete files outside the tree entirely. Non-regular files
+    (FIFOs, devices) count toward the listing totals but are blockers too.
+    """
+    root = DirNode(path=top, hidden=top.name.startswith("."), collected=collect)
+    visited = [root]
+    stack = [root]
     while stack:
         _check_cancel()
-        current = stack.pop()
+        node = stack.pop()
         try:
-            with os.scandir(current) as it:
+            with os.scandir(node.path) as it:
                 for entry in it:
                     try:
-                        if _is_link_like(entry):  # symlink or junction
-                            stats.symlink_count += 1
+                        if _is_link_like(entry):
+                            node.links += 1
+                            if collect:
+                                node.blockers.append(
+                                    f"symlink or junction not archivable: {entry.path}"
+                                )
                             continue
+                        st = entry.stat(follow_symlinks=False)
                         if entry.is_dir(follow_symlinks=False):
-                            stats.dir_count += 1
-                            stack.append(entry.path)
+                            child = DirNode(
+                                path=Path(entry.path),
+                                hidden=entry.name.startswith("."),
+                                collected=collect,
+                                mtime_ns=st.st_mtime_ns,
+                                external_attr=_external_attr(st, True),
+                            )
+                            node.children.append(child)
+                            visited.append(child)
+                            stack.append(child)
                         else:
-                            stats.file_count += 1
-                            stats.total_bytes += entry.stat(follow_symlinks=False).st_size
+                            node.file_count += 1
+                            node.total_bytes += st.st_size
+                            if not stat.S_ISREG(st.st_mode):
+                                if collect:
+                                    node.blockers.append(f"not a regular file: {entry.path}")
+                            elif collect:
+                                node.files.append(
+                                    ManifestEntry(
+                                        src=entry.path,
+                                        arcname="",  # relative to a folder chosen later
+                                        size=st.st_size,
+                                        mtime_ns=st.st_mtime_ns,
+                                        external_attr=_external_attr(st, False),
+                                    )
+                                )
                     except OSError as exc:
-                        stats.errors.append(f"{entry.path}: {exc}")
+                        node.errors += 1
+                        if collect:
+                            node.blockers.append(f"{entry.path}: {exc}")
+                        log.warning("scan: %s: %s", entry.path, exc)
         except OSError as exc:
-            stats.errors.append(f"{current}: {exc}")
-    return stats
+            node.errors += 1
+            if collect:
+                node.blockers.append(f"{node.path}: {exc}")
+            log.warning("scan: %s: %s", node.path, exc)
+    for node in reversed(visited):  # children first, then their parents
+        node.blocker_count = len(node.blockers)
+        for child in node.children:
+            node.file_count += child.file_count
+            node.total_bytes += child.total_bytes
+            node.dir_count += child.dir_count + 1
+            node.links += child.links
+            node.errors += child.errors
+            node.blocker_count += child.blocker_count
+    return root
 
 
-def scan_all(dirs: Sequence[Path], workers: int) -> list[FolderStats]:
-    """Scan folders concurrently, with a live progress bar."""
-    results: list[FolderStats] = []
+def _entries_from_tree(node: DirNode, result: FolderResult) -> tuple[list[ManifestEntry], list[str]]:
+    """Materialise the manifest for *node*'s folder from its scanned tree.
+
+    Returns ``(entries, blockers)``. A non-empty *blockers* list means the
+    folder must not be deleted even if archiving succeeds -- it holds paths a
+    zip cannot represent faithfully, or paths that could not be read, and
+    removing the folder would lose them. Sub-directories get their own entries
+    so that empty ones survive and every directory's attributes are carried;
+    the folder itself is not an entry: it is what the archive as a whole
+    represents, and leaving it out keeps a genuinely empty folder archive-free.
+
+    Zero disk I/O: the tree already holds every stat field a live walk would
+    have captured, so downstream safety checks (the size+CRC skip test,
+    verification, the re-stat before each delete) behave identically -- the
+    data is just as old as the scan, and the delete-stage re-stat is what
+    guards against that age.
+    """
+    if not node.collected:
+        raise ValueError(f"tree for {node.path} was scanned without enumeration")
+    entries: list[ManifestEntry] = []
+    blockers: list[str] = []
+    root_str = str(node.path)
+    # A drive root's str ends in its separator ("C:\\", "/"); anything else
+    # needs one skipped. The CLI never processes a filesystem root, but an API
+    # caller might hand one to process_folder directly.
+    prefix = len(root_str) + (0 if root_str.endswith(os.sep) else 1)
+    result.skipped_symlinks += node.links
+    stack = [node]
+    while stack:
+        _check_cancel()
+        n = stack.pop()
+        blockers.extend(n.blockers)
+        for child in n.children:
+            arcname = str(child.path)[prefix:].replace(os.sep, "/") + "/"
+            entries.append(
+                ManifestEntry(
+                    src=str(child.path), arcname=arcname, size=0,
+                    mtime_ns=child.mtime_ns, is_dir=True,
+                    external_attr=child.external_attr,
+                )
+            )
+            stack.append(child)
+        for f in n.files:
+            entries.append(replace(f, arcname=f.src[prefix:].replace(os.sep, "/")))
+    # Directories first, then files, each sorted: dir members precede their
+    # contents (what extractors expect) and archives become reproducible.
+    entries.sort(key=lambda e: (not e.is_dir, e.arcname))
+    return entries, blockers
+
+
+def select_small_dirs(
+    roots: Sequence[DirNode],
+    min_files: int,
+    max_avg_bytes: int,
+    include_hidden: bool,
+) -> tuple[list[DirNode], int]:
+    """Pick the HIGHEST directories meeting the --small criteria.
+
+    Returns ``(selected, blocked)``. *blocked* counts directories that met the
+    size criteria but were set aside because their subtree contains
+    unarchivable paths (symlinks, junctions, unreadable or non-regular files).
+    Selecting one could never reclaim it: process_folder would archive it and
+    then keep the folder, and every rerun would re-copy and re-verify a
+    growing archive without ever converging. Their clean sub-directories are
+    examined instead.
+
+    A selected directory is archived whole, so selection never descends into
+    it -- selected subtrees are therefore always disjoint, which is what makes
+    processing them concurrently safe. A directory that does not qualify is
+    never archived itself; only its children are examined.
+
+    Hidden directories are not candidates unless *include_hidden* (matching how
+    top-level dot-folders are treated), but their contents still count toward
+    every ancestor's totals -- candidacy is filtered, statistics are not.
+    """
+    selected: list[DirNode] = []
+    blocked = 0
+    stack = list(roots)
+    while stack:
+        node = stack.pop()
+        qualifies = node.file_count >= min_files and node.avg_bytes <= max_avg_bytes
+        if qualifies and node.blocker_count == 0:
+            selected.append(node)
+            continue
+        if qualifies:
+            blocked += 1  # size says yes; contents say it can never be reclaimed
+        stack.extend(c for c in node.children if include_hidden or not c.hidden)
+    return sorted(selected, key=lambda n: str(n.path).lower()), blocked
+
+
+def scan_dir_trees(dirs: Sequence[Path], workers: int, collect: bool = True) -> list[DirNode]:
+    """Scan each top-level folder's subtree once, concurrently.
+
+    The returned trees feed everything downstream without another walk:
+    ``--small`` selection reads the aggregates, the confirmation summary and
+    the ``--list`` table read the totals, and the archive stage replays the
+    cached enumeration (``_entries_from_tree``). List mode passes
+    ``collect=False`` to skip the enumeration cache it does not need.
+    """
+    roots: list[DirNode] = []
     with Progress(
         SpinnerColumn(),
         TextColumn("[bold blue]{task.description}"),
@@ -365,25 +636,21 @@ def scan_all(dirs: Sequence[Path], workers: int) -> list[FolderStats]:
         task = progress.add_task("Scanning folders", total=len(dirs), extra="")
         files_seen = 0
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(scan_folder, d): d for d in dirs}
+            futures = {pool.submit(_scan_dir_tree, d, collect): d for d in dirs}
             try:
                 for fut in as_completed(futures):
                     try:
-                        st = fut.result()
+                        node = fut.result()
                     except Cancelled:
                         continue
-                    except OSError as exc:
-                        d = futures[fut]
-                        log.error("Scan failed for %s: %s", d, exc)
-                        st = FolderStats(name=d.name, path=d, errors=[str(exc)])
-                    results.append(st)
-                    files_seen += st.file_count
+                    roots.append(node)
+                    files_seen += node.file_count
                     progress.update(
                         task,
                         advance=1,
                         extra=f"[dim]{human_count(files_seen)} files[/]",
                     )
-            except KeyboardInterrupt:  # pragma: no cover - defensive
+            except KeyboardInterrupt:  # pragma: no cover - embedders w/o handler
                 cancel_event.set()
             finally:
                 if cancel_event.is_set():
@@ -391,69 +658,61 @@ def scan_all(dirs: Sequence[Path], workers: int) -> list[FolderStats]:
                     # not killable, but they poll _check_cancel and unwind fast;
                     # the enclosing `with` then joins them.
                     pool.shutdown(wait=False, cancel_futures=True)
-    return sorted(results, key=lambda s: s.name.lower())
+    return sorted(roots, key=lambda n: n.path.name.lower())
 
 
-# --------------------------------------------------------------------------- #
-# List mode
-# --------------------------------------------------------------------------- #
+def render_small_selection(
+    root: Path,
+    selected: Sequence[DirNode],
+    min_files: int,
+    max_avg_bytes: int,
+    dry_run: bool,
+    keep: bool = False,
+) -> None:
+    """Show exactly which directories --small picked, with their stats.
 
-SORT_KEYS = {
-    "name": lambda s: s.name.lower(),
-    "size": lambda s: -s.total_bytes,
-    "count": lambda s: -s.file_count,
-    "avg": lambda s: -s.avg_bytes,
-}
+    This is the blast radius: under ``--dry-run`` it is the entire output, and
+    in a real run it is what the user is about to confirm.
+    """
+    criteria = f">= {human_count(min_files)} files, average <= {human_size(max_avg_bytes)}"
+    if not selected:
+        console.print(
+            f"[yellow]No directory under[/] {root} [yellow]meets the --small criteria "
+            f"({criteria}). Nothing to do.[/]"
+        )
+        return
 
-
-def render_list(stats: Sequence[FolderStats], root: Path, sort: str) -> None:
+    act = "archive (--keep: nothing deleted)" if keep else "archive + delete"
+    verb = f"would {act}" if dry_run else f"will {act}"
+    noun = "directory" if len(selected) == 1 else "directories"
     table = Table(
-        title=f"First-level folders in {root}",
+        title=f"--small {verb} {len(selected)} {noun}\n[dim]criteria: {criteria}[/]",
         title_style="bold",
         header_style="bold cyan",
         show_footer=True,
         row_styles=["", "on grey11"],
+        caption="Directories not listed are left untouched. "
+                "Each archive is written next to its directory.",
     )
-    total_files = sum(s.file_count for s in stats)
-    total_bytes = sum(s.total_bytes for s in stats)
-    total_dirs = sum(s.dir_count for s in stats)
+    total_files = sum(n.file_count for n in selected)
+    total_bytes = sum(n.total_bytes for n in selected)
+    total_dirs = sum(n.dir_count for n in selected)
     grand_avg = total_bytes / total_files if total_files else 0.0
 
-    table.add_column("Folder", footer=f"[bold]TOTAL ({len(stats)} folders)[/]", overflow="fold")
+    table.add_column("Directory", footer=f"[bold]TOTAL ({len(selected)})[/]", overflow="fold")
     table.add_column("Files", justify="right", footer=f"[bold]{human_count(total_files)}[/]")
     table.add_column("Subdirs", justify="right", footer=f"[bold]{human_count(total_dirs)}[/]")
     table.add_column("Total size", justify="right", footer=f"[bold]{human_size(total_bytes)}[/]")
     table.add_column("Avg size", justify="right", footer=f"[bold]{human_size(grand_avg)}[/]")
-    table.add_column("Issues", justify="right", footer="")
-
-    for s in sorted(stats, key=SORT_KEYS[sort]):
-        issues = ""
-        if s.errors:
-            issues = f"[red]{len(s.errors)} err[/]"
-        elif s.symlink_count:
-            issues = f"[yellow]{s.symlink_count} link[/]"
+    for n in selected:
         table.add_row(
-            s.name,
-            human_count(s.file_count),
-            human_count(s.dir_count),
-            human_size(s.total_bytes),
-            human_size(s.avg_bytes),
-            issues,
+            _display_name(n.path, root),
+            human_count(n.file_count),
+            human_count(n.dir_count),
+            human_size(n.total_bytes),
+            human_size(n.avg_bytes),
         )
-
     console.print(table)
-    err_total = sum(len(s.errors) for s in stats)
-    if err_total:
-        console.print(
-            f"[yellow]{err_total} path(s) could not be read; see the log for details.[/]"
-        )
-        for s in stats:
-            for e in s.errors[:5]:
-                log.warning("scan error: %s", e)
-            if len(s.errors) > 5:
-                log.warning(
-                    "scan error: ... and %d more in %s", len(s.errors) - 5, s.name
-                )
 
 
 # --------------------------------------------------------------------------- #
@@ -542,66 +801,6 @@ def _external_attr(st: os.stat_result, is_dir: bool) -> int:
     if is_dir:
         attr |= _DOS_DIRECTORY
     return attr
-
-
-def _collect_files(folder: Path, result: FolderResult) -> tuple[list[ManifestEntry], list[str]]:
-    """Enumerate files *and* sub-directories under *folder* as manifest entries.
-
-    Returns ``(entries, blockers)``. A non-empty *blockers* list means the folder
-    must not be deleted even if archiving succeeds (we cannot represent those
-    paths faithfully in a zip, so removing them would lose data).
-
-    Sub-directories get their own entries so that empty ones survive and so
-    every folder's attributes are carried. *folder* itself is not an entry: it
-    is what the archive as a whole represents, and leaving it out keeps a
-    genuinely empty folder archive-free (there is nothing in it to lose).
-    """
-    entries: list[ManifestEntry] = []
-    blockers: list[str] = []
-    root_str = str(folder)
-    stack = [root_str]
-    while stack:
-        _check_cancel()
-        current = stack.pop()
-        try:
-            with os.scandir(current) as it:
-                for entry in it:
-                    try:
-                        if _is_link_like(entry):
-                            # Zip cannot round-trip symlinks portably, and a
-                            # junction would let us archive-then-delete files
-                            # outside this folder entirely. Keeping them is the
-                            # safe choice, so the folder survives.
-                            result.skipped_symlinks += 1
-                            blockers.append(f"symlink or junction not archivable: {entry.path}")
-                            continue
-                        st = entry.stat(follow_symlinks=False)
-                        is_dir = entry.is_dir(follow_symlinks=False)
-                        if not is_dir and not stat.S_ISREG(st.st_mode):
-                            blockers.append(f"not a regular file: {entry.path}")
-                            continue
-                        arcname = os.path.relpath(entry.path, root_str).replace(os.sep, "/")
-                        if is_dir:
-                            stack.append(entry.path)
-                            arcname += "/"  # zip's marker for a directory member
-                        entries.append(
-                            ManifestEntry(
-                                src=entry.path,
-                                arcname=arcname,
-                                size=0 if is_dir else st.st_size,
-                                mtime_ns=st.st_mtime_ns,
-                                is_dir=is_dir,
-                                external_attr=_external_attr(st, is_dir),
-                            )
-                        )
-                    except OSError as exc:
-                        blockers.append(f"{entry.path}: {exc}")
-        except OSError as exc:
-            blockers.append(f"{current}: {exc}")
-    # Directories first, then files, each sorted: dir members precede their
-    # contents (what extractors expect) and archives become reproducible.
-    entries.sort(key=lambda e: (not e.is_dir, e.arcname))
-    return entries, blockers
 
 
 def _count_entries(entries: Sequence[ManifestEntry], result: FolderResult) -> None:
@@ -733,6 +932,7 @@ def _archive_folder(
     level: int | None,
     progress: Progress,
     task_id,
+    label: str | None = None,
 ) -> tuple[list[ManifestEntry], list[str]]:
     """Build *partial* containing every entry.
 
@@ -740,12 +940,13 @@ def _archive_folder(
     to be in the archive; *failures* names sources that could not be read (a
     file vanished or got locked between enumeration and write). A non-empty
     *failures* list blocks deletion of the folder, exactly like a blocker from
-    ``_collect_files`` -- but the rest of the folder is still archived, so one
+    ``_entries_from_tree`` -- but the rest of the folder is still archived, so one
     locked file cannot waste the work of a million-file run.
 
     If *dest_zip* exists it is copied to *partial* first and appended to, so the
     existing archive is never mutated. The caller is responsible for verifying
-    *partial* and only then swapping it into place.
+    *partial* and only then swapping it into place. Failures here parallel the
+    blockers ``_entries_from_tree`` reports at enumeration time.
     """
     # arcname -> (size, crc32, external_attr) for everything the archive holds.
     # Doubles as the set of taken names, so there is no second structure to
@@ -753,7 +954,9 @@ def _archive_folder(
     existing_by_name: dict[str, tuple[int, int, int]] = {}
 
     if dest_zip.exists():
-        progress.update(task_id, description=f"{folder.name} [dim]copying existing zip[/]")
+        progress.update(
+            task_id, description=f"{label or folder.name} [dim]copying existing zip[/]"
+        )
         _copy_file(dest_zip, partial)
         with zipfile.ZipFile(partial, "r") as zf:
             for info in zf.infolist():
@@ -794,12 +997,25 @@ def _archive_folder(
                         "name collision in %s: storing %s as %s", dest_zip, entry.arcname, arcname
                     )
                     entry = replace(entry, arcname=arcname)
-                info = _zipinfo_for(entry, compression, level)
                 if entry.is_dir:
-                    zf.writestr(info, b"")
+                    zf.writestr(_zipinfo_for(entry, compression, level), b"")
                 else:
-                    with open(entry.src, "rb") as src, zf.open(info, "w") as dest:
-                        shutil.copyfileobj(src, dest, CHUNK_SIZE)
+                    with open(entry.src, "rb") as src:
+                        # The manifest entry may be as old as the pre-scan.
+                        # Re-check size/mtime on the open handle (fstat is
+                        # nearly free) and record what the file holds NOW, so
+                        # verification and the pre-delete re-stat judge the
+                        # bytes actually stored -- a source that changed since
+                        # the scan is archived fresh instead of failing the
+                        # whole folder's verification with a size mismatch.
+                        # Attributes stay as scanned: metadata, not the
+                        # guarantee.
+                        st = os.fstat(src.fileno())
+                        if st.st_size != entry.size or st.st_mtime_ns != entry.mtime_ns:
+                            log.debug("changed since scan, archiving current bytes: %s", entry.src)
+                            entry = replace(entry, size=st.st_size, mtime_ns=st.st_mtime_ns)
+                        with zf.open(_zipinfo_for(entry, compression, level), "w") as dest:
+                            shutil.copyfileobj(src, dest, CHUNK_SIZE)
                 # Keep the index current: a later source file may legitimately
                 # be named "f__dup1.txt" and must not silently overwrite the
                 # slot we just allocated for a renamed "f.txt". zipfile appends
@@ -1022,16 +1238,27 @@ def _delete_sources(folder: Path, manifest: Sequence[ManifestEntry], result: Fol
 
 def process_folder(
     folder: Path,
-    root: Path,
     args: argparse.Namespace,
     compression: int,
     level: int | None,
     progress: Progress,
+    label: str | None = None,
+    cached: DirNode | None = None,
 ) -> FolderResult:
-    """Zip -> verify -> delete a single top-level folder. Never raises."""
-    result = FolderResult(name=folder.name)
-    dest_zip = root / f"{folder.name}.zip"
-    partial = root / f"{folder.name}{PARTIAL_SUFFIX}"
+    """Zip -> verify -> delete a single folder. Never raises.
+
+    The archive is always written next to *folder* (``<parent>/<name>.zip``),
+    so the partial and the final zip share a volume and ``os.replace`` stays
+    atomic. *label* is the name shown in progress lines and the summary;
+    callers pass a root-relative path when *folder* is nested (``--small``).
+    *cached* is *folder*'s pre-scanned tree: when given, the enumeration is
+    replayed from RAM instead of re-walking the disk; when omitted (tests,
+    embedding) the folder is scanned here and now.
+    """
+    label = label or folder.name
+    result = FolderResult(name=label)
+    dest_zip = folder.parent / f"{folder.name}.zip"
+    partial = folder.parent / f"{folder.name}{PARTIAL_SUFFIX}"
     task_id = None
     started = time.monotonic()
 
@@ -1040,15 +1267,17 @@ def process_folder(
     # leak here would abort the whole run and discard the results of folders
     # that had already finished.
     try:
-        task_id = progress.add_task(f"{folder.name} [dim]scanning[/]", total=None, start=True)
+        task_id = progress.add_task(f"{label} [dim]scanning[/]", total=None, start=True)
         log.info("=== BEGIN folder=%s archive=%s ===", folder, dest_zip)
-        if dest_zip.exists() and args.strict:
+        if dest_zip.exists() and args.exists:
             result.status = "skipped"
-            result.message = "archive exists (--strict)"
-            log.warning("SKIP %s: archive already exists and --strict is set", folder)
+            result.message = "archive exists (--exists)"
+            log.warning("SKIP %s: archive already exists and --exists is set", folder)
             return result
 
-        entries, blockers = _collect_files(folder, result)
+        entries, blockers = _entries_from_tree(
+            cached if cached is not None else _scan_dir_tree(folder), result
+        )
         _count_entries(entries, result)
         log.info(
             "folder=%s files=%d dirs=%d bytes=%d blockers=%d",
@@ -1098,25 +1327,33 @@ def process_folder(
         progress.update(
             task_id,
             total=result.archived_bytes * verify_factor or 1,
-            description=f"{folder.name} [cyan]archiving[/]",
+            description=f"{label} [cyan]archiving[/]",
         )
         if partial.exists():
             log.warning("removing stale partial %s", partial)
             _discard_partial(partial)
         manifest, write_failures = _archive_folder(
-            folder, dest_zip, partial, entries, compression, level, progress, task_id
+            folder, dest_zip, partial, entries, compression, level, progress, task_id, label
         )
         if write_failures:
             # Sources we could not read are blockers too: the archive is still
             # good for everything else, but the folder must survive.
             blockers.extend(write_failures)
+            entries_bytes = result.archived_bytes
             _count_entries(manifest, result)
             for f in write_failures[:50]:
                 log.warning("archive failure in %s: %s", folder, f)
+            if args.verify == "full":
+                # The total budgeted a verify pass for every enumerated byte,
+                # but only manifest bytes get verified; shrink it so the bar
+                # can actually complete.
+                progress.update(
+                    task_id, total=(entries_bytes + result.archived_bytes) or 1
+                )
         if not manifest:
             # Every entry failed at write time. Publishing would leave an empty
             # (or unchanged) archive that reads as "this folder was archived" --
-            # and under --strict would then block the folder forever. Mirrors
+            # and under --exists would then block the folder forever. Mirrors
             # the blockers-only guard above, which covers collect-time failures.
             result.status = "skipped"
             result.message = f"nothing archived ({len(blockers)} unarchivable paths)"
@@ -1125,7 +1362,7 @@ def process_folder(
             return result
 
         # ---- 2. VERIFY (re-read from disk) ----------------------------------
-        progress.update(task_id, description=f"{folder.name} [magenta]verifying[/]")
+        progress.update(task_id, description=f"{label} [magenta]verifying[/]")
         problems = _verify_archive(partial, manifest, args.verify == "full", progress, task_id)
         if problems:
             result.status = "failed"
@@ -1154,7 +1391,7 @@ def process_folder(
             return result
 
         # ---- 4. DELETE (manifest-driven, per file) --------------------------
-        progress.update(task_id, description=f"{folder.name} [red]deleting[/]")
+        progress.update(task_id, description=f"{label} [red]deleting[/]")
         _delete_sources(folder, manifest, result)
         if result.undeleted:
             result.status = "failed"
@@ -1180,6 +1417,13 @@ def process_folder(
         return result
     finally:
         log.info("=== END folder=%s status=%s %s ===", folder, result.status, result.message)
+        if cached is not None:
+            # Release this folder's enumeration cache: on long runs, memory
+            # then tracks the folders still in flight rather than everything
+            # already processed.
+            cached.files.clear()
+            cached.children.clear()
+            cached.blockers.clear()
         if task_id is not None:
             try:
                 progress.remove_task(task_id)
@@ -1187,7 +1431,15 @@ def process_folder(
                 log.debug("could not remove progress task for %s", folder, exc_info=True)
 
 
-def run_delete(root: Path, dirs: Sequence[Path], args: argparse.Namespace) -> list[FolderResult]:
+def run_delete(
+    root: Path,
+    dirs: Sequence[Path],
+    args: argparse.Namespace,
+    cache: dict[Path, DirNode] | None = None,
+) -> list[FolderResult]:
+    """Process *dirs* concurrently. With --small they may be nested under *root*,
+    which is used only to shorten the names shown to the user. *cache* maps a
+    folder to its pre-scanned tree so enumeration is not repeated on disk."""
     compression, supports_level = COMPRESSION_METHODS[args.compress]
     level = args.level if (supports_level and args.level is not None) else None
 
@@ -1203,7 +1455,10 @@ def run_delete(root: Path, dirs: Sequence[Path], args: argparse.Namespace) -> li
         overall = progress.add_task(f"[bold green]Total ({len(dirs)} folders)", total=len(dirs))
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
             futures = {
-                pool.submit(process_folder, d, root, args, compression, level, progress): d
+                pool.submit(
+                    process_folder, d, args, compression, level, progress,
+                    _display_name(d, root), (cache or {}).get(d),
+                ): d
                 for d in dirs
             }
             try:
@@ -1218,7 +1473,8 @@ def run_delete(root: Path, dirs: Sequence[Path], args: argparse.Namespace) -> li
                         folder = futures[fut]
                         log.exception("UNEXPECTED escape from process_folder %s", folder)
                         res = FolderResult(
-                            name=folder.name, status="failed", message=f"internal error: {exc}"
+                            name=_display_name(folder, root), status="failed",
+                            message=f"internal error: {exc}",
                         )
                     results.append(res)
                     progress.advance(overall)
@@ -1347,6 +1603,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  small2zip.py -l D:/data --sort size\n"
             "  small2zip.py -d D:/data --dry-run  # show what --delete would do\n"
             "  small2zip.py -d D:/data -y --compress deflate   # compress text-like payloads\n"
+            "  small2zip.py -d D:/data -s --dry-run   # preview which dirs --small would pick\n"
         ),
     )
     mode = p.add_mutually_exclusive_group()
@@ -1361,9 +1618,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p.add_argument(
-        "-s", "--strict", action="store_true",
+        "-e", "--exists", action="store_true",
         help="With --delete: refuse to touch a folder whose .zip already exists "
-             "(default is to append missing files into the existing archive).",
+             "(default is to append missing files into the existing archive). "
+             "Formerly called --strict.",
+    )
+    p.add_argument(
+        "-s", "--small", action="store_true",
+        help="With --delete: archive+delete only directories dominated by small "
+             "files. A directory qualifies when its subtree holds at least "
+             "--small-files files with an average size of at most --small-avg "
+             "KiB. A directory that does not qualify is kept, but its "
+             "sub-directories are examined recursively and qualifying subtrees "
+             "at any depth are archived, each zip written next to its "
+             "directory. Combine with --dry-run to preview the selection.",
+    )
+    p.add_argument(
+        "--small-files", type=int, default=SMALL_MIN_FILES_DEFAULT, metavar="N",
+        help="Requires -s/--small: minimum file count in a qualifying subtree "
+             "(default: %(default)s).",
+    )
+    p.add_argument(
+        "--small-avg", type=int, default=SMALL_MAX_AVG_KIB_DEFAULT, metavar="KIB",
+        help="Requires -s/--small: maximum average file size, in KiB, of a "
+             "qualifying subtree (default: %(default)s).",
     )
     p.add_argument(
         "-w", "--workers", type=int, default=min(8, (os.cpu_count() or 4)),
@@ -1407,8 +1685,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Sort order for the --list table (default: %(default)s).",
     )
     p.add_argument(
-        "--include-hidden", action="store_true",
-        help="Include folders whose name starts with '.' (skipped by default).",
+        "--include-hidden", action=argparse.BooleanOptionalAction, default=True,
+        help="Process folders whose name starts with '.' (default: included; "
+             "pass --no-include-hidden to skip them, both at the top level and "
+             "as --small candidates).",
     )
     p.add_argument(
         "--log", dest="log_path", default=str(DEFAULT_LOG_PATH), metavar="FILE",
@@ -1423,22 +1703,31 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def confirm_destructive(root: Path, dirs: Sequence[Path], stats: Sequence[FolderStats]) -> bool:
-    total_files = sum(s.file_count for s in stats)
-    total_bytes = sum(s.total_bytes for s in stats)
+def confirm_destructive(root: Path, nodes: Sequence[DirNode], keep: bool = False) -> bool:
+    total_files = sum(n.file_count for n in nodes)
+    total_bytes = sum(n.total_bytes for n in nodes)
+    if keep:
+        # The prompt must not threaten a deletion --keep promises not to do.
+        action = "[bold yellow]Each folder will be zipped; --keep is set, nothing will be deleted[/]"
+        note = "[dim]Re-run without --keep to reclaim the space afterwards.[/]"
+        title, border = "[bold yellow]Archive operation", "yellow"
+    else:
+        action = "[bold red]Each folder will be zipped and then PERMANENTLY DELETED[/]"
+        note = "[dim]Files are removed only after the archive is written and verified.[/]"
+        title, border = "[bold red]Destructive operation", "red"
     console.print(
         Panel(
             Group(
                 f"[bold]Target:[/] {root}",
-                f"[bold]Folders:[/] {len(dirs)}",
+                f"[bold]Folders:[/] {len(nodes)}",
                 f"[bold]Files:[/] {human_count(total_files)}  "
                 f"[bold]Size:[/] {human_size(total_bytes)}",
                 "",
-                "[bold red]Each folder will be zipped and then PERMANENTLY DELETED[/]",
-                "[dim]Files are removed only after the archive is written and verified.[/]",
+                action,
+                note,
             ),
-            title="[bold red]Destructive operation",
-            border_style="red",
+            title=title,
+            border_style=border,
         )
     )
     try:
@@ -1477,6 +1766,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.workers < 1:
         console.print("[bold red]--workers must be >= 1[/]")
         return 2
+    if args.small:
+        # A silently ignored -s would archive far more than the user intended,
+        # so anything about it that cannot mean what they asked for is fatal.
+        if not delete_mode:
+            console.print("[bold red]--small requires --delete[/] (it selects what to archive).")
+            return 2
+        if args.small_files < 1:
+            console.print("[bold red]--small-files must be >= 1[/]")
+            return 2
+        if args.small_avg < 1:
+            console.print("[bold red]--small-avg must be >= 1[/] (KiB)")
+            return 2
+    elif (
+        args.small_files != SMALL_MIN_FILES_DEFAULT
+        or args.small_avg != SMALL_MAX_AVG_KIB_DEFAULT
+    ):
+        # Honoring thresholds without the mode would silently archive far more
+        # than the selection the user described.
+        console.print("[bold red]--small-files/--small-avg require -s/--small.[/]")
+        return 2
     if args.level is not None:
         if not COMPRESSION_METHODS[args.compress][1]:
             console.print(f"[yellow]--level has no effect with --compress {args.compress}.[/]")
@@ -1503,22 +1812,70 @@ def main(argv: Sequence[str] | None = None) -> int:
         console.print(f"[yellow]No first-level folders found in[/] {root}")
         return 0
 
-    # Both modes start with a scan: in delete mode it powers the confirmation
-    # summary, so the user always sees the blast radius before agreeing.
-    stats = scan_all(dirs, args.workers)
+    if not delete_mode:
+        # collect=False: a listing needs counters, not the enumeration cache,
+        # so even a huge volume costs no meaningful RAM.
+        nodes = scan_dir_trees(dirs, args.workers, collect=False)
+        if cancel_event.is_set():
+            console.print("[yellow]Cancelled during scan.[/]")
+            return 130
+        render_list(nodes, root, args.sort)
+        return 0
+
+    # Delete mode always starts with the tree scan: it powers the --small
+    # selection and the confirmation summary (the user always sees the blast
+    # radius before agreeing), and its cached enumeration is what the archive
+    # stage replays -- the disk is walked exactly once.
+    roots = scan_dir_trees(dirs, args.workers)
     if cancel_event.is_set():
         console.print("[yellow]Cancelled during scan.[/]")
         return 130
 
-    if not delete_mode:
-        render_list(stats, root, args.sort)
-        return 0
+    if args.small:
+        nodes, blocked = select_small_dirs(
+            roots, args.small_files, args.small_avg * 1024, args.include_hidden
+        )
+        roots.clear()  # unselected trees (and their enumeration) are no longer needed
+        if args.exists:
+            # Prune up front what process_folder would skip anyway, so the
+            # --dry-run table matches exactly what a real run will do.
+            remaining = []
+            skipped_existing = 0
+            for n in nodes:
+                if (n.path.parent / f"{n.path.name}.zip").exists():
+                    skipped_existing += 1
+                else:
+                    remaining.append(n)
+            nodes = remaining
+            if skipped_existing:
+                console.print(
+                    f"[yellow]--exists: {skipped_existing} selected "
+                    f"{'directory' if skipped_existing == 1 else 'directories'} "
+                    "skipped -- archive already exists.[/]"
+                )
+        if blocked:
+            noun, verb = ("directory", "contains") if blocked == 1 else ("directories", "contain")
+            console.print(
+                f"[yellow]{blocked} {noun} met the size criteria but {verb} "
+                "unarchivable paths (symlinks, junctions or unreadable files); "
+                "only clean qualifying sub-directories were selected.[/]"
+            )
+        render_small_selection(
+            root, nodes, args.small_files, args.small_avg * 1024, args.dry_run, args.keep
+        )
+        if not nodes or args.dry_run:
+            # The table above IS the dry-run report; nothing was touched.
+            return 0
+    else:
+        nodes = roots
 
-    if not (args.yes or args.dry_run) and not confirm_destructive(root, dirs, stats):
+    if not (args.yes or args.dry_run) and not confirm_destructive(root, nodes, args.keep):
         console.print("[yellow]Aborted -- nothing was changed.[/]")
         return 1
 
-    results = run_delete(root, dirs, args)
+    results = run_delete(
+        root, [n.path for n in nodes], args, {n.path: n for n in nodes}
+    )
     return render_summary(results, log_path)
 
 

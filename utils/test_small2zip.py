@@ -69,7 +69,7 @@ def make_args(**overrides) -> argparse.Namespace:
     Kept in sync by hand with the attributes process_folder touches; if you add
     a new flag it reads, add its default here too.
     """
-    base = dict(strict=False, verify="full", keep=False, dry_run=False)
+    base = dict(exists=False, verify="full", keep=False, dry_run=False)
     base.update(overrides)
     return argparse.Namespace(**base)
 
@@ -128,7 +128,7 @@ class TempRepo(unittest.TestCase):
 
     def run_folder(self, folder: Path, **argkw) -> s.FolderResult:
         return s.process_folder(
-            folder, self.root, make_args(**argkw), zipfile.ZIP_STORED, None, NullProgress()
+            folder, make_args(**argkw), zipfile.ZIP_STORED, None, NullProgress()
         )
 
 
@@ -286,21 +286,32 @@ class TestFindOrPlace(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 
 
-class TestScanFolder(TempRepo):
+class TestScanning(TempRepo):
     def test_counts_recursively(self) -> None:
         write_tree(self.root, {"d/a.txt": b"12345", "d/sub/b.txt": b"678", "d/sub/deep/c": b"9"})
-        st = s.scan_folder(self.root / "d")
-        self.assertEqual(st.file_count, 3)
-        self.assertEqual(st.total_bytes, 9)
-        self.assertEqual(st.dir_count, 2)
-        self.assertAlmostEqual(st.avg_bytes, 3.0)
+        node = s._scan_dir_tree(self.root / "d")
+        self.assertEqual(node.file_count, 3)
+        self.assertEqual(node.total_bytes, 9)
+        self.assertEqual(node.dir_count, 2)
+        self.assertAlmostEqual(node.avg_bytes, 3.0)
 
     def test_empty_folder(self) -> None:
         (self.root / "e").mkdir()
-        st = s.scan_folder(self.root / "e")
-        self.assertEqual((st.file_count, st.total_bytes, st.avg_bytes), (0, 0, 0.0))
+        node = s._scan_dir_tree(self.root / "e")
+        self.assertEqual((node.file_count, node.total_bytes, node.avg_bytes), (0, 0, 0.0))
 
-    def test_hidden_dirs_excluded_by_default(self) -> None:
+    def test_list_scan_skips_the_enumeration_cache(self) -> None:
+        """collect=False keeps only counters, so listing a huge volume stays
+        cheap -- and such a tree must refuse to feed the archive stage."""
+        write_tree(self.root, {"d/a.txt": b"123", "d/sub/b.txt": b"45"})
+        node = s._scan_dir_tree(self.root / "d", collect=False)
+        self.assertEqual((node.file_count, node.total_bytes, node.dir_count), (2, 5, 1))
+        self.assertEqual(node.files, [])
+        self.assertEqual(node.children[0].files, [])
+        with self.assertRaises(ValueError):
+            s._entries_from_tree(node, s.FolderResult(name="d"))
+
+    def test_hidden_dirs_follow_the_include_flag(self) -> None:
         (self.root / ".hidden").mkdir()
         (self.root / "shown").mkdir()
         self.assertEqual([p.name for p in s.iter_top_level_dirs(self.root, False)], ["shown"])
@@ -545,11 +556,11 @@ class TestAppendToExistingArchive(TempRepo):
         self.assertIn(b"version-one", bodies)
         self.assertIn(b"version-two-is-longer", bodies)
 
-    def test_strict_refuses_when_archive_exists(self) -> None:
+    def test_exists_refuses_when_archive_exists(self) -> None:
         write_tree(self.root, {"d/a.txt": b"x"})
         self.run_folder(self.root / "d")
         write_tree(self.root, {"d/b.txt": b"y"})
-        res = self.run_folder(self.root / "d", strict=True)
+        res = self.run_folder(self.root / "d", exists=True)
 
         self.assertEqual(res.status, "skipped")
         self.assertTrue((self.root / "d" / "b.txt").exists(), "source must survive a skip")
@@ -675,19 +686,21 @@ class TestSafetyInvariant(TempRepo):
         make it in.
         """
         write_tree(self.root, {f"d/f{i}.txt": b"body" for i in range(4)})
-        real_collect = s._collect_files
+        real_entries = s._entries_from_tree
 
-        def collect_plus_phantom(folder, result):
-            entries, blockers = real_collect(folder, result)
+        def entries_plus_phantom(node, result):
+            entries, blockers = real_entries(node, result)
             # A path that no longer exists by the time the writer reaches it.
-            entries.append(s.ManifestEntry(str(folder / "vanished.txt"), "vanished.txt", 9, 0))
+            entries.append(
+                s.ManifestEntry(str(Path(node.path, "vanished.txt")), "vanished.txt", 9, 0)
+            )
             return entries, blockers
 
-        s._collect_files = collect_plus_phantom
+        s._entries_from_tree = entries_plus_phantom
         try:
             res = self.run_folder(self.root / "d")
         finally:
-            s._collect_files = real_collect
+            s._entries_from_tree = real_entries
 
         self.assertEqual(res.status, "skipped", res.message)
         self.assertTrue((self.root / "d").exists(), "folder must survive an archive failure")
@@ -702,12 +715,12 @@ class TestSafetyInvariant(TempRepo):
         clutter that also reads as "this folder was archived" when nothing was.
         """
         (self.root / "d").mkdir()
-        real_collect = s._collect_files
-        s._collect_files = lambda folder, result: ([], ["not a regular file: fifo"])
+        real_entries = s._entries_from_tree
+        s._entries_from_tree = lambda node, result: ([], ["not a regular file: fifo"])
         try:
             res = self.run_folder(self.root / "d")
         finally:
-            s._collect_files = real_collect
+            s._entries_from_tree = real_entries
 
         self.assertEqual(res.status, "skipped")
         self.assertFalse((self.root / "d.zip").exists(), "empty archive must not be published")
@@ -719,24 +732,24 @@ class TestSafetyInvariant(TempRepo):
         The blockers-only guard covered collect-time failures, but when every
         entry failed at WRITE time (all files locked or vanished) the empty
         manifest sailed through verification and the empty archive was
-        published -- which under --strict then blocked the folder forever.
+        published -- which under --exists then blocked the folder forever.
         """
         (self.root / "d").mkdir()
-        real_collect = s._collect_files
+        real_entries = s._entries_from_tree
 
-        def phantoms_only(folder, result):
-            real_collect(folder, result)  # keep the walk honest
+        def phantoms_only(node, result):
+            real_entries(node, result)  # keep the walk honest
             return (
-                [s.ManifestEntry(str(folder / f"gone{i}.txt"), f"gone{i}.txt", 5, 0)
+                [s.ManifestEntry(str(Path(node.path, f"gone{i}.txt")), f"gone{i}.txt", 5, 0)
                  for i in range(2)],
                 [],
             )
 
-        s._collect_files = phantoms_only
+        s._entries_from_tree = phantoms_only
         try:
             res = self.run_folder(self.root / "d")
         finally:
-            s._collect_files = real_collect
+            s._entries_from_tree = real_entries
 
         self.assertEqual(res.status, "skipped", res.message)
         self.assertTrue((self.root / "d").exists(), "folder must survive")
@@ -932,8 +945,7 @@ class TestProcessFolderNeverRaises(TempRepo):
                 raise RuntimeError("progress exploded")
 
         res = s.process_folder(
-            self.root / "d", self.root, make_args(), zipfile.ZIP_STORED, None,
-            ExplodingProgress(),
+            self.root / "d", make_args(), zipfile.ZIP_STORED, None, ExplodingProgress()
         )
         self.assertEqual(res.status, "failed")
         self.assertIn("progress exploded", res.message)
@@ -946,7 +958,7 @@ class TestProcessFolderNeverRaises(TempRepo):
 
         write_tree(self.root, {"d/a.txt": b"x"})
         res = s.process_folder(
-            self.root / "d", self.root, make_args(), zipfile.ZIP_STORED, None, BadTeardown()
+            self.root / "d", make_args(), zipfile.ZIP_STORED, None, BadTeardown()
         )
         self.assertEqual(res.status, "ok", res.message)
 
@@ -967,7 +979,7 @@ class TestProcessFolderNeverRaises(TempRepo):
                     self.root,
                     [self.root / "a", self.root / "b"],
                     argparse.Namespace(
-                        strict=False, verify="full", keep=False, dry_run=False,
+                        exists=False, verify="full", keep=False, dry_run=False,
                         compress="store", level=None, workers=2,
                     ),
                 )
@@ -1112,9 +1124,9 @@ class TestLinkLikePaths(TempRepo):
         if not make_junction(self.root / "d" / "j", outside):
             self.skipTest("could not create a junction")
 
-        st = s.scan_folder(self.root / "d")
-        self.assertEqual(st.file_count, 1, "counted files reached through a junction")
-        self.assertEqual(st.symlink_count, 1)
+        node = s._scan_dir_tree(self.root / "d")
+        self.assertEqual(node.file_count, 1, "counted files reached through a junction")
+        self.assertEqual(node.links, 1)
 
 
 class TestUnpreservableMetadata(TempRepo):
@@ -1148,6 +1160,264 @@ class TestUnpreservableMetadata(TempRepo):
 
 
 # --------------------------------------------------------------------------- #
+# --small selection
+# --------------------------------------------------------------------------- #
+
+
+class TestSmallSelection(TempRepo):
+    """-s picks the highest subtrees dominated by small files, recursing past
+    directories that do not qualify. Tiny thresholds keep the fixtures small."""
+
+    def select(self, *paths: Path, min_files=3, max_avg_kib=1, include_hidden=True):
+        nodes = [s._scan_dir_tree(p) for p in paths]
+        return s.select_small_dirs(nodes, min_files, max_avg_kib * 1024, include_hidden)[0]
+
+    def test_stats_aggregate_recursively(self) -> None:
+        write_tree(self.root, {"d/a.txt": b"12345", "d/sub/b.txt": b"678", "d/sub/deep/c": b"9"})
+        node = s._scan_dir_tree(self.root / "d")
+        self.assertEqual((node.file_count, node.total_bytes, node.dir_count), (3, 9, 2))
+        sub = next(c for c in node.children if c.path.name == "sub")
+        self.assertEqual((sub.file_count, sub.total_bytes, sub.dir_count), (2, 4, 1))
+
+    def test_qualifying_folder_is_selected_whole(self) -> None:
+        """Selection stops at the highest qualifying dir; children are part of
+        its archive, not separate targets."""
+        write_tree(self.root, {f"d/f{i}.txt": b"tiny" for i in range(3)})
+        write_tree(self.root, {f"d/sub/g{i}.txt": b"tiny" for i in range(3)})
+        self.assertEqual(
+            [n.path for n in self.select(self.root / "d")], [self.root / "d"]
+        )
+
+    def test_recurses_into_a_directory_the_criteria_reject(self) -> None:
+        """A big-file parent is kept, but its small-file child is reclaimed."""
+        write_tree(self.root, {"d/big.bin": b"\0" * 10_000})
+        write_tree(self.root, {f"d/small/f{i}.txt": b"x" for i in range(3)})
+        self.assertEqual(
+            [n.path for n in self.select(self.root / "d")],
+            [self.root / "d" / "small"],
+        )
+
+    def test_too_few_files_do_not_qualify(self) -> None:
+        write_tree(self.root, {"d/only.txt": b"x", "d/two.txt": b"y"})
+        self.assertEqual(self.select(self.root / "d"), [])
+
+    def test_average_boundary_is_inclusive(self) -> None:
+        write_tree(self.root, {f"d/f{i}.bin": b"\0" * 1024 for i in range(3)})  # avg == max
+        self.assertEqual([n.path.name for n in self.select(self.root / "d")], ["d"])
+
+    def test_empty_directory_never_qualifies(self) -> None:
+        (self.root / "d").mkdir()
+        self.assertEqual(self.select(self.root / "d", min_files=1), [])
+
+    def test_hidden_subdir_candidacy_follows_the_flag(self) -> None:
+        """Hidden dirs are candidates by default; --no-include-hidden excludes
+        them. Their files count toward every ancestor's totals either way --
+        candidacy is filtered, statistics are not."""
+        write_tree(self.root, {"d/big.bin": b"\0" * 10_000})
+        write_tree(self.root, {f"d/.cache/f{i}.txt": b"x" for i in range(3)})
+        self.assertEqual(
+            [n.path.name for n in self.select(self.root / "d")], [".cache"]
+        )
+        self.assertEqual(self.select(self.root / "d", include_hidden=False), [])
+        self.assertEqual(s._scan_dir_tree(self.root / "d").file_count, 4)
+
+    def test_selection_is_sorted_by_path(self) -> None:
+        for name in ("zeta", "alpha", "mid"):
+            write_tree(self.root, {f"{name}/f{i}.txt": b"x" for i in range(3)})
+        got = self.select(self.root / "zeta", self.root / "alpha", self.root / "mid")
+        self.assertEqual([n.path.name for n in got], ["alpha", "mid", "zeta"])
+
+    def test_qualifying_but_blocked_directory_yields_to_clean_children(self) -> None:
+        """A dir that can never be fully reclaimed must not be selected.
+
+        Selecting it would archive-then-keep the folder on every run -- the
+        headline operation would never converge. Its clean qualifying
+        sub-directories are selected instead, and the rejection is counted.
+        """
+        clean = s.DirNode(
+            path=self.root / "d" / "clean", collected=True, file_count=3, total_bytes=30
+        )
+        dirty = s.DirNode(
+            path=self.root / "d", collected=True, file_count=6, total_bytes=60,
+            blocker_count=2, children=[clean],
+        )
+        selected, blocked = s.select_small_dirs([dirty], 3, 1024, True)
+        self.assertEqual(len(selected), 1)
+        self.assertIs(selected[0], clean)
+        self.assertEqual(blocked, 1)
+
+    @unittest.skipUnless(WINDOWS, "junctions are Windows-only")
+    def test_junction_carrying_directory_is_never_selected(self) -> None:
+        """The walk records the junction as a blocker, which disqualifies the
+        otherwise size-qualifying directory."""
+        write_tree(self.root, {f"d/f{i}.txt": b"x" for i in range(3)})
+        outside = self.root / "elsewhere"
+        outside.mkdir()
+        if not make_junction(self.root / "d" / "j", outside):
+            self.skipTest("could not create a junction")
+        self.assertEqual(self.select(self.root / "d"), [])
+
+    @unittest.skipUnless(WINDOWS, "junctions are Windows-only")
+    def test_junction_contents_do_not_count_toward_the_criteria(self) -> None:
+        """Files behind a junction must not make a dir look archive-worthy:
+        archiving would refuse to touch them anyway."""
+        write_tree(self.root, {"d/a.txt": b"x"})
+        outside = self.root / "elsewhere"
+        outside.mkdir()
+        write_tree(outside, {f"f{i}.txt": b"y" for i in range(5)})
+        if not make_junction(self.root / "d" / "j", outside):
+            self.skipTest("could not create a junction")
+        node = s._scan_dir_tree(self.root / "d")
+        self.assertEqual(node.file_count, 1)
+        self.assertEqual(node.links, 1)
+
+
+class TestSmallEndToEnd(TempRepo):
+    def small_argv(self, *extra: str) -> list[str]:
+        return [
+            "-d", str(self.root), "-s", "--small-files", "3", "--small-avg", "1",
+            "--no-log", *extra,
+        ]
+
+    def make_mixed_tree(self) -> None:
+        # "tinydir" qualifies whole; "bigdir" does not, but its "nest" child does.
+        write_tree(self.root, {f"tinydir/f{i}.txt": b"tiny" for i in range(3)})
+        write_tree(self.root, {"bigdir/big.bin": b"\0" * 10_000})
+        write_tree(self.root, {f"bigdir/nest/f{i}.txt": b"x" for i in range(3)})
+
+    def test_archives_only_qualifying_directories(self) -> None:
+        self.make_mixed_tree()
+        with captured_console():
+            code = s.main([*self.small_argv(), "-y"])
+
+        self.assertEqual(code, 0)
+        self.assertFalse((self.root / "tinydir").exists())
+        with zipfile.ZipFile(self.root / "tinydir.zip") as zf:
+            self.assertIsNone(zf.testzip())
+        self.assertTrue((self.root / "bigdir" / "big.bin").exists(), "non-qualifying dir touched")
+        self.assertFalse((self.root / "bigdir.zip").exists(), "non-qualifying dir archived")
+        # The nested selection's zip lands NEXT TO the folder it replaces.
+        self.assertFalse((self.root / "bigdir" / "nest").exists())
+        with zipfile.ZipFile(self.root / "bigdir" / "nest.zip") as zf:
+            self.assertEqual(sorted(zf.namelist()), [f"f{i}.txt" for i in range(3)])
+        self.assertFalse((self.root / "nest.zip").exists(), "zip escaped its parent")
+
+    def test_dry_run_shows_impact_and_touches_nothing(self) -> None:
+        self.make_mixed_tree()
+        with captured_console() as buf:
+            code = s.main([*self.small_argv(), "--dry-run"])
+
+        self.assertEqual(code, 0)
+        out = buf.getvalue()
+        self.assertIn("tinydir", out)
+        self.assertIn("nest", out)
+        self.assertIn("would archive", out)
+        self.assertNotIn("big.bin", out)
+        self.assertTrue((self.root / "tinydir").exists(), "dry-run deleted a folder")
+        self.assertEqual(list(self.root.rglob("*.zip")), [])
+        self.assertEqual(list(self.root.rglob("*.partial")), [])
+
+    def test_dry_run_reports_when_nothing_qualifies(self) -> None:
+        write_tree(self.root, {"d/lonely.txt": b"x"})
+        with captured_console() as buf:
+            code = s.main([*self.small_argv(), "--dry-run"])
+        self.assertEqual(code, 0)
+        self.assertIn("No directory", buf.getvalue())
+
+    def test_no_selection_means_no_prompt_and_no_changes(self) -> None:
+        """Without -y and with nothing selected, main must exit 0 untouched
+        rather than prompt for a destructive run over an empty set."""
+        write_tree(self.root, {"d/lonely.txt": b"x"})
+        code = None
+        with captured_console():
+            original = s.confirm_destructive
+            s.confirm_destructive = lambda *a, **k: self.fail("prompted with nothing selected")
+            try:
+                code = s.main(self.small_argv())
+            finally:
+                s.confirm_destructive = original
+        self.assertEqual(code, 0)
+        self.assertTrue((self.root / "d" / "lonely.txt").exists())
+
+    def test_exists_prunes_selection_and_dry_run_agrees(self) -> None:
+        """--dry-run must not promise work that -e will skip in the real run."""
+        self.make_mixed_tree()
+        (self.root / "tinydir.zip").write_bytes(b"placeholder")
+
+        with captured_console() as buf:
+            code = s.main([*self.small_argv(), "--dry-run", "-e"])
+        self.assertEqual(code, 0)
+        out = buf.getvalue()
+        self.assertNotIn("tinydir ", out, "dry-run promised a dir -e will skip")
+        self.assertIn("nest", out)
+        self.assertIn("--exists", out)
+
+        with captured_console():
+            code = s.main([*self.small_argv(), "-y", "-e"])
+        self.assertEqual(code, 0)
+        self.assertTrue((self.root / "tinydir" / "f0.txt").exists(), "-e dir was touched")
+        self.assertFalse((self.root / "bigdir" / "nest").exists())
+
+    def test_keep_selection_table_does_not_promise_deletion(self) -> None:
+        self.make_mixed_tree()
+        with captured_console() as buf:
+            code = s.main([*self.small_argv(), "--dry-run", "--keep"])
+        self.assertEqual(code, 0)
+        self.assertIn("nothing deleted", buf.getvalue())
+        self.assertNotIn("archive + delete", buf.getvalue())
+
+    def test_small_appends_to_an_existing_nested_archive(self) -> None:
+        """A second -s run over a recreated dir appends without duplicating."""
+        self.make_mixed_tree()
+        with captured_console():
+            self.assertEqual(s.main([*self.small_argv(), "-y"]), 0)
+        write_tree(self.root, {f"bigdir/nest/f{i}.txt": b"x" for i in range(3)})
+        write_tree(self.root, {"bigdir/nest/extra.txt": b"extra"})
+        with captured_console():
+            self.assertEqual(s.main([*self.small_argv(), "-y"]), 0)
+
+        self.assertFalse((self.root / "bigdir" / "nest").exists())
+        with zipfile.ZipFile(self.root / "bigdir" / "nest.zip") as zf:
+            self.assertIsNone(zf.testzip())
+            self.assertEqual(
+                sorted(zf.namelist()), ["extra.txt", "f0.txt", "f1.txt", "f2.txt"]
+            )
+
+    def test_small_thresholds_require_small_mode(self) -> None:
+        """Silently ignoring them would archive far more than intended."""
+        with captured_console() as buf:
+            code = s.main(["-d", str(self.root), "-y", "--no-log", "--small-files", "10"])
+        self.assertEqual(code, 2)
+        self.assertIn("--small", buf.getvalue())
+
+    def test_small_with_keep_archives_but_deletes_nothing(self) -> None:
+        """--keep's promise must hold for nested --small selections too."""
+        self.make_mixed_tree()
+        with captured_console():
+            code = s.main([*self.small_argv(), "-y", "--keep"])
+
+        self.assertEqual(code, 0)
+        self.assertTrue((self.root / "tinydir" / "f0.txt").exists(), "--keep deleted a file")
+        self.assertTrue((self.root / "bigdir" / "nest" / "f0.txt").exists())
+        with zipfile.ZipFile(self.root / "tinydir.zip") as zf:
+            self.assertIsNone(zf.testzip())
+        with zipfile.ZipFile(self.root / "bigdir" / "nest.zip") as zf:
+            self.assertIsNone(zf.testzip())
+
+    def test_small_requires_delete_mode(self) -> None:
+        with captured_console() as buf:
+            self.assertEqual(s.main(["-l", str(self.root), "-s", "--no-log"]), 2)
+        self.assertIn("--small", buf.getvalue())
+
+    def test_small_thresholds_are_validated(self) -> None:
+        for bad in (["--small-files", "0"], ["--small-avg", "0"]):
+            with self.subTest(bad=bad), captured_console():
+                self.assertEqual(
+                    s.main(["-d", str(self.root), "-s", "-y", "--no-log", *bad]), 2
+                )
+
+
+# --------------------------------------------------------------------------- #
 # CLI wiring
 # --------------------------------------------------------------------------- #
 
@@ -1172,10 +1442,16 @@ class TestFileCrc32(TempRepo):
             self.assertEqual(zf.getinfo("f.bin").CRC, s._file_crc32(str(p)))
 
 
-class TestCollectFiles(TempRepo):
+class TestTreeEnumeration(TempRepo):
+    """_scan_dir_tree + _entries_from_tree: the single source of the manifest."""
+
+    def entries_for(self, folder: Path) -> tuple[list[s.ManifestEntry], list[str]]:
+        node = s._scan_dir_tree(folder)
+        return s._entries_from_tree(node, s.FolderResult(name=folder.name))
+
     def test_enumerates_regular_files_with_relative_arcnames(self) -> None:
         write_tree(self.root, {"d/a.txt": b"12345", "d/sub/b.txt": b"67"})
-        entries, blockers = s._collect_files(self.root / "d", s.FolderResult(name="d"))
+        entries, blockers = self.entries_for(self.root / "d")
         self.assertEqual(blockers, [])
         by_arc = {e.arcname: e for e in entries}
         self.assertEqual(sorted(by_arc), ["a.txt", "sub/", "sub/b.txt"])
@@ -1186,14 +1462,14 @@ class TestCollectFiles(TempRepo):
     def test_arcnames_always_use_forward_slashes(self) -> None:
         """Zip requires '/' separators regardless of the host platform."""
         write_tree(self.root, {"d/x/y/z.txt": b"q"})
-        entries, _ = s._collect_files(self.root / "d", s.FolderResult(name="d"))
+        entries, _ = self.entries_for(self.root / "d")
         self.assertEqual([e.arcname for e in entries], ["x/", "x/y/", "x/y/z.txt"])
         self.assertFalse(any("\\" in e.arcname for e in entries))
 
     def test_directories_precede_their_contents(self) -> None:
         """Extractors expect a directory member before anything inside it."""
         write_tree(self.root, {"d/x/y/z.txt": b"q", "d/a.txt": b"a"})
-        entries, _ = s._collect_files(self.root / "d", s.FolderResult(name="d"))
+        entries, _ = self.entries_for(self.root / "d")
         names = [e.arcname for e in entries]
         for i, name in enumerate(names):
             if "/" in name.rstrip("/"):
@@ -1202,9 +1478,98 @@ class TestCollectFiles(TempRepo):
 
     def test_unreadable_directory_becomes_a_blocker(self) -> None:
         (self.root / "d").mkdir()
-        entries, blockers = s._collect_files(self.root / "d" / "gone", s.FolderResult(name="d"))
+        entries, blockers = self.entries_for(self.root / "d" / "gone")
         self.assertEqual(entries, [])
         self.assertTrue(blockers, "an unreadable path must block deletion")
+
+    def test_filesystem_root_paths_slice_cleanly(self) -> None:
+        """API hardening: str of a drive root already ends in a separator, so
+        the arcname slice must not eat the first character of member names."""
+        fs_root = Path("C:/") if WINDOWS else Path("/")
+        node = s.DirNode(path=fs_root, collected=True)
+        node.files.append(s.ManifestEntry(str(fs_root / "f.txt"), "", 1, 0))
+        entries, _ = s._entries_from_tree(node, s.FolderResult(name="root"))
+        self.assertEqual([e.arcname for e in entries], ["f.txt"])
+
+    def test_hidden_contents_are_always_enumerated(self) -> None:
+        """--no-include-hidden filters which folders are PROCESSED; inside a
+        processed folder, hidden files and dirs are archived like any other."""
+        write_tree(self.root, {"d/.hidden/f.txt": b"x", "d/.dotfile": b"y"})
+        entries, blockers = self.entries_for(self.root / "d")
+        self.assertEqual(blockers, [])
+        self.assertEqual(
+            [e.arcname for e in entries], [".hidden/", ".dotfile", ".hidden/f.txt"]
+        )
+
+
+class TestCachedEnumeration(TempRepo):
+    """The delete pipeline replays the pre-scan's enumeration
+    (_entries_from_tree) instead of re-walking the disk; a cached tree must
+    behave exactly like a scan done at processing time."""
+
+    def test_process_folder_with_cache_produces_the_same_archive(self) -> None:
+        write_tree(self.root, {"d/a.txt": b"aaa", "d/sub/b.txt": b"bb"})
+        node = s._scan_dir_tree(self.root / "d")
+        res = s.process_folder(
+            self.root / "d", make_args(), zipfile.ZIP_STORED, None, NullProgress(),
+            None, node,
+        )
+        self.assertEqual(res.status, "ok", res.message)
+        self.assertFalse((self.root / "d").exists())
+        with zipfile.ZipFile(self.root / "d.zip") as zf:
+            self.assertIsNone(zf.testzip())
+            self.assertEqual(sorted(zf.namelist()), ["a.txt", "sub/", "sub/b.txt"])
+
+    def test_stale_cache_of_vanished_content_fails_safe(self) -> None:
+        """The cache is as old as the pre-scan; a tree emptied in between must
+        not publish an archive claiming to hold it."""
+        write_tree(self.root, {"d/a.txt": b"aaa"})
+        node = s._scan_dir_tree(self.root / "d")
+        (self.root / "d" / "a.txt").unlink()
+        res = s.process_folder(
+            self.root / "d", make_args(), zipfile.ZIP_STORED, None, NullProgress(),
+            None, node,
+        )
+        self.assertEqual(res.status, "skipped", res.message)
+        self.assertFalse((self.root / "d.zip").exists(), "archive of vanished content")
+        self.assertTrue((self.root / "d").exists())
+
+    def test_file_modified_after_the_scan_is_archived_fresh(self) -> None:
+        """A post-scan edit must not void the folder's whole run.
+
+        The writer re-checks size/mtime on the open handle and records what it
+        actually stores, so verification passes, the archive holds the CURRENT
+        bytes, and only then is the source deleted -- the invariant is judged
+        against the stored bytes, never a stale snapshot.
+        """
+        write_tree(self.root, {"d/a.txt": b"before", "d/b.txt": b"stable"})
+        node = s._scan_dir_tree(self.root / "d")
+        (self.root / "d" / "a.txt").write_bytes(b"a different, longer body")
+        res = s.process_folder(
+            self.root / "d", make_args(), zipfile.ZIP_STORED, None, NullProgress(),
+            None, node,
+        )
+        self.assertEqual(res.status, "ok", res.message)
+        self.assertFalse((self.root / "d").exists())
+        with zipfile.ZipFile(self.root / "d.zip") as zf:
+            self.assertIsNone(zf.testzip())
+            self.assertEqual(zf.read("a.txt"), b"a different, longer body")
+            self.assertEqual(zf.read("b.txt"), b"stable")
+
+    def test_file_created_after_the_scan_survives(self) -> None:
+        """Not in the manifest means never deleted; its folder survives too."""
+        write_tree(self.root, {"d/old.txt": b"old"})
+        node = s._scan_dir_tree(self.root / "d")
+        write_tree(self.root, {"d/new.txt": b"new"})
+        res = s.process_folder(
+            self.root / "d", make_args(), zipfile.ZIP_STORED, None, NullProgress(),
+            None, node,
+        )
+        self.assertTrue((self.root / "d" / "new.txt").exists(), "unscanned file deleted")
+        self.assertFalse((self.root / "d" / "old.txt").exists(), "verified file kept")
+        with zipfile.ZipFile(self.root / "d.zip") as zf:
+            self.assertEqual(zf.read("old.txt"), b"old")
+        self.assertNotEqual(res.status, "ok", "folder could not be fully removed")
 
 
 class TestRenderSummary(TempRepo):
@@ -1316,6 +1681,24 @@ class TestMainEndToEnd(TempRepo):
         self.assertTrue((self.root / "a" / "1.txt").exists())
         self.assertEqual(list(self.root.glob("*.zip")), [])
 
+    def test_hidden_top_level_folders_are_processed_by_default(self) -> None:
+        write_tree(self.root, {".hid/f.txt": b"x", "shown/g.txt": b"y"})
+        with captured_console():
+            code = s.main(["-d", str(self.root), "-y", "--no-log"])
+        self.assertEqual(code, 0)
+        self.assertFalse((self.root / ".hid").exists())
+        with zipfile.ZipFile(self.root / ".hid.zip") as zf:
+            self.assertEqual(zf.read("f.txt"), b"x")
+
+    def test_no_include_hidden_skips_dot_folders(self) -> None:
+        write_tree(self.root, {".hid/f.txt": b"x", "shown/g.txt": b"y"})
+        with captured_console():
+            code = s.main(["-d", str(self.root), "-y", "--no-log", "--no-include-hidden"])
+        self.assertEqual(code, 0)
+        self.assertTrue((self.root / ".hid" / "f.txt").exists(), "hidden folder touched")
+        self.assertFalse((self.root / ".hid.zip").exists())
+        self.assertFalse((self.root / "shown").exists())
+
     def test_fast_verify_round_trips_through_the_cli(self) -> None:
         """--verify fast must still archive, verify names/sizes, and delete."""
         write_tree(self.root, {"a/1.txt": b"one", "a/sub/2.txt": b"two"})
@@ -1348,6 +1731,33 @@ class TestMainEndToEnd(TempRepo):
             self.assertEqual(zf.read("1.txt"), b"text " * 500)
 
 
+class TestConfirmPrompt(TempRepo):
+    """The prompt must describe what will actually happen."""
+
+    def _prompt(self, keep: bool) -> str:
+        import builtins
+
+        node = s.DirNode(path=self.root / "d")
+        real_input = builtins.input
+        builtins.input = lambda *a, **k: "no"  # decline; we only read the text
+        try:
+            with captured_console() as buf:
+                accepted = s.confirm_destructive(self.root, [node], keep)
+        finally:
+            builtins.input = real_input
+        self.assertFalse(accepted)
+        return buf.getvalue()
+
+    def test_delete_prompt_states_deletion(self) -> None:
+        self.assertIn("PERMANENTLY DELETED", self._prompt(keep=False))
+
+    def test_keep_prompt_does_not_threaten_deletion(self) -> None:
+        """--keep promises nothing is deleted; the prompt must not say otherwise."""
+        out = self._prompt(keep=True)
+        self.assertIn("nothing will be deleted", out)
+        self.assertNotIn("PERMANENTLY DELETED", out)
+
+
 class TestCli(TempRepo):
     def test_delete_requires_explicit_directory(self) -> None:
         """-d must never default to the cwd."""
@@ -1360,6 +1770,28 @@ class TestCli(TempRepo):
 
     def test_default_compression_is_store(self) -> None:
         self.assertEqual(s.build_parser().parse_args([]).compress, "store")
+
+    def test_exists_replaces_strict(self) -> None:
+        """-s now means --small; the old --strict spelling must not silently
+        parse as something else."""
+        args = s.build_parser().parse_args(["-e"])
+        self.assertTrue(args.exists)
+        self.assertFalse(args.small)
+        with self.assertRaises(SystemExit):
+            s.build_parser().parse_args(["--strict"])
+
+    def test_hidden_folders_are_included_by_default(self) -> None:
+        self.assertTrue(s.build_parser().parse_args([]).include_hidden)
+        self.assertFalse(
+            s.build_parser().parse_args(["--no-include-hidden"]).include_hidden
+        )
+
+    def test_small_flag_and_threshold_defaults(self) -> None:
+        args = s.build_parser().parse_args(["-s"])
+        self.assertTrue(args.small)
+        self.assertFalse(args.exists)
+        self.assertEqual(args.small_files, 50_000)
+        self.assertEqual(args.small_avg, 500)
 
     def test_missing_directory_exits_nonzero(self) -> None:
         with captured_console():

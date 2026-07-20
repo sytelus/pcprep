@@ -41,6 +41,10 @@ python small2zip.py D:/data --sort size   # positional form; sort by total size
 python small2zip.py -d D:/data --dry-run  # preview, writes/deletes nothing
 python small2zip.py -d D:/data            # prompts for confirmation
 python small2zip.py -d D:/data -y -c store -w 12
+
+# Selective mode — only archive directories dominated by small files
+python small2zip.py -d D:/data -s --dry-run  # show which directories qualify
+python small2zip.py -d D:/data -s            # prompts, then archives only those
 ```
 
 `--delete` requires an explicit directory — it never defaults to the current
@@ -52,7 +56,10 @@ directory, because the cost of being wrong is unrecoverable.
 | --- | --- | --- |
 | `-l`, `--list [DIR]` | `.` | List first-level folders (default mode). |
 | `-d`, `--delete DIR` | — | Archive then delete each first-level folder. |
-| `-s`, `--strict` | off | Skip any folder whose `.zip` already exists, instead of appending into it. |
+| `-e`, `--exists` | off | Skip any folder whose `.zip` already exists, instead of appending into it. *(Formerly `--strict`.)* |
+| `-s`, `--small` | off | With `--delete`: archive only directories dominated by small files, recursing into those that aren't. See [Small-folder selection](#small-folder-selection--s). |
+| `--small-files N` | `50000` | With `--small`: minimum file count in a qualifying subtree. |
+| `--small-avg KIB` | `500` | With `--small`: maximum average file size (KiB) of a qualifying subtree. |
 | `-w`, `--workers N` | `min(8, cpus)` | Folders processed concurrently. |
 | `-c`, `--compress` | `store` | `store` \| `deflate` \| `bzip2` \| `lzma` \| `zstd` (3.14+). Default does no compression; see [Performance](#performance). |
 | `--level N` | library default | Compression level (deflate 0–9, bzip2 1–9, zstd −7–22). Validated up front; no effect with `store`/`lzma`. |
@@ -61,7 +68,7 @@ directory, because the cost of being wrong is unrecoverable.
 | `--dry-run` | off | Report what would happen; no writes, no deletes. |
 | `-y`, `--yes` | off | Skip the confirmation prompt. |
 | `--sort` | `name` | List-mode sort: `name` \| `size` \| `count` \| `avg`. |
-| `--include-hidden` | off | Include dot-folders. |
+| `--include-hidden` | **on** | Dot-folders are processed by default; pass `--no-include-hidden` to skip them (top level and `--small` candidacy). |
 | `--log FILE` | `~/small2zip.log` | Log destination. |
 | `--no-log` | off | Disable file logging. |
 | `-v`, `--verbose` | off | Debug logging (per-file detail), also echoed to console. |
@@ -193,7 +200,7 @@ instead; see `_is_reparse_point`.
 
 ## Behaviour on an existing archive
 
-Default (non-`--strict`) mode appends missing files into the existing zip:
+Default (non-`--exists`) mode appends missing files into the existing zip:
 
 | Situation | Action |
 | --- | --- |
@@ -214,7 +221,51 @@ length matched the stored member, was declared already archived, and the source
 was deleted while the archive still held the stale bytes. Comparing CRC32 costs
 one read of the source — exactly what re-adding it would have cost anyway.
 
-Use `-s`/`--strict` if you would rather never touch an existing archive.
+Use `-e`/`--exists` if you would rather never touch an existing archive.
+
+## Small-folder selection (`-s`)
+
+`--delete` normally archives *every* first-level folder. `-s`/`--small` instead
+targets only directories dominated by small files — the ones that actually
+waste cluster slack and slow backups — and leaves everything else alone.
+
+* A directory **qualifies** when its subtree (recursive counts) holds at least
+  `--small-files` files (default 50,000) **and** their average size is at most
+  `--small-avg` KiB (default 500).
+* Each first-level folder is tested. One that qualifies is archived and deleted
+  **whole** — selection never descends into it, so selected subtrees are always
+  disjoint.
+* One that does not qualify is never archived itself; its sub-directories are
+  examined recursively, and any qualifying subtree at any depth is archived and
+  deleted. The zip is always written **next to** the directory it replaces
+  (`parent/dir` → `parent/dir.zip`), keeping the partial and the final archive
+  on one volume so the atomic-swap publish is unchanged.
+* A directory that meets the size criteria but contains paths archiving cannot
+  take (symlinks, junctions, unreadable or non-regular files) is **not**
+  selected — archiving it could never reclaim it, so every run would redo the
+  work without converging. Its clean qualifying sub-directories are selected
+  instead, and the run reports how many directories were set aside this way.
+* With `-e`/`--exists`, selected directories whose archive already exists are
+  pruned from the selection up front, so the `--dry-run` table matches exactly
+  what a real run will do.
+* Hidden directories are candidates like any other (dot-folders are processed
+  by default throughout the tool); pass `--no-include-hidden` to exclude them —
+  their contents still count toward their ancestors' totals either way. Files
+  behind symlinks or junctions count toward nothing — archiving would refuse to
+  follow them anyway. Empty directories never qualify, so `--small` never
+  removes an empty folder.
+
+`--dry-run` prints the full selection as a table — each impacted directory with
+its file count, subdirectory count, total and average size, plus totals — and
+changes nothing. Run that first. In a real run the same table is shown before
+the confirmation prompt, so the blast radius is always visible before you
+agree to it.
+
+Selection is a separate pass from archiving: each selected directory then goes
+through the same archive → verify → publish → delete pipeline with the same
+safety invariant, and a tree that changes between the two passes may be
+selected on stale numbers — safety is unaffected (see the concurrent
+modification caveat).
 
 ## Performance
 
@@ -287,21 +338,27 @@ Tuning notes:
 * `--verify fast` skips the read-back pass, roughly halving I/O — but it only
   checks name and size, so it **cannot detect corruption**. Prefer the default
   `full` for anything you care about.
-* **Memory scales with the largest folder, not the whole tree.** The manifest
-  for a folder is held in RAM while it is processed — measured at ~240 bytes per
-  entry, so roughly **0.24 GB per million files**. Peak usage is that figure for
-  the largest folder, times the number of workers running concurrently:
+* **The disk is walked exactly once — RAM is traded for syscalls.** The
+  pre-scan that powers the confirmation summary (and `--small` selection) also
+  caches the full enumeration — per-file path, size, mtime and attributes —
+  and the archive stage replays it from memory instead of re-walking millions
+  of directory entries. This assumes a machine with RAM to spare: budget
+  roughly **0.5 GB per million files**. Peak usage is at the end of the scan;
+  each folder's share is released as its processing completes, and unselected
+  trees are freed as soon as `--small` finishes selecting.
 
-  | Files in one folder | Manifest |
+  | Files in the tree | Approx. RAM |
   | --- | --- |
-  | 1,000,000 | ~0.24 GB |
-  | 5,000,000 | ~1.2 GB |
-  | 10,000,000 | ~2.4 GB |
+  | 1,000,000 | ~0.5 GB |
+  | 10,000,000 | ~5 GB |
+  | 50,000,000 | ~25 GB |
 
-  A tree of many modest folders is fine at any total size. If a *single* folder
-  holds tens of millions of files, lower `-w` so fewer manifests are live at
-  once. The manifest cannot be streamed away: it is the record of what was
-  verified, and it must outlive the verify stage to drive deletion.
+  The cache cannot be streamed away: the manifest built from it is the record
+  of what was verified, and it must outlive the verify stage to drive
+  deletion. Safety never rests on the cache's age — every file is still
+  re-`stat`ed immediately before its unlink, exactly as with a live walk.
+  List mode (`-l`) skips the enumeration cache entirely and holds only
+  per-directory counters, so listing any volume stays cheap.
 
 * Raise `-w` on NVMe; lower it to `1`–`2` on spinning disks, where concurrent
   streams cause seek thrash.
@@ -324,6 +381,13 @@ per-file `DEBUG` detail when you need to trace an individual file. Warnings
 
 ## Caveats and known limitations
 
+* **Dot-folders are processed by default.** `-d` archives and deletes top-level
+  `.git`, `.venv`, `.cache`, … like any other folder. Pass `--no-include-hidden`
+  to skip them.
+* **Flag meanings changed** relative to early versions: `--strict` is now
+  `-e`/`--exists`, and `-s` now means `--small`. A script still passing
+  `-d X -s` gets selection mode (which may archive nothing, or append and
+  delete), not the old skip-existing behavior — update it to `-e`.
 * **Symlinks and Windows junctions are never archived or followed.** Zip cannot
   round-trip them portably, and following one would archive and then delete
   files living outside the folder. A folder containing either is archived but
@@ -360,10 +424,15 @@ per-file `DEBUG` detail when you need to trace an individual file. Warnings
   sources it verified against *its own* archive, so files present only in the
   overwritten archive are lost. Concurrency belongs inside one instance (`-w`).
 * **Concurrent modification is not fully guarded.** A file created *after* the
-  archive scan is not archived, and is left on disk (so the folder survives). A
-  file *modified* after archiving is detected and kept, and one that becomes
-  unreadable mid-archive is reported as a blocker. Do not run this against a
-  tree another process is actively writing to.
+  scan is not archived and is left on disk (so the folder survives). A file
+  *modified* between the scan and its archive write is archived with its
+  **current** bytes — the writer re-checks size/mtime on the open file, so the
+  manifest always describes what was actually stored. A file modified *after*
+  archiving is caught by the pre-delete re-stat and kept. One that becomes
+  unreadable mid-archive is reported as a blocker. Because the enumeration is
+  cached from the single up-front scan, the window in which such changes can
+  occur is the whole run, not just one folder's processing. Do not run this
+  against a tree another process is actively writing to.
 * **A top-level folder that is entirely empty is removed without an archive** —
   there is nothing in it to lose. Empty *sub*-directories are archived as
   directory members and do survive.
