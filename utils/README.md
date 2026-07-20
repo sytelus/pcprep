@@ -43,9 +43,13 @@ python small2zip.py -d D:/data            # prompts for confirmation
 python small2zip.py -d D:/data -y -c store -w 12
 
 # Selective mode — only archive directories dominated by small files
-python small2zip.py -d D:/data -s --dry-run  # show which directories qualify
-python small2zip.py -d D:/data -s            # prompts, then archives only those
+python small2zip.py -s D:/data --dry-run  # show which directories qualify
+python small2zip.py -s D:/data            # table + confirmation, then archives them
+python small2zip.py -s D:/data -q -y      # no table, no prompt (scripted use)
 ```
+
+`-s D:/data` and `-d D:/data -s` are equivalent; like `-d`, `-s` never guesses
+a directory.
 
 `--delete` requires an explicit directory — it never defaults to the current
 directory, because the cost of being wrong is unrecoverable.
@@ -57,7 +61,8 @@ directory, because the cost of being wrong is unrecoverable.
 | `-l`, `--list [DIR]` | `.` | List first-level folders (default mode). |
 | `-d`, `--delete DIR` | — | Archive then delete each first-level folder. |
 | `-e`, `--exists` | off | Skip any folder whose `.zip` already exists, instead of appending into it. *(Formerly `--strict`.)* |
-| `-s`, `--small` | off | With `--delete`: archive only directories dominated by small files, recursing into those that aren't. See [Small-folder selection](#small-folder-selection--s). |
+| `-s`, `--small [DIR]` | off | Archive only directories dominated by small files, recursing into those that aren't. Target via `-s DIR` or `-d DIR -s`. See [Small-folder selection](#small-folder-selection--s). |
+| `-q`, `--quiet` | off | With `--small`: skip the pre-run selection table. Confirmation (with totals) still appears unless `-y`. Invalid with `--dry-run`. |
 | `--small-files N` | `50000` | With `--small`: minimum file count in a qualifying subtree. |
 | `--small-avg KIB` | `500` | With `--small`: maximum average file size (KiB) of a qualifying subtree. |
 | `-w`, `--workers N` | `min(8, cpus)` | Folders processed concurrently. |
@@ -225,9 +230,18 @@ Use `-e`/`--exists` if you would rather never touch an existing archive.
 
 ## Small-folder selection (`-s`)
 
-`--delete` normally archives *every* first-level folder. `-s`/`--small` instead
-targets only directories dominated by small files — the ones that actually
-waste cluster slack and slow backups — and leaves everything else alone.
+`--delete` archives *every* first-level folder. `-s`/`--small` instead targets
+only directories dominated by small files — the ones that actually waste
+cluster slack and slow backups — and leaves everything else alone. It can be
+used standalone (`-s DIR`) or as a filter on delete mode (`-d DIR -s`); both
+are the same operation, and neither ever guesses a target directory. `-s`
+cannot be combined with `-l`, whose purpose is an unfiltered report.
+
+Before touching anything, a `--small` run prints the full selection table and
+asks for confirmation. `-q`/`--quiet` skips the table (the confirmation prompt
+still shows the totals); `-y` skips the confirmation; `--dry-run` prints the
+table and stops, and refuses `-q` — suppressing the only output a dry run has
+would make it meaningless.
 
 * A directory **qualifies** when its subtree (recursive counts) holds at least
   `--small-files` files (default 50,000) **and** their average size is at most
@@ -254,12 +268,6 @@ waste cluster slack and slow backups — and leaves everything else alone.
   behind symlinks or junctions count toward nothing — archiving would refuse to
   follow them anyway. Empty directories never qualify, so `--small` never
   removes an empty folder.
-
-`--dry-run` prints the full selection as a table — each impacted directory with
-its file count, subdirectory count, total and average size, plus totals — and
-changes nothing. Run that first. In a real run the same table is shown before
-the confirmation prompt, so the blast radius is always visible before you
-agree to it.
 
 Selection is a separate pass from archiving: each selected directory then goes
 through the same archive → verify → publish → delete pipeline with the same

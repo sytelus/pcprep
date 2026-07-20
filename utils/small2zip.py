@@ -13,13 +13,15 @@ Two modes
       2. *verify* the archive
       3. only then permanently delete the folder from disk
 
-``--delete --small``
+``--small`` (``-s DIR``, or ``-d DIR -s``)
     Archive only directories dominated by small files: a directory qualifies
     when its subtree holds at least ``--small-files`` files with an average
     size of at most ``--small-avg`` KiB. A directory that does not qualify is
     kept, but its sub-directories are examined recursively and qualifying
     subtrees at any depth go through the same zip -> verify -> delete pipeline,
-    each zip written next to its directory.
+    each zip written next to its directory. The selection is shown and
+    confirmed before anything is touched; ``-q`` skips the table (the
+    confirmation totals remain), ``--dry-run`` shows the table and stops.
 
 Safety model (read this before changing anything)
 -------------------------------------------------
@@ -1624,14 +1626,22 @@ def build_parser() -> argparse.ArgumentParser:
              "Formerly called --strict.",
     )
     p.add_argument(
-        "-s", "--small", action="store_true",
-        help="With --delete: archive+delete only directories dominated by small "
-             "files. A directory qualifies when its subtree holds at least "
-             "--small-files files with an average size of at most --small-avg "
-             "KiB. A directory that does not qualify is kept, but its "
-             "sub-directories are examined recursively and qualifying subtrees "
-             "at any depth are archived, each zip written next to its "
-             "directory. Combine with --dry-run to preview the selection.",
+        "-s", "--small", nargs="?", const=True, default=None, metavar="DIR",
+        help="Archive+delete only directories dominated by small files. Give "
+             "the target as -s DIR, or combine the bare flag with -d DIR; like "
+             "-d, it never guesses a directory. A directory qualifies when its "
+             "subtree holds at least --small-files files with an average size "
+             "of at most --small-avg KiB. One that does not qualify is kept, "
+             "but its sub-directories are examined recursively and qualifying "
+             "subtrees at any depth are archived, each zip written next to its "
+             "directory. Shows the selection table and asks for confirmation "
+             "before touching anything; preview with --dry-run.",
+    )
+    p.add_argument(
+        "-q", "--quiet", action="store_true",
+        help="With --small: skip the pre-run selection table. The confirmation "
+             "prompt (with totals) still appears unless -y is given. Not valid "
+             "with --dry-run, whose entire output is that table.",
     )
     p.add_argument(
         "--small-files", type=int, default=SMALL_MIN_FILES_DEFAULT, metavar="N",
@@ -1752,8 +1762,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         console.print("[dim]Choose another path with --log FILE, or pass --no-log.[/]")
         return 2
 
-    delete_mode = args.delete_path is not None
-    raw_root = args.delete_path if delete_mode else (args.list_path or args.path or ".")
+    # -s carries three states: None (absent), True (bare flag, target from -d),
+    # or a DIR string (standalone form).
+    small_requested = args.small is not None
+    small_dir = args.small if isinstance(args.small, str) else None
+
+    if args.list_path is not None and small_requested:
+        # List mode reports every folder, unfiltered; a selection filter on it
+        # could only mislead.
+        console.print("[bold red]-s/--small cannot be combined with -l/--list.[/]")
+        return 2
+    if small_dir is not None and args.delete_path is not None:
+        if Path(small_dir).expanduser().resolve() != Path(args.delete_path).expanduser().resolve():
+            console.print("[bold red]-s DIR and -d DIR disagree[/] -- give one target.")
+            return 2
+    if small_requested and small_dir is None and args.delete_path is None:
+        # Like -d, a destructive mode never guesses its target.
+        console.print(
+            "[bold red]--small needs an explicit target:[/] use -s DIR, or -d DIR -s."
+        )
+        return 2
+
+    delete_mode = args.delete_path is not None or small_dir is not None
+    raw_root = args.delete_path or small_dir or args.list_path or args.path or "."
     root = Path(raw_root).expanduser().resolve()
 
     if args.path is not None and (delete_mode or args.list_path is not None):
@@ -1766,26 +1797,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.workers < 1:
         console.print("[bold red]--workers must be >= 1[/]")
         return 2
-    if args.small:
-        # A silently ignored -s would archive far more than the user intended,
-        # so anything about it that cannot mean what they asked for is fatal.
-        if not delete_mode:
-            console.print("[bold red]--small requires --delete[/] (it selects what to archive).")
-            return 2
+    # A silently ignored selection flag would archive far more than the user
+    # intended, so anything that cannot mean what they asked for is fatal.
+    if small_requested:
         if args.small_files < 1:
             console.print("[bold red]--small-files must be >= 1[/]")
             return 2
         if args.small_avg < 1:
             console.print("[bold red]--small-avg must be >= 1[/] (KiB)")
             return 2
-    elif (
-        args.small_files != SMALL_MIN_FILES_DEFAULT
-        or args.small_avg != SMALL_MAX_AVG_KIB_DEFAULT
-    ):
-        # Honoring thresholds without the mode would silently archive far more
-        # than the selection the user described.
-        console.print("[bold red]--small-files/--small-avg require -s/--small.[/]")
-        return 2
+        if args.quiet and args.dry_run:
+            console.print(
+                "[bold red]-q and --dry-run conflict:[/] the selection table "
+                "-q suppresses is the very report --dry-run exists to show."
+            )
+            return 2
+    else:
+        if (
+            args.small_files != SMALL_MIN_FILES_DEFAULT
+            or args.small_avg != SMALL_MAX_AVG_KIB_DEFAULT
+        ):
+            console.print("[bold red]--small-files/--small-avg require -s/--small.[/]")
+            return 2
+        if args.quiet:
+            console.print("[bold red]-q/--quiet applies only to --small runs.[/]")
+            return 2
     if args.level is not None:
         if not COMPRESSION_METHODS[args.compress][1]:
             console.print(f"[yellow]--level has no effect with --compress {args.compress}.[/]")
@@ -1831,7 +1867,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         console.print("[yellow]Cancelled during scan.[/]")
         return 130
 
-    if args.small:
+    if small_requested:
         nodes, blocked = select_small_dirs(
             roots, args.small_files, args.small_avg * 1024, args.include_hidden
         )
@@ -1860,9 +1896,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "unarchivable paths (symlinks, junctions or unreadable files); "
                 "only clean qualifying sub-directories were selected.[/]"
             )
-        render_small_selection(
-            root, nodes, args.small_files, args.small_avg * 1024, args.dry_run, args.keep
-        )
+        if not args.quiet or not nodes:
+            # -q skips the table, never the "nothing to do" outcome. The
+            # confirmation prompt below still shows the totals either way.
+            render_small_selection(
+                root, nodes, args.small_files, args.small_avg * 1024,
+                args.dry_run, args.keep,
+            )
         if not nodes or args.dry_run:
             # The table above IS the dry-run report; nothing was touched.
             return 0

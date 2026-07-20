@@ -1404,10 +1404,83 @@ class TestSmallEndToEnd(TempRepo):
         with zipfile.ZipFile(self.root / "bigdir" / "nest.zip") as zf:
             self.assertIsNone(zf.testzip())
 
-    def test_small_requires_delete_mode(self) -> None:
+    def test_small_cannot_combine_with_list_mode(self) -> None:
+        """List mode reports everything unfiltered; -s on it could only mislead."""
         with captured_console() as buf:
             self.assertEqual(s.main(["-l", str(self.root), "-s", "--no-log"]), 2)
         self.assertIn("--small", buf.getvalue())
+
+    def test_small_standalone_takes_its_own_target(self) -> None:
+        """-s DIR needs no -d: it shows the table, confirms, then acts."""
+        self.make_mixed_tree()
+        with captured_console():
+            code = s.main([
+                "-s", str(self.root), "--small-files", "3", "--small-avg", "1",
+                "-y", "--no-log",
+            ])
+        self.assertEqual(code, 0)
+        self.assertFalse((self.root / "tinydir").exists())
+        self.assertTrue((self.root / "tinydir.zip").exists())
+        self.assertFalse((self.root / "bigdir" / "nest").exists())
+
+    def test_small_standalone_prompts_before_acting(self) -> None:
+        self.make_mixed_tree()
+        original = s.confirm_destructive
+        s.confirm_destructive = lambda *a, **k: False
+        try:
+            with captured_console():
+                code = s.main([
+                    "-s", str(self.root), "--small-files", "3", "--small-avg", "1",
+                    "--no-log",
+                ])
+        finally:
+            s.confirm_destructive = original
+        self.assertEqual(code, 1)
+        self.assertTrue((self.root / "tinydir" / "f0.txt").exists())
+
+    def test_small_without_any_target_errors(self) -> None:
+        """Like -d, a destructive mode never guesses its directory."""
+        with captured_console() as buf:
+            self.assertEqual(s.main(["-s", "--no-log"]), 2)
+        self.assertIn("target", buf.getvalue())
+
+    def test_small_and_delete_targets_must_agree(self) -> None:
+        other = self.root / "other"
+        other.mkdir()
+        with captured_console() as buf:
+            code = s.main(["-d", str(self.root), "-s", str(other), "-y", "--no-log"])
+        self.assertEqual(code, 2)
+        self.assertIn("disagree", buf.getvalue())
+        # The same directory in both spellings is redundancy, not conflict.
+        with captured_console():
+            self.assertEqual(
+                s.main(["-d", str(self.root), "-s", str(self.root), "-y", "--no-log"]), 0
+            )
+
+    def test_quiet_suppresses_the_table_but_not_the_run(self) -> None:
+        self.make_mixed_tree()
+        with captured_console() as buf:
+            code = s.main([*self.small_argv(), "-y", "-q"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("will archive + delete", buf.getvalue(), "table not suppressed")
+        self.assertFalse((self.root / "tinydir").exists(), "run must still happen")
+
+    def test_quiet_still_reports_an_empty_selection(self) -> None:
+        write_tree(self.root, {"d/lonely.txt": b"x"})
+        with captured_console() as buf:
+            self.assertEqual(s.main([*self.small_argv(), "-y", "-q"]), 0)
+        self.assertIn("No directory", buf.getvalue())
+
+    def test_quiet_requires_small(self) -> None:
+        with captured_console() as buf:
+            self.assertEqual(s.main(["-d", str(self.root), "-y", "--no-log", "-q"]), 2)
+        self.assertIn("--small", buf.getvalue())
+
+    def test_quiet_conflicts_with_dry_run(self) -> None:
+        """-q would suppress the very report --dry-run exists to show."""
+        with captured_console() as buf:
+            self.assertEqual(s.main([*self.small_argv(), "--dry-run", "-q"]), 2)
+        self.assertIn("conflict", buf.getvalue())
 
     def test_small_thresholds_are_validated(self) -> None:
         for bad in (["--small-files", "0"], ["--small-avg", "0"]):
