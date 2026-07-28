@@ -1,3 +1,4 @@
+condaa=conda activate
 ls=dir \B %1
 grevertall=git reset --hard ^& git reset --hard origin/master ^& git clean -f -d
 grevertfile=git checkout -- $1

@@ -1,163 +1,347 @@
+<#
+.SYNOPSIS
+Audits or manages narrowly scoped Windows Firewall rules for Codex CLI login.
+
+.DESCRIPTION
+The normal `codex login` browser flow starts a temporary HTTP callback listener
+on localhost port 1455. This script can create per-executable inbound rules for
+that callback, restricted to IPv4 and IPv6 loopback addresses.
+
+The default mode is Audit and does not change Windows Firewall. Use Apply only
+when `codex login` reaches the browser but cannot return to the CLI, and after
+confirming that local firewall policy is the cause. OpenAI recommends
+`codex login --device-auth` as the preferred workaround when the localhost
+callback cannot be used.
+
+This script normally should NOT be run just to install Codex or fix general
+connection, streaming, upload, proxy, DNS, TLS-inspection, or WebSocket issues.
+Those problems require the relevant OpenAI/ChatGPT domains and WebSocket traffic
+to be allowed by the network firewall, proxy, VPN, or security product.
+
+Apply and Remove require an elevated PowerShell session. Audit does not.
+VS Code extension and Microsoft Store paths are versioned, so rerun Apply after
+an update only if the login callback problem returns.
+
+.PARAMETER Mode
+Audit lists discovered Codex binaries, owned firewall rules, and listeners on
+the callback port. Apply replaces this script's rules with current, narrowly
+scoped rules. Remove deletes only rules in the "Codex Firewall Fix" group.
+
+.PARAMETER Port
+Local callback port used by `codex login`. The documented default is 1455.
+
+.PARAMETER CodexPath
+Optional explicit path or paths to codex.exe. These are combined with paths
+discovered from running processes, PATH, the desktop app, VS Code extensions,
+the standalone installer, and a global npm installation.
+
+.PARAMETER AllowOutboundHttps
+Also creates a program-specific outbound TCP 443 rule to any remote address.
+Do not use this on ordinary Windows configurations, which allow outbound traffic
+by default. It is intended only for centrally managed environments whose default
+outbound policy is Block. An explicit block rule still overrides this allow rule.
+
+.EXAMPLE
+.\codex_firewall.ps1
+
+Audit only; makes no changes and does not require elevation.
+
+.EXAMPLE
+.\codex_firewall.ps1 -Mode Apply -WhatIf
+
+Shows the firewall changes that Apply would make.
+
+.EXAMPLE
+.\codex_firewall.ps1 -Mode Apply
+
+From an elevated PowerShell session, creates loopback-only inbound callback
+rules for each discovered Codex executable.
+
+.EXAMPLE
+.\codex_firewall.ps1 -Mode Remove
+
+From an elevated PowerShell session, removes rules owned by this script.
+
+.NOTES
+OpenAI Codex authentication documentation:
+https://learn.chatgpt.com/docs/auth#login-on-headless-devices
+
+OpenAI network and WebSocket guidance:
+https://help.openai.com/en/articles/9247338-network-recommendations-for-chatgpt-errors-on-web-and-apps
+
+Microsoft Windows Firewall rule behavior:
+https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/rules
+#>
+
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 param(
-  [int]$Port = 1455
+  [ValidateSet('Audit', 'Apply', 'Remove')]
+  [string]$Mode = 'Audit',
+
+  [ValidateRange(1, 65535)]
+  [int]$Port = 1455,
+
+  [string[]]$CodexPath,
+
+  [switch]$AllowOutboundHttps
 )
 
-$RuleGroup = "Codex Firewall Fix"
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 
-function Assert-Admin {
-  $id = [Security.Principal.WindowsIdentity]::GetCurrent()
-  $p  = New-Object Security.Principal.WindowsPrincipal($id)
-  if (-not $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Error "Please run this script in an elevated PowerShell (Run as Administrator)."
-    exit 1
+$RuleGroup = 'Codex Firewall Fix'
+
+function Test-IsAdministrator {
+  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+  return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Assert-Administrator {
+  if (-not (Test-IsAdministrator)) {
+    throw 'Apply and Remove must be run from an elevated PowerShell session.'
   }
 }
 
 function Get-CodexPaths {
+  param([string[]]$ExplicitPath)
+
   $paths = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
 
-  # 1) Running codex.exe (extension-launched)
-  try {
-    Get-Process -Name codex -ErrorAction SilentlyContinue | ForEach-Object {
-      $p = $null
-      try { $p = $_.Path } catch {}
-      try { if (-not $p) { $p = $_.MainModule.FileName } } catch {}
-      if ($p -and (Test-Path $p)) { [void]$paths.Add($p) }
+  function Add-CodexPath {
+    param([string]$Candidate)
+
+    if ([string]::IsNullOrWhiteSpace($Candidate)) { return }
+    if (-not (Test-Path -LiteralPath $Candidate -PathType Leaf)) { return }
+
+    $resolved = (Resolve-Path -LiteralPath $Candidate).ProviderPath
+    if ([IO.Path]::GetFileName($resolved) -ieq 'codex.exe') {
+      [void]$paths.Add($resolved)
     }
-  } catch {}
+  }
 
-  # 2) VS Code extension installs
-  $extRoots = @(
-    "$env:USERPROFILE\.vscode\extensions",
-    "$env:USERPROFILE\.vscode-insiders\extensions"
-  ) | Where-Object { $_ -and (Test-Path $_) }
+  foreach ($candidate in @($ExplicitPath)) {
+    Add-CodexPath -Candidate $candidate
+  }
 
-  foreach ($root in $extRoots) {
-    Get-ChildItem -Path $root -Recurse -Filter "codex.exe" -ErrorAction SilentlyContinue |
+  Get-Process -Name codex -ErrorAction SilentlyContinue | ForEach-Object {
+    $processPath = $null
+    try { $processPath = $_.Path } catch {}
+    if (-not $processPath) {
+      try { $processPath = $_.MainModule.FileName } catch {}
+    }
+    Add-CodexPath -Candidate $processPath
+  }
+
+  Get-Command -Name codex.exe -All -ErrorAction SilentlyContinue | ForEach-Object {
+    Add-CodexPath -Candidate $_.Path
+  }
+
+  Add-CodexPath -Candidate (Join-Path $env:LOCALAPPDATA 'Programs\OpenAI\Codex\bin\codex.exe')
+
+  Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction SilentlyContinue | ForEach-Object {
+    Add-CodexPath -Candidate (Join-Path $_.InstallLocation 'app\resources\codex.exe')
+  }
+
+  $extensionRoots = @(
+    (Join-Path $env:USERPROFILE '.vscode\extensions'),
+    (Join-Path $env:USERPROFILE '.vscode-insiders\extensions')
+  ) | Where-Object { Test-Path -LiteralPath $_ -PathType Container }
+
+  foreach ($root in $extensionRoots) {
+    Get-ChildItem -LiteralPath $root -Directory -Filter 'openai.chatgpt-*' -ErrorAction SilentlyContinue |
       ForEach-Object {
-        if ($_.FullName -and (Test-Path $_.FullName)) { [void]$paths.Add($_.FullName) }
+        Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Filter 'codex.exe' -ErrorAction SilentlyContinue |
+          ForEach-Object { Add-CodexPath -Candidate $_.FullName }
       }
   }
 
-  # 3) npm global CLI fallback
-  $npmCli = "$env:USERPROFILE\AppData\Roaming\npm\codex.exe"
-  if (Test-Path $npmCli) { [void]$paths.Add($npmCli) }
+  $npmRoot = Join-Path $env:APPDATA 'npm\node_modules\@openai\codex'
+  if (Test-Path -LiteralPath $npmRoot -PathType Container) {
+    Get-ChildItem -LiteralPath $npmRoot -Recurse -File -Filter 'codex.exe' -ErrorAction SilentlyContinue |
+      ForEach-Object { Add-CodexPath -Candidate $_.FullName }
+  }
 
-  return [string[]]$paths
+  return @($paths | Sort-Object)
 }
 
-function Remove-CodexRulesForProgram([string]$program) {
+function Get-PathId {
+  param([Parameter(Mandatory)][string]$Path)
+
+  $sha256 = [Security.Cryptography.SHA256]::Create()
   try {
-    # Remove rules created by this script (by Group) for this executable
-    $appFilters = Get-NetFirewallApplicationFilter -Program $program -ErrorAction SilentlyContinue
-    if ($appFilters) {
-      $rules = $appFilters | ForEach-Object {
-        Get-NetFirewallRule -AssociatedNetFirewallApplicationFilter $_ -ErrorAction SilentlyContinue
-      } | Where-Object { $_ -and $_.Group -eq $RuleGroup }
-      if ($rules) {
-        $rules | ForEach-Object {
-          Write-Host ("Removing existing rule: {0}" -f $_.DisplayName)
-          Remove-NetFirewallRule -Name $_.Name -ErrorAction SilentlyContinue
-        }
-      }
-    }
-  } catch {}
-}
-
-# --- Helper: detect whether IPv6 is enabled at OS level and usable on loopback ---
-function Is-IPv6Enabled {
-  try {
-    # 1) Check common registry knob. If missing or 0 -> IPv6 enabled.
-    $regPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters'
-    $val = (Get-ItemProperty -Path $regPath -Name 'DisabledComponents' -ErrorAction SilentlyContinue).DisabledComponents
-    if ($null -ne $val) {
-      # 0xFF (255) disables all IPv6 components; other bitmasks may partially disable
-      if (($val -band 0xFF) -eq 0xFF) { return $false }
-    }
-
-    # 2) Confirm the stack is present and at least one IPv6 interface is up
-    $ifUp = Get-NetIPInterface -AddressFamily IPv6 -ErrorAction SilentlyContinue |
-            Where-Object { $_.InterfaceOperationalStatus -eq 'Up' }
-    if (-not $ifUp) { return $false }
-
-    # 3) Ensure ::1 actually resolves/configures locally
-    $hasLoopback = $false
-    try {
-      $hasLoopback = [bool](Get-NetIPAddress -AddressFamily IPv6 -IPAddress '::1' -ErrorAction Stop)
-    } catch { $hasLoopback = $false }
-
-    return $hasLoopback
-  } catch {
-    # If anything is ambiguous, err on the safe side (no IPv6 rule).
-    return $false
+    $bytes = [Text.Encoding]::UTF8.GetBytes($Path.ToLowerInvariant())
+    $hash = $sha256.ComputeHash($bytes)
+    return ([BitConverter]::ToString($hash).Replace('-', '').Substring(0, 12))
+  } finally {
+    $sha256.Dispose()
   }
 }
 
-# --- Replace your existing Ensure-AllowRules with this IPv6-conditional version ---
-function Ensure-AllowRules([string]$program, [int]$port) {
-  $digest = (Get-FileHash -Algorithm SHA256 -Path $program).Hash.Substring(0,8)
+function Get-OwnedRules {
+  return @(Get-NetFirewallRule -Group $RuleGroup -ErrorAction SilentlyContinue)
+}
 
-  # Inbound IPv4 (localhost only) — always create
-  $inName4 = "Codex Inbound Loopback IPv4 $port [$digest]"
-  Get-NetFirewallRule -DisplayName $inName4 -ErrorAction SilentlyContinue |
-    Where-Object { $_.Group -eq $RuleGroup } | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+function Remove-OwnedRules {
+  [CmdletBinding(SupportsShouldProcess = $true)]
+  param()
 
-  New-NetFirewallRule -DisplayName $inName4 `
-    -Group $RuleGroup -Direction Inbound -Action Allow -Enabled True `
-    -Program $program -Protocol TCP -LocalPort $port `
-    -LocalAddress '127.0.0.1' -Profile Private,Domain | Out-Null
-  Write-Host ('Created inbound allow rule (IPv4) for {0} on 127.0.0.1:{1}' -f $program, $port)
-
-  # Inbound IPv6 (only if OS IPv6 is enabled AND ::1 is usable)
-  if (Is-IPv6Enabled) {
-    $inName6 = "Codex Inbound Loopback IPv6 $port [$digest]"
-    Get-NetFirewallRule -DisplayName $inName6 -ErrorAction SilentlyContinue |
-      Where-Object { $_.Group -eq $RuleGroup } | Remove-NetFirewallRule -ErrorAction SilentlyContinue
-    try {
-      New-NetFirewallRule -DisplayName $inName6 `
-        -Group $RuleGroup -Direction Inbound -Action Allow -Enabled True `
-        -Program $program -Protocol TCP -LocalPort $port `
-        -LocalAddress '::1' -Profile Private,Domain | Out-Null
-      Write-Host ('Created inbound allow rule (IPv6) for {0} on ::1:{1}' -f $program, $port)
-    } catch {
-      Write-Warning ('IPv6 loopback rule skipped (New-NetFirewallRule failed): {0}' -f $_.Exception.Message)
+  $rules = @(Get-OwnedRules)
+  foreach ($rule in $rules) {
+    if ($PSCmdlet.ShouldProcess($rule.DisplayName, 'Remove Windows Firewall rule')) {
+      Remove-NetFirewallRule -Name $rule.Name -ErrorAction Stop
     }
+  }
+}
+
+function New-CodexRules {
+  [CmdletBinding(SupportsShouldProcess = $true)]
+  param(
+    [Parameter(Mandatory)][string]$Program,
+    [Parameter(Mandatory)][int]$CallbackPort,
+    [Parameter(Mandatory)][bool]$IncludeOutboundHttps
+  )
+
+  $pathId = Get-PathId -Path $Program
+  $description = "Allows only the Codex browser-login callback on localhost:$CallbackPort. Managed by pcprep\windows\codex_firewall.ps1."
+
+  $loopbackRules = @(
+    @{ Family = 'IPv4'; Address = '127.0.0.1'; Suffix = 'v4' },
+    @{ Family = 'IPv6'; Address = '::1'; Suffix = 'v6' }
+  )
+
+  foreach ($definition in $loopbackRules) {
+    $name = "PcPrep-Codex-Login-$($definition.Suffix)-$pathId"
+    $displayName = "Codex login loopback $($definition.Family) port $CallbackPort [$pathId]"
+
+    if ($PSCmdlet.ShouldProcess($displayName, 'Create Windows Firewall rule')) {
+      New-NetFirewallRule `
+        -Name $name `
+        -DisplayName $displayName `
+        -Description $description `
+        -Group $RuleGroup `
+        -Direction Inbound `
+        -Action Allow `
+        -Enabled True `
+        -Profile Any `
+        -Program $Program `
+        -Protocol TCP `
+        -LocalPort $CallbackPort `
+        -LocalAddress $definition.Address `
+        -RemoteAddress $definition.Address `
+        -EdgeTraversalPolicy Block `
+        -ErrorAction Stop | Out-Null
+    }
+  }
+
+  if ($IncludeOutboundHttps) {
+    $name = "PcPrep-Codex-HTTPS-$pathId"
+    $displayName = "Codex outbound HTTPS [$pathId]"
+    $outboundDescription = 'Allows this Codex executable to connect to any remote address over TCP 443. Use only when default outbound policy is Block.'
+
+    if ($PSCmdlet.ShouldProcess($displayName, 'Create Windows Firewall rule')) {
+      New-NetFirewallRule `
+        -Name $name `
+        -DisplayName $displayName `
+        -Description $outboundDescription `
+        -Group $RuleGroup `
+        -Direction Outbound `
+        -Action Allow `
+        -Enabled True `
+        -Profile Any `
+        -Program $Program `
+        -Protocol TCP `
+        -RemotePort 443 `
+        -RemoteAddress Any `
+        -ErrorAction Stop | Out-Null
+    }
+  }
+}
+
+function Show-Audit {
+  param(
+    [string[]]$Programs,
+    [int]$CallbackPort
+  )
+
+  Write-Host 'Codex executables discovered:' -ForegroundColor Cyan
+  if ($Programs.Count -eq 0) {
+    Write-Host '  None. Start Codex once or pass -CodexPath explicitly.' -ForegroundColor Yellow
   } else {
-    Write-Host 'IPv6 not enabled/usable; skipping IPv6 inbound rule.'
+    $Programs | ForEach-Object { Write-Host "  $_" }
   }
 
-  # Outbound HTTPS (shared for v4/v6)
-  $outName = "Codex Outbound HTTPS [$digest]"
-  Get-NetFirewallRule -DisplayName $outName -ErrorAction SilentlyContinue |
-    Where-Object { $_.Group -eq $RuleGroup } | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+  Write-Host ''
+  Write-Host "Listeners on localhost port ${CallbackPort}:" -ForegroundColor Cyan
+  $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $CallbackPort -ErrorAction SilentlyContinue)
+  if ($listeners.Count -eq 0) {
+    Write-Host '  None. This is normal unless a browser-based Codex login is currently waiting for its callback.'
+  } else {
+    $listeners | Select-Object LocalAddress, LocalPort, OwningProcess | Format-Table -AutoSize
+  }
 
-  New-NetFirewallRule -DisplayName $outName `
-    -Group $RuleGroup -Direction Outbound -Action Allow -Enabled True `
-    -Program $program -Protocol TCP -RemotePort 443 `
-    -Profile Private,Domain | Out-Null
-  Write-Host ('Created outbound HTTPS allow rule for {0}' -f $program)
+  Write-Host 'Rules owned by this script:' -ForegroundColor Cyan
+  $rules = @(Get-OwnedRules)
+  if ($rules.Count -eq 0) {
+    Write-Host '  None.'
+    return
+  }
+
+  $rows = foreach ($rule in $rules) {
+    $application = $rule | Get-NetFirewallApplicationFilter
+    $ports = $rule | Get-NetFirewallPortFilter
+    $addresses = $rule | Get-NetFirewallAddressFilter
+    [pscustomobject]@{
+      DisplayName = $rule.DisplayName
+      Direction = $rule.Direction
+      Profile = $rule.Profile
+      Program = $application.Program
+      Protocol = $ports.Protocol
+      LocalPort = $ports.LocalPort
+      RemotePort = $ports.RemotePort
+      LocalAddress = $addresses.LocalAddress -join ','
+      RemoteAddress = $addresses.RemoteAddress -join ','
+    }
+  }
+  $rows | Format-List
 }
 
-# -------------------- Main --------------------
-Assert-Admin
+$codexPaths = Get-CodexPaths -ExplicitPath $CodexPath
 
-$codexPaths = Get-CodexPaths
-if (!$codexPaths -or $codexPaths.Count -eq 0) {
-  Write-Warning "No codex.exe found. Open VS Code, trigger Codex so it launches, then re-run."
-  Write-Host  ("Common path: {0}\.vscode\extensions\<publisher.codex-*>\bin\codex.exe" -f $env:USERPROFILE)
-  exit 2
+switch ($Mode) {
+  'Audit' {
+    Show-Audit -Programs $codexPaths -CallbackPort $Port
+  }
+
+  'Remove' {
+    if (-not $WhatIfPreference) { Assert-Administrator }
+    Remove-OwnedRules
+    if ($WhatIfPreference) {
+      Write-Host 'Preview complete; no firewall rules were removed.'
+    } else {
+      Write-Host 'Codex firewall rules owned by this script were removed.'
+    }
+  }
+
+  'Apply' {
+    if ($codexPaths.Count -eq 0) {
+      throw 'No codex.exe was found. Start Codex once or pass -CodexPath explicitly.'
+    }
+    if (-not $WhatIfPreference) { Assert-Administrator }
+
+    Remove-OwnedRules
+    foreach ($program in $codexPaths) {
+      New-CodexRules -Program $program -CallbackPort $Port -IncludeOutboundHttps $AllowOutboundHttps.IsPresent
+    }
+
+    Write-Host ''
+    if ($WhatIfPreference) {
+      Write-Host "Previewed loopback-only Codex login rules for $($codexPaths.Count) executable(s); no changes were made."
+    } else {
+      Write-Host "Configured loopback-only Codex login rules for $($codexPaths.Count) executable(s)."
+    }
+    if (-not $AllowOutboundHttps) {
+      Write-Host 'No outbound rule was created. This is correct for the normal Windows AllowOutbound policy.'
+    }
+  }
 }
-
-Write-Host "Found Codex binaries:" -ForegroundColor Cyan
-$codexPaths | ForEach-Object { Write-Host ("  {0}" -f $_) }
-
-foreach ($p in $codexPaths) {
-  Remove-CodexRulesForProgram -program $p
-  Ensure-AllowRules -program $p -port $Port
-}
-
-Write-Host ''
-Write-Host 'Done. Re-run this script any time—it''s safe and idempotent.'
-Write-Host 'If Codex still can''t start, try the login again and then run:'
-Write-Host ('  netstat -ano | findstr :{0}' -f $Port)
-Write-Host ('You should see LISTENING on 127.0.0.1:{0} by codex.exe' -f $Port)

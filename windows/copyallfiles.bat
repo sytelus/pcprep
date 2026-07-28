@@ -1,1 +1,2 @@
-robocopy %1 %2 /E /Z /COPY:DAT /DCOPY:DATE /R:1 /V /FP /ETA
+robocopy %1 %2 /E /J /COPY:DTA /DCOPY:DATE /FFT /R:0 /W:0 /V /FP /ETA /V /FP /SJ /SL /ETA /XD "System Volume Information" /XD "Windows" /xf pagefile.sys /xf swapfile.sys /XD "Intel" /XD "SWSetup" /xf ubuntu22-base.tar  /xf hiberfil.sys /XD "Windows Defender" /xf "DropboxUpdate.log*" /XD "Config.Msi" /XD ".conda" /XD "anaconda2" /XD "Qt" /XD "anaconda3" /XD "boost_*" /XD "AadBrokerPlugin" /XD "$Windows.~WS" /XD "$WINDOWS.~BT" /XD "Config.Msi" /XD "PerfLogs" /XD "system.sav" /XD "All Users" /XD "bazel" /XD "fontconfig" /XD "gnome-software"  /LOG:c:\temp\copyallfiles_%RANDOM%%RANDOM%.log /TEE
+

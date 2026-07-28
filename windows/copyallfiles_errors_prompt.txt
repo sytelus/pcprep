@@ -1,0 +1,1 @@
+The log at "C:\temp\copyallfiles_%1.log" contains file copy log from robocopy. Filter out all copy errors from this log file and then examine those errors and create a report containing summary of top level locations where these errors occurred, your best estimate of why those copy failed and statistics like count of errors.
