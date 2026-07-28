@@ -8,19 +8,20 @@ Installs the shared Python and machine-learning tools used on this PC.
 The script activates Conda's base environment, upgrades pip, installs the
 requested packages, and finishes with dependency and PyTorch tests.
 
-The combined package set currently requires Python 3.10 through 3.13. If Conda
-base uses a different Python version, the script preserves base and
-automatically creates and uses a small environment named "pcprep-ml" with
-Python 3.12.
+All packages are installed directly into Conda's base environment. The script
+requires a Python version supported by the current stable PyTorch release.
 
-On Windows, current TensorFlow releases are CPU-only. PyTorch is installed with
-CUDA support when a compatible NVIDIA driver is detected; otherwise its CPU
-build is installed. The CUDA-enabled PyTorch wheel includes its own runtime, so
-the full CUDA Toolkit does not have to be installed separately.
+PyTorch is installed with CUDA support when a compatible NVIDIA driver is
+detected; otherwise its CPU build is installed. The CUDA-enabled PyTorch wheel
+includes its own runtime, so the full CUDA Toolkit does not have to be installed
+separately.
+
+TensorFlow is intentionally not installed. Keras is configured to use the
+installed PyTorch package as its backend.
 
 .EXAMPLE
 cd D:\GitHubSrc\pcprep\windows
-.\pip_installs.ps1
+.\install_pip_packages.ps1
 
 If PowerShell blocks local scripts, allow them only for the current window:
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
@@ -88,7 +89,8 @@ function Get-PythonVersion {
         [string] $PythonPath
     )
 
-    $versionText = & $PythonPath -c 'import sys; print(".".join(map(str, sys.version_info[:3])))'
+    # Avoid embedded quotes so this argument also survives Windows PowerShell 5.1 native parsing.
+    $versionText = & $PythonPath -c 'import sys; print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro, sep=chr(46))'
     if ($LASTEXITCODE -ne 0) {
         throw "Could not determine the Python version from $PythonPath."
     }
@@ -147,46 +149,13 @@ if ($env:CONDA_DEFAULT_ENV -ne 'base') {
 }
 
 $basePython = Join-Path $condaBase 'python.exe'
-$basePythonVersion = Get-PythonVersion -PythonPath $basePython
 $targetEnvironment = 'base'
-
-# TensorFlow and PyTorch's overlapping supported range determines whether base is usable.
-if (($basePythonVersion.Major -ne 3) -or
-    ($basePythonVersion.Minor -lt 10) -or
-    ($basePythonVersion.Minor -gt 13)) {
-    $targetEnvironment = 'pcprep-ml'
-    Write-Warning "Conda base uses Python $basePythonVersion, which current TensorFlow does not support."
-    Write-Host 'Using the Python 3.12 Conda environment "pcprep-ml" instead.'
-
-    $environmentJson = & $condaExe env list --json
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Conda could not list its environments.'
-    }
-
-    $environmentList = $environmentJson | ConvertFrom-Json
-    $environmentExists = @($environmentList.envs | Where-Object {
-            (Split-Path -Path $_ -Leaf) -eq $targetEnvironment
-        }).Count -gt 0
-
-    if (-not $environmentExists) {
-        Invoke-ExternalCommand -FilePath $condaExe `
-            -ArgumentList @('create', '--name', $targetEnvironment, '--yes', 'python=3.12', 'pip') `
-            -Description "Creating Conda environment $targetEnvironment"
-    }
-
-    conda activate $targetEnvironment
-    if ($env:CONDA_DEFAULT_ENV -ne $targetEnvironment) {
-        throw "Conda environment $targetEnvironment could not be activated."
-    }
-}
-
-$pythonCommand = Get-Command python.exe -ErrorAction Stop
-$pythonExe = $pythonCommand.Source
+$pythonExe = $basePython
 $pythonVersion = Get-PythonVersion -PythonPath $pythonExe
 if (($pythonVersion.Major -ne 3) -or
     ($pythonVersion.Minor -lt 10) -or
-    ($pythonVersion.Minor -gt 13)) {
-    throw "The selected environment uses Python $pythonVersion; this package set requires Python 3.10 through 3.13."
+    ($pythonVersion.Minor -gt 14)) {
+    throw "Conda base uses Python $pythonVersion; current stable PyTorch on Windows requires Python 3.10 through 3.14."
 }
 
 Write-Host "Installing into Conda environment '$targetEnvironment' with Python $pythonVersion."
@@ -198,12 +167,12 @@ $nvidiaInfo = Get-NvidiaDriverInfo
 $torchIndexUrl = 'https://download.pytorch.org/whl/cpu'
 $expectCuda = $false
 
-if ($nvidiaInfo.Available -and ($nvidiaInfo.CudaVersion -ge [version]'13.0')) {
-    $torchIndexUrl = 'https://download.pytorch.org/whl/cu130'
+if ($nvidiaInfo.Available -and ($nvidiaInfo.CudaVersion -ge [version]'13.2')) {
+    $torchIndexUrl = 'https://download.pytorch.org/whl/cu132'
     $expectCuda = $true
 }
-elseif ($nvidiaInfo.Available -and ($nvidiaInfo.CudaVersion -ge [version]'12.8')) {
-    $torchIndexUrl = 'https://download.pytorch.org/whl/cu128'
+elseif ($nvidiaInfo.Available -and ($nvidiaInfo.CudaVersion -ge [version]'13.0')) {
+    $torchIndexUrl = 'https://download.pytorch.org/whl/cu130'
     $expectCuda = $true
 }
 elseif ($nvidiaInfo.Available -and ($nvidiaInfo.CudaVersion -ge [version]'12.6')) {
@@ -223,22 +192,60 @@ else {
     Write-Host 'No usable NVIDIA driver was detected; installing the PyTorch CPU wheel.'
 }
 
+Write-Host 'Removing TorchAudio as requested...'
+Invoke-ExternalCommand -FilePath $pythonExe `
+    -ArgumentList @('-m', 'pip', 'uninstall', '--yes', 'torchaudio') `
+    -Description 'Removing TorchAudio'
+
 Invoke-ExternalCommand -FilePath $pythonExe `
     -ArgumentList @(
         '-m', 'pip', 'install', '--upgrade',
-        # PyTorch 2.11 is the newest official release with a matching torchaudio wheel.
-        'torch==2.11.0', 'torchvision==0.26.0', 'torchaudio==2.11.0',
+        # No version pins: the production PyTorch index supplies its latest stable builds.
+        'torch', 'torchvision',
         '--index-url', $torchIndexUrl
     ) `
     -Description 'Installing PyTorch'
 
-Write-Host 'Installing TensorFlow, Keras, and TensorBoard (CPU on native Windows)...'
+Write-Host 'Installing Keras and TensorBoard...'
 Invoke-ExternalCommand -FilePath $pythonExe `
     -ArgumentList @(
         '-m', 'pip', 'install', '--upgrade',
-        'tensorflow', 'keras', 'tensorboard'
+        'keras', 'tensorboard'
     ) `
-    -Description 'Installing the TensorFlow packages'
+    -Description 'Installing Keras and TensorBoard'
+
+Write-Host 'Configuring Keras to use its PyTorch backend...'
+$kerasConfiguration = @'
+import json
+import os
+from pathlib import Path
+
+keras_home = Path(os.environ.get("KERAS_HOME", Path.home() / ".keras"))
+config_path = keras_home / "keras.json"
+config = {}
+
+if config_path.exists():
+    with config_path.open(encoding="utf-8-sig") as config_file:
+        config = json.load(config_file)
+    if not isinstance(config, dict):
+        raise TypeError(f"Expected a JSON object in {config_path}.")
+
+if config.get("backend") != "torch":
+    config["backend"] = "torch"
+    keras_home.mkdir(parents=True, exist_ok=True)
+    temporary_path = config_path.with_suffix(".json.tmp")
+    temporary_path.write_text(json.dumps(config, indent=4) + "\n", encoding="utf-8")
+    temporary_path.replace(config_path)
+
+print(f"Keras backend configured as torch in {config_path}")
+'@
+$kerasConfiguration | & $pythonExe -
+if ($LASTEXITCODE -ne 0) {
+    throw "Configuring Keras failed with exit code $LASTEXITCODE."
+}
+
+# Make the backend choice unambiguous for the verification process too.
+$env:KERAS_BACKEND = 'torch'
 
 $otherPackages = @(
     'nvitop',
@@ -270,14 +277,17 @@ Invoke-ExternalCommand -FilePath $pythonExe `
 
 $expectedCudaLiteral = if ($expectCuda) { 'True' } else { 'False' }
 $pytorchTest = @"
+import keras
 import torch
-import torchaudio
 import torchvision
 
 expected_cuda = $expectedCudaLiteral
+if keras.backend.backend() != "torch":
+    raise SystemExit(f"Keras selected the unexpected backend: {keras.backend.backend()}")
+print(f"Keras {keras.__version__} PyTorch backend test passed")
 cpu_tensor = torch.rand(3, 3)
 print(f"PyTorch {torch.__version__} CPU test passed: shape={tuple(cpu_tensor.shape)}")
-print(f"TorchVision {torchvision.__version__}; TorchAudio {torchaudio.__version__}")
+print(f"TorchVision {torchvision.__version__}")
 print(f"CUDA available to PyTorch: {torch.cuda.is_available()}")
 
 if expected_cuda:
@@ -289,9 +299,12 @@ if expected_cuda:
 "@
 
 Write-Host 'Testing PyTorch...'
-Invoke-ExternalCommand -FilePath $pythonExe `
-    -ArgumentList @('-c', $pytorchTest) `
-    -Description 'PyTorch verification'
+# Feed the test through standard input. Windows PowerShell 5.1 can remove quote
+# characters from multiline Python passed as a native executable argument.
+$pytorchTest | & $pythonExe -
+if ($LASTEXITCODE -ne 0) {
+    throw "PyTorch verification failed with exit code $LASTEXITCODE."
+}
 
 Write-Host ''
 Write-Host "Installation and tests completed successfully in Conda environment '$targetEnvironment'."

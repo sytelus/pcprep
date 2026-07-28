@@ -1,28 +1,31 @@
-PAUSE Make sure to run from admin command!
+@echo off
+echo ****** System Perf Optimizations ********
+echo Turn off Delivery Optimization peer sharing
+echo Turn off Optional diagnostic data and Personalized offers under Settings → Privacy & security → Diagnostics & feedback
+echo Stop all dell Windows services, LogiSyncStub services, debugregsvc  and set them as disabled
+echo
+echo Manual installs: Git, Chrome, Dropbox, VSCode, VS2019, Teams, OneNote, Beyond Compare, GitHub Desktop, Camtasia
+echo Optional: https://www.techpowerup.com/download/techpowerup-throttlestop/
+echo
+echo create new bookmark and copy code from "copy with title bookmarklet.js" in URL
 
-PAUSE Manual installs: Git, Chrome, Dropbox, VSCode, VS2019, Teams, OneNote, Beyond Compare
-PAUSE Manual installs: GitHub Desktop, Camtasia
-REM Optional: https://www.techpowerup.com/download/techpowerup-throttlestop/
+@echo on
+
+PAUSE Make sure to run from admin command!
 
 REM install codex and claude
 powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
 powershell -ExecutionPolicy ByPass -c "irm https://claude.ai/install.ps1 | iex"
 
-REM call install_gsudo.bat
+call aliases.reg.bat
 call install_choco.bat
 call gitconfig.bat
 call utilities.bat
+call hide_gallery.bat
 
-REM regedit /s aliases.reg
-REM regedit /s LongPathEnabled.reg
 regedit /s processor_performance_boost_mode.reg
 
-REM call install_anaconda.bat
-call install_python.bat
-call install_ml.bat
-call install_rl.bat
-REM call gitclones.bat
+powershell -Command "&{ Start-Process powershell -ArgumentList '-File enable_hidden_power.ps1' -Verb RunAs}"
+powershell -Command "&{ Start-Process powershell -ArgumentList '-File install_miniconda.ps1' -Verb RunAs}"
+powershell -Command "&{ Start-Process powershell -ArgumentList '-File install_pip_packages.ps1' -Verb RunAs}"
 
-REM install code face fonts
-powershell -Command "&{ Start-Process powershell -ArgumentList '-File codeface.ps1' -Verb RunAs}"
-PAUSE
