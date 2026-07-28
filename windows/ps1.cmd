@@ -1,13 +1,19 @@
-set filepath="%~dpn1.ps1"
-
 @echo off
-set RESTVAR=
-shift
-:loop1
-if "%~1"=="" goto after_loop
-set RESTVAR=%RESTVAR% %1
-shift
-goto loop1
+setlocal EnableExtensions DisableDelayedExpansion
 
-:after_loop
-PowerShell -NoProfile -ExecutionPolicy Bypass -File %filepath% %RESTVAR%
+REM Runs the .ps1 file with the same path and base name as the first argument.
+REM A PowerShell helper forwards all remaining arguments without an LF-sensitive
+REM batch label loop.
+
+if "%~1"=="" (
+    echo Usage: %~nx0 path-to-command-file [arguments...]
+    exit /b 2
+)
+
+if not exist "%~dp0ps1_runner.ps1" (
+    echo ERROR: Required helper script was not found: %~dp0ps1_runner.ps1
+    exit /b 1
+)
+
+PowerShell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ps1_runner.ps1" %*
+exit /b %ERRORLEVEL%
