@@ -31,6 +31,8 @@ if /i "%~1"=="preflight" (
         "prepare_new_box_helper.bat"
         "processor_performance_boost_mode.reg"
         "enable_hidden_power.ps1"
+        "install_rust_prerequisites.ps1"
+        "configure_rust.ps1"
         "install_miniconda.ps1"
         "install_pip_packages.ps1"
     ) do (
@@ -121,15 +123,26 @@ if /i "%~1"=="admin-phase" (
     echo.
     echo ===== Administrator-only setup =====
 
-    call "%~dp0utilities_helper.bat" winget "Chocolatey.Chocolatey"
-    if errorlevel 1 (
-        echo ERROR: Administrator-only setup did not complete.
-        exit /b 1
+    REM A direct Chocolatey installation is not registered as a WinGet package.
+    REM Detect its standard executable before asking WinGet to install it again.
+    if not exist "%ProgramData%\chocolatey\bin\choco.exe" (
+        call "%~dp0utilities_helper.bat" winget "Chocolatey.Chocolatey"
+        if errorlevel 1 (
+            echo ERROR: Administrator-only setup did not complete.
+            exit /b 1
+        )
     )
 
     if exist "%ProgramData%\chocolatey\bin\choco.exe" set "PATH=%ProgramData%\chocolatey\bin;%PATH%"
     where choco.exe >nul 2>&1 || (
         echo ERROR: Chocolatey was installed, but choco.exe could not be located.
+        echo ERROR: Administrator-only setup did not complete.
+        exit /b 1
+    )
+
+    "%~3" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~2install_rust_prerequisites.ps1"
+    if errorlevel 1 (
+        echo ERROR: Could not install or verify the Visual C++ prerequisites for Rust.
         echo ERROR: Administrator-only setup did not complete.
         exit /b 1
     )

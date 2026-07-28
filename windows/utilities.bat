@@ -76,13 +76,16 @@ call "%HELPER%" winget "OpenJS.NodeJS.LTS" || exit /b 1
 call "%HELPER%" winget "Kitware.CMake" || exit /b 1
 call "%HELPER%" winget "Inkscape.Inkscape" || exit /b 1
 call "%HELPER%" winget "PuTTY.PuTTY" || exit /b 1
-call "%HELPER%" winget "BlenderFoundation.Blender" || exit /b 1
+REM The community package currently receives a Cloudflare challenge from
+REM download.blender.org. The official Microsoft Store listing avoids that URL.
+call "%HELPER%" winget-store "9PP3C07GTVRH" "Blender" || exit /b 1
 
 REM FALLBACK: Fira Code and Cascadia Code are not currently in the stable WinGet
 REM application catalog. Install them with Chocolatey only when Chocolatey is available.
+if exist "%ProgramData%\chocolatey\bin\choco.exe" set "PATH=%ProgramData%\chocolatey\bin;%PATH%"
 where choco.exe >nul 2>&1
 if errorlevel 1 (
-    echo INFO: Skipping Fira Code and Cascadia Code because Chocolatey is not installed.
+    echo INFO: Skipping Fira Code and Cascadia Code because Chocolatey could not be located.
 ) else (
     call "%HELPER%" chocolatey firacode cascadiacode || exit /b 1
 )

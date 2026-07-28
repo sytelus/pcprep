@@ -17,6 +17,22 @@ if /i "%~1"=="winget" (
     exit /b 0
 )
 
+if /i "%~1"=="winget-store" (
+    if "%~2"=="" (
+        echo ERROR: utilities_helper.bat winget-store requires a Store product ID.
+        exit /b 2
+    )
+
+    echo.
+    echo Ensuring %~3 [%~2] is installed and current from Microsoft Store...
+    winget install --id "%~2" --source msstore --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+    if errorlevel 1 (
+        echo ERROR: WinGet could not install or update %~3 [%~2] from Microsoft Store.
+        exit /b 1
+    )
+    exit /b 0
+)
+
 if /i "%~1"=="chocolatey" (
     if "%~2"=="" (
         echo ERROR: utilities_helper.bat chocolatey requires two package names.
