@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions DisableDelayedExpansion
 
 REM git config --global merge.tool bc trustExitCode true
 REM git config --global mergetool.bc.path "c:/Program Files/Beyond Compare 4/bcomp.exe"
@@ -8,14 +8,17 @@ REM git config --global difftool.bc.path "c:/Program Files/Beyond Compare 4/bcom
 REM git config --global --add difftool.prompt false
 REM git config --global core.autocrlf true
 
-REM Prompt only if not already set via environment.
-if not defined user_name set /p "user_name=Enter your git username: "
-if not defined user_email set /p "user_email=Enter your git email: "
-
 where git.exe >nul 2>&1 || (
     echo ERROR: Git was not found on PATH.
     exit /b 1
 )
+
+REM Environment variables take precedence. Otherwise preserve an existing Git
+REM identity and prompt only when no value has been configured yet.
+if not defined user_name for /f "usebackq delims=" %%V in (`git config --global --get user.name 2^>nul`) do set "user_name=%%V"
+if not defined user_email for /f "usebackq delims=" %%V in (`git config --global --get user.email 2^>nul`) do set "user_email=%%V"
+if not defined user_name set /p "user_name=Enter your git user name: "
+if not defined user_email set /p "user_email=Enter your git email: "
 
 if not defined user_name (
     echo ERROR: Git user name cannot be empty.

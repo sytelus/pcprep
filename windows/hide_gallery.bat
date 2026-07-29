@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions DisableDelayedExpansion
 
 REM hides the Gallery link in Windows explorer
 

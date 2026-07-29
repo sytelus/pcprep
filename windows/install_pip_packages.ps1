@@ -5,8 +5,8 @@
 Installs the shared Python and machine-learning tools used on this PC.
 
 .DESCRIPTION
-The script activates Conda's base environment, upgrades pip, installs the
-requested packages, and finishes with dependency and PyTorch tests.
+The script targets Conda's base environment directly, upgrades pip, installs
+the requested packages, and finishes with dependency and PyTorch tests.
 
 All packages are installed directly into Conda's base environment. The script
 requires a Python version supported by the current stable PyTorch release.
@@ -89,8 +89,10 @@ function Get-PythonVersion {
         [string] $PythonPath
     )
 
-    # Avoid embedded quotes so this argument also survives Windows PowerShell 5.1 native parsing.
-    $versionText = & $PythonPath -c 'import sys; print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro, sep=chr(46))'
+    # Avoid embedded quotes so this also survives Windows PowerShell 5.1 native parsing.
+    $versionExpression =
+        'import sys; print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro, sep=chr(46))'
+    $versionText = & $PythonPath -c $versionExpression
     if ($LASTEXITCODE -ne 0) {
         throw "Could not determine the Python version from $PythonPath."
     }
@@ -137,20 +139,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $condaBase = ($condaBaseOutput | Select-Object -Last 1).Trim()
-$condaHook = Join-Path $condaBase 'shell\condabin\conda-hook.ps1'
-if (-not (Test-Path -LiteralPath $condaHook -PathType Leaf)) {
-    throw "Conda's PowerShell activation hook was not found at $condaHook."
-}
-
-. $condaHook
-conda activate base
-if ($env:CONDA_DEFAULT_ENV -ne 'base') {
-    throw 'Conda base could not be activated.'
-}
-
 $basePython = Join-Path $condaBase 'python.exe'
 $targetEnvironment = 'base'
 $pythonExe = $basePython
+if (-not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
+    throw "Conda's base Python executable was not found: $pythonExe"
+}
 $pythonVersion = Get-PythonVersion -PythonPath $pythonExe
 if (($pythonVersion.Major -ne 3) -or
     ($pythonVersion.Minor -lt 10) -or
@@ -166,18 +160,29 @@ Invoke-ExternalCommand -FilePath $pythonExe `
 $nvidiaInfo = Get-NvidiaDriverInfo
 $torchIndexUrl = 'https://download.pytorch.org/whl/cpu'
 $expectCuda = $false
+$cudaWheelOptions = @(
+    [pscustomobject]@{
+        MinimumDriverCuda = [version]'13.2'
+        IndexUrl          = 'https://download.pytorch.org/whl/cu132'
+    }
+    [pscustomobject]@{
+        MinimumDriverCuda = [version]'13.0'
+        IndexUrl          = 'https://download.pytorch.org/whl/cu130'
+    }
+    [pscustomobject]@{
+        MinimumDriverCuda = [version]'12.6'
+        IndexUrl          = 'https://download.pytorch.org/whl/cu126'
+    }
+)
 
-if ($nvidiaInfo.Available -and ($nvidiaInfo.CudaVersion -ge [version]'13.2')) {
-    $torchIndexUrl = 'https://download.pytorch.org/whl/cu132'
-    $expectCuda = $true
-}
-elseif ($nvidiaInfo.Available -and ($nvidiaInfo.CudaVersion -ge [version]'13.0')) {
-    $torchIndexUrl = 'https://download.pytorch.org/whl/cu130'
-    $expectCuda = $true
-}
-elseif ($nvidiaInfo.Available -and ($nvidiaInfo.CudaVersion -ge [version]'12.6')) {
-    $torchIndexUrl = 'https://download.pytorch.org/whl/cu126'
-    $expectCuda = $true
+if ($nvidiaInfo.Available) {
+    foreach ($option in $cudaWheelOptions) {
+        if ($nvidiaInfo.CudaVersion -ge $option.MinimumDriverCuda) {
+            $torchIndexUrl = $option.IndexUrl
+            $expectCuda = $true
+            break
+        }
+    }
 }
 
 if ($expectCuda) {
@@ -185,7 +190,10 @@ if ($expectCuda) {
     Write-Host "Installing the PyTorch CUDA wheel from $torchIndexUrl."
 }
 elseif ($nvidiaInfo.Available) {
-    Write-Warning "The NVIDIA driver reports CUDA $($nvidiaInfo.CudaVersion), below the supported PyTorch CUDA wheel versions."
+    Write-Warning (
+        'The NVIDIA driver reports CUDA {0}, below the supported PyTorch CUDA wheel versions.' -f
+            $nvidiaInfo.CudaVersion
+    )
     Write-Host 'Installing the PyTorch CPU wheel.'
 }
 else {

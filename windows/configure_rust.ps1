@@ -1,3 +1,5 @@
+#Requires -Version 5.1
+
 <#
 .SYNOPSIS
 Configures and smoke-tests the stable 64-bit Rust MSVC toolchain.
@@ -7,7 +9,8 @@ Updates the stable x86_64-pc-windows-msvc toolchain, makes it the default, and
 compiles and runs a small temporary program. The compile test verifies that
 rustc can find the MSVC linker and Windows SDK installed by the elevated phase.
 
-This script is invoked by prepapre_new_box.bat after Rustup is installed.
+This script is invoked by prepare_new_box.ps1 after Rustup is installed and the
+native prerequisites have been verified.
 #>
 
 [CmdletBinding()]
@@ -15,6 +18,10 @@ param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not [Environment]::Is64BitOperatingSystem) {
+    throw 'The x64 Rust MSVC toolchain requires 64-bit Windows.'
+}
 
 $cargoBin = Join-Path $env:USERPROFILE '.cargo\bin'
 if (($env:Path -split ';') -notcontains $cargoBin) {
@@ -37,9 +44,10 @@ function Invoke-Rustup {
 }
 
 Write-Host "Installing or updating Rust toolchain: $toolchain"
+# `toolchain install` is idempotent and synchronizes an existing channel, so a
+# separate `rustup update` would only repeat the same network and update work.
 Invoke-Rustup -Arguments @('toolchain', 'install', $toolchain, '--profile', 'default')
 Invoke-Rustup -Arguments @('default', $toolchain)
-Invoke-Rustup -Arguments @('update', $toolchain)
 
 $rustc = (Get-Command rustc.exe -ErrorAction Stop).Source
 $cargo = (Get-Command cargo.exe -ErrorAction Stop).Source
@@ -83,4 +91,3 @@ finally {
 
 Write-Host ($rustcDetails -join [Environment]::NewLine)
 Write-Host 'Rust stable MSVC toolchain is installed and working.'
-exit 0

@@ -39,6 +39,10 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if (-not [Environment]::Is64BitOperatingSystem) {
+    throw 'The x64 Miniconda installer requires 64-bit Windows.'
+}
+
 $installerUri = 'https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe'
 $installDirectory = Join-Path $env:USERPROFILE 'miniconda3'
 $condaExecutable = Join-Path $installDirectory 'Scripts\conda.exe'
@@ -157,7 +161,8 @@ if (-not $existingInstallation) {
         }
 
         if (($signature.Status -ne 'Valid') -or ($signerName -notmatch '(?i)Anaconda')) {
-            throw "The downloaded installer does not have a valid Anaconda signature. Status: $($signature.Status); signer: $signerName"
+            $signatureDetails = "Status: $($signature.Status); signer: $signerName"
+            throw "The downloaded installer does not have a valid Anaconda signature. $signatureDetails"
         }
 
         Write-Host "Installing Miniconda for the current user in $installDirectory..."
@@ -165,6 +170,7 @@ if (-not $existingInstallation) {
         Invoke-NativeCommand -FilePath $installerPath `
             -ArgumentList @(
                 '/InstallationType=JustMe',
+                '/AddToPath=0',
                 '/RegisterPython=0',
                 '/S',
                 "/D=$installDirectory"

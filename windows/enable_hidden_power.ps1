@@ -37,8 +37,9 @@ $powerCfgPath = Join-Path $env:SystemRoot 'System32\powercfg.exe'
 
 # These settings were selected for this PC after checking its supported sleep
 # states and hardware. Deliberately excluded are S3/hybrid-sleep, battery, lid,
-# presence-sensor, internal-brightness, storage-driver tuning, and low-level
-# processor/OEM tuning settings.
+# presence-sensor, internal-brightness, storage-driver tuning, and most low-level
+# processor/OEM tuning settings. Processor boost mode is included because it is
+# a useful high-level control and was previously exposed by a separate .reg file.
 $settings = @(
     [pscustomobject]@{
         Name                  = 'Require a password on wakeup'
@@ -86,6 +87,12 @@ $settings = @(
         Name                  = 'Power button action'
         SubgroupGuid          = '4f971e89-eebd-4455-a8de-9e59040e7347'
         SettingGuid           = '7648efa3-dd9c-4e3e-b566-50f929386280'
+        RequiresModernStandby = $false
+    }
+    [pscustomobject]@{
+        Name                  = 'Processor performance boost mode'
+        SubgroupGuid          = '54533251-82be-4824-96c1-47b60b740d00'
+        SettingGuid           = 'be337238-0d82-4146-a960-4f3749d470c7'
         RequiresModernStandby = $false
     }
     [pscustomobject]@{

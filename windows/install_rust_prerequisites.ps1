@@ -1,16 +1,24 @@
+#Requires -Version 5.1
+#Requires -RunAsAdministrator
+
 <#
 .SYNOPSIS
 Installs or verifies the native Windows build tools required by Rust's MSVC target.
 
 .DESCRIPTION
 Rust's x64 MSVC toolchain needs the Visual C++ compiler and linker plus Windows
-SDK libraries. This script accepts any existing Visual Studio edition that has
-the required components. Otherwise it installs or modifies Visual Studio Build
-Tools 2022 through WinGet with the Desktop development with C++ workload and its
-recommended components.
+SDK libraries. Any Visual Studio 2017-or-later edition is accepted when it has
+the x64/x86 MSVC tools and a usable Windows 10/11 SDK.
 
-This script is invoked by prepapre_new_box.bat during its elevated phase.
+If those prerequisites are incomplete, WinGet installs or modifies Visual
+Studio Build Tools 2022 with the Desktop development with C++ workload and its
+recommended components. The current Windows 11 SDK component is requested
+explicitly, while verification accepts any installed SDK containing the x64
+Windows API import libraries Rust needs.
 
+This script is invoked by prepare_new_box.ps1 during its elevated phase.
+
+.NOTES
 References:
 https://rust-lang.github.io/rustup/installation/windows-msvc.html
 https://learn.microsoft.com/visualstudio/install/workload-component-id-vs-build-tools
@@ -22,44 +30,110 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$principal = [Security.Principal.WindowsPrincipal]::new(
-    [Security.Principal.WindowsIdentity]::GetCurrent()
-)
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw 'Visual C++ Build Tools installation requires an elevated administrator process.'
+if (-not [Environment]::Is64BitOperatingSystem) {
+    throw 'The x64 Rust MSVC prerequisites require 64-bit Windows.'
 }
 
 $packageId = 'Microsoft.VisualStudio.2022.BuildTools'
 $workloadId = 'Microsoft.VisualStudio.Workload.VCTools'
 $vcToolsComponent = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
-$windowsSdkComponent = 'Microsoft.VisualStudio.Component.Windows11SDK.26100'
+$windowsSdkComponentToInstall = 'Microsoft.VisualStudio.Component.Windows11SDK.26100'
 $vsWherePath = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+$windowsSdkLibraryRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Lib'
+$windowsSdkIncludeRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Include'
 
-function Get-CompatibleVisualStudioInstance {
+function Get-LatestUsableWindowsSdk {
+    if (-not (Test-Path -LiteralPath $windowsSdkLibraryRoot -PathType Container)) {
+        return $null
+    }
+
+    $sdkDirectories = Get-ChildItem -LiteralPath $windowsSdkLibraryRoot -Directory
+    $candidates = foreach ($directory in $sdkDirectories) {
+        $version = $null
+        if (-not [version]::TryParse($directory.Name, [ref]$version)) {
+            continue
+        }
+
+        $kernelLibrary = Join-Path $directory.FullName 'um\x64\kernel32.lib'
+        $universalRuntimeLibrary = Join-Path $directory.FullName 'ucrt\x64\ucrt.lib'
+        $windowsHeader = Join-Path $windowsSdkIncludeRoot "$($directory.Name)\um\Windows.h"
+        if ((Test-Path -LiteralPath $kernelLibrary -PathType Leaf) -and
+            (Test-Path -LiteralPath $universalRuntimeLibrary -PathType Leaf) -and
+            (Test-Path -LiteralPath $windowsHeader -PathType Leaf)) {
+            [pscustomobject]@{
+                Version = $version
+                Path    = $directory.FullName
+            }
+        }
+    }
+
+    return ($candidates | Sort-Object Version -Descending | Select-Object -First 1)
+}
+
+function Get-CompatibleNativeToolchain {
     if (-not (Test-Path -LiteralPath $vsWherePath -PathType Leaf)) {
         return $null
     }
 
-    $result = & $vsWherePath `
-        -latest `
+    $installationPaths = & $vsWherePath `
+        -all `
         -products '*' `
-        -requires $vcToolsComponent $windowsSdkComponent `
+        -requires $vcToolsComponent `
         -property installationPath 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw "vswhere.exe failed with exit code $LASTEXITCODE."
     }
 
-    $match = $result | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
-    if ($match) {
-        return $match.Trim()
+    $windowsSdk = Get-LatestUsableWindowsSdk
+    if (-not $windowsSdk) {
+        return $null
     }
+
+    foreach ($installationPath in $installationPaths) {
+        if ([string]::IsNullOrWhiteSpace($installationPath)) {
+            continue
+        }
+        $installationPath = $installationPath.Trim()
+
+        $toolRoot = Join-Path $installationPath 'VC\Tools\MSVC'
+        $toolsets = foreach ($directory in Get-ChildItem -LiteralPath $toolRoot `
+                -Directory -ErrorAction SilentlyContinue) {
+            $version = $null
+            if ([version]::TryParse($directory.Name, [ref]$version)) {
+                [pscustomobject]@{
+                    Directory = $directory
+                    Version   = $version
+                }
+            }
+        }
+        $toolset = $toolsets |
+            Sort-Object Version -Descending |
+            Where-Object {
+                $compilerPath = Join-Path $_.Directory.FullName `
+                    'bin\Hostx64\x64\cl.exe'
+                $linkerPath = Join-Path $_.Directory.FullName `
+                    'bin\Hostx64\x64\link.exe'
+                (Test-Path -LiteralPath $compilerPath -PathType Leaf) -and
+                    (Test-Path -LiteralPath $linkerPath -PathType Leaf)
+            } |
+            Select-Object -First 1
+        if ($toolset) {
+            return [pscustomobject]@{
+                VisualStudioPath  = $installationPath
+                MsvcVersion       = $toolset.Version.ToString()
+                WindowsSdkVersion = $windowsSdk.Version.ToString()
+            }
+        }
+    }
+
     return $null
 }
 
-$compatibleInstance = Get-CompatibleVisualStudioInstance
-if ($compatibleInstance) {
-    Write-Host "Visual C++ compiler/linker and Windows SDK are already installed: $compatibleInstance"
-    exit 0
+$nativeToolchain = Get-CompatibleNativeToolchain
+if ($nativeToolchain) {
+    Write-Host "Visual C++ prerequisites are already installed: $($nativeToolchain.VisualStudioPath)"
+    Write-Host "MSVC tools: $($nativeToolchain.MsvcVersion); Windows SDK: $($nativeToolchain.WindowsSdkVersion)"
+    return
 }
 
 $winget = (Get-Command winget.exe -ErrorAction Stop).Source
@@ -69,12 +143,12 @@ $installerOverride = @(
     '--norestart'
     "--add $workloadId;includeRecommended"
     "--add $vcToolsComponent"
-    "--add $windowsSdkComponent"
+    "--add $windowsSdkComponentToInstall"
     '--addProductLang En-us'
 ) -join ' '
 
 Write-Host 'Installing Visual Studio Build Tools with the C++ workload, MSVC linker, and Windows SDK...'
-$wingetArguments = @(
+& $winget @(
     'install'
     '--id', $packageId
     '--exact'
@@ -85,15 +159,14 @@ $wingetArguments = @(
     '--disable-interactivity'
     '--override', $installerOverride
 )
-& $winget @wingetArguments
 if ($LASTEXITCODE -ne 0) {
     throw "WinGet could not install the Rust MSVC prerequisites (exit code $LASTEXITCODE)."
 }
 
-$compatibleInstance = Get-CompatibleVisualStudioInstance
-if (-not $compatibleInstance) {
-    throw 'Visual Studio setup completed, but the required MSVC x64/x86 tools and Windows 11 SDK were not detected.'
+$nativeToolchain = Get-CompatibleNativeToolchain
+if (-not $nativeToolchain) {
+    throw 'Visual Studio setup completed, but a working x64 MSVC compiler/linker and Windows SDK were not detected.'
 }
 
-Write-Host "Verified Visual C++ compiler/linker and Windows SDK: $compatibleInstance"
-exit 0
+Write-Host "Verified Visual C++ prerequisites: $($nativeToolchain.VisualStudioPath)"
+Write-Host "MSVC tools: $($nativeToolchain.MsvcVersion); Windows SDK: $($nativeToolchain.WindowsSdkVersion)"
