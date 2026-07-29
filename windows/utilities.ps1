@@ -42,7 +42,8 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$winget = (Get-Command winget.exe -ErrorAction Stop).Source
+$winget = (Get-Command winget.exe -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1).Source
 
 function Install-WinGetPackage {
     param(

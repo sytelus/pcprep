@@ -11,6 +11,17 @@ rustc can find the MSVC linker and Windows SDK installed by the elevated phase.
 
 This script is invoked by prepare_new_box.ps1 after Rustup is installed and the
 native prerequisites have been verified.
+
+.EXAMPLE
+.\configure_rust.ps1
+
+Runs from a normal PowerShell window after Rustup and the native prerequisites
+have been installed.
+
+.EXAMPLE
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\configure_rust.ps1"
+
+Runs from a normal Command Prompt after changing to this script's directory.
 #>
 
 [CmdletBinding()]
@@ -28,7 +39,8 @@ if (($env:Path -split ';') -notcontains $cargoBin) {
     $env:Path = "$cargoBin;$env:Path"
 }
 
-$rustup = (Get-Command rustup.exe -ErrorAction Stop).Source
+$rustup = (Get-Command rustup.exe -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1).Source
 $toolchain = 'stable-x86_64-pc-windows-msvc'
 
 function Invoke-Rustup {
@@ -49,8 +61,10 @@ Write-Host "Installing or updating Rust toolchain: $toolchain"
 Invoke-Rustup -Arguments @('toolchain', 'install', $toolchain, '--profile', 'default')
 Invoke-Rustup -Arguments @('default', $toolchain)
 
-$rustc = (Get-Command rustc.exe -ErrorAction Stop).Source
-$cargo = (Get-Command cargo.exe -ErrorAction Stop).Source
+$rustc = (Get-Command rustc.exe -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1).Source
+$cargo = (Get-Command cargo.exe -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1).Source
 
 $rustcDetails = & $rustc -Vv
 if ($LASTEXITCODE -ne 0) {

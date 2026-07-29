@@ -1,13 +1,13 @@
 condaa=conda activate
 ls=dir /B $*
-grevertall=cmd.exe /d /c "git reset --hard && git reset --hard origin/master && git clean -f -d"
+grevertall=cmd.exe /d /c "git reset --hard origin/master && git clean -f -d"
 grevertfile=git checkout -- $1
 gstat=git status
 gpush=git push
 gpull=git pull
 gpullr=git pull --rebase
 gdiff=git difftool $*
-gcommit=cmd.exe /d /c "git add -A :/ && git commit -m $*"
+gcommit=set "GITMSG=$*"$T powershell -NoProfile -Command "$$msg = $$env:GITMSG; if ($$msg) { $$msg = $$msg.Trim(); $$msg = $$msg.Trim([char]34) }; if (-not $$msg) { Write-Error 'Commit message is required'; exit 2 }; git add -A :/; if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; git commit -m $$msg; exit $$LASTEXITCODE"
 gtag=cmd.exe /d /c "git tag -a $1 -m $2 && git push --tags"
 gclean=git clean -fdx
 gcln=git clean -fdx

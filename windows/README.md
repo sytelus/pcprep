@@ -241,16 +241,23 @@ command. Before the first replacement, the script exports the existing Command
 Processor key to
 `%LOCALAPPDATA%\pcprep\command-processor-before-pcprep.reg`. Review the existing
 value before running if another program manages it; the backup is preserved on
-later runs rather than being overwritten.
+later runs rather than being overwritten. Setup stops without changing the
+registry if an existing key cannot be backed up.
 
 Several aliases are intentionally powerful and should be used carefully:
 
 - `grevertall` discards local changes and untracked files, then resets to
   `origin/master`.
 - `gclean` runs `git clean -fdx` and deletes ignored as well as untracked files.
+- `gcommit` stages all repository changes and commits them; `checkin` also
+  pushes the resulting commit.
+- `gtag` creates an annotated tag and pushes all local tags. `gdeletebranch`
+  and `gdelbra` delete a branch from `origin` before deleting it locally.
 - `mirfiles` uses `robocopy /MIR`; files absent from the source can be deleted
   from the destination.
-- `checkin` stages all changes, commits, and pushes.
+- `mvx` and `smv` remove source files after successful Robocopy transfers.
+- `removepass` interactively rewrites selected SSH private-key passphrases.
+- `nvreset` attempts to reset NVIDIA GPU 0 and can interrupt GPU work.
 - `claudeyolo` and `codexyolo` disable normal permission safeguards.
 - `skillall` cancels all of the current user's Slurm jobs after confirmation.
 
@@ -258,6 +265,18 @@ Alternative names such as `gcln`/`gclean`, `cpx`/`cpz`/`copynewfiles`, and
 `tmuxx`/`start-tmux` are retained intentionally for command-line muscle memory.
 Their command definitions are duplicated because DOSKEY does not reliably
 perform recursive macro expansion when one macro merely names another.
+
+## Git configuration
+
+`gitconfig.bat` changes the current user's global Git configuration. It
+preserves an existing name and email, or reads `user_name` and `user_email`
+environment variables before prompting. It configures LF commits with
+checkout-as-is behavior (`core.autocrlf=input` and `core.eol=lf`), VS Code as
+the editor and diff/merge tool, and rebasing for `git pull`.
+
+The script also rewrites GitHub HTTPS repository URLs to SSH through a global
+`url.*.insteadOf` rule. Make sure GitHub SSH authentication is configured, or
+remove that rule if HTTPS credentials are preferred.
 
 ## Failure behavior and troubleshooting
 
@@ -271,17 +290,14 @@ perform recursive macro expansion when one macro merely names another.
 - A reboot may be required after Visual Studio Build Tools or Chocolatey reports
   a reboot-required result.
 
-Git configuration also rewrites GitHub HTTPS repository URLs to SSH through a
-global `url.*.insteadOf` rule. Make sure GitHub SSH authentication is configured,
-or remove that rule if HTTPS credentials are preferred.
-
 ## File layout
 
 - `prepare_new_box.ps1`: orchestration, elevation, package setup, and errors.
 - `utilities.ps1`: data-driven application and service configuration.
 - `install_choco.bat`: standalone Chocolatey bootstrap using Chocolatey's
   published install command. The complete setup does not call it; it installs
-  Chocolatey through WinGet instead.
+  Chocolatey through WinGet instead. Run the standalone file only from an
+  elevated Command Prompt, and review Chocolatey's downloaded script first.
 - `install_rust_prerequisites.ps1` and `configure_rust.ps1`: Rust/MSVC setup.
 - `install_miniconda.ps1` and `install_pip_packages.ps1`: Python environment.
 - `enable_hidden_power.ps1`: reviewed power-setting visibility allowlist.

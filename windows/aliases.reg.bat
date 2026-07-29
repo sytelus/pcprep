@@ -17,16 +17,26 @@ if not exist "%INSTALL_DIRECTORY%" (
     echo ERROR: Could not create the aliases directory: %INSTALL_DIRECTORY%
     exit /b 1
 )
+
+REM Preserve the original Command Processor settings only once. Repeated setup
+REM runs must not overwrite this backup with pcprep's own AutoRun value.
+if not exist "%AUTORUN_BACKUP%" (
+    reg.exe query "HKEY_CURRENT_USER\Software\Microsoft\Command Processor" >nul 2>&1
+    if not errorlevel 1 (
+        reg.exe export "HKEY_CURRENT_USER\Software\Microsoft\Command Processor" ^
+            "%AUTORUN_BACKUP%" /y >nul 2>&1
+        if errorlevel 1 (
+            echo ERROR: Existing Command Processor settings could not be backed up.
+            echo No registry values were changed.
+            exit /b 1
+        )
+    )
+)
+
 copy /y "%SOURCE_FILE%" "%ALIASES_FILE%" >nul || (
     echo ERROR: Could not install Command Prompt aliases in %ALIASES_FILE%.
     exit /b 1
 )
-
-REM Preserve the original Command Processor settings only once. Repeated setup
-REM runs must not overwrite this backup with pcprep's own AutoRun value.
-if not exist "%AUTORUN_BACKUP%" reg.exe export ^
-    "HKEY_CURRENT_USER\Software\Microsoft\Command Processor" ^
-    "%AUTORUN_BACKUP%" /y >nul 2>&1
 
 reg.exe add "HKEY_CURRENT_USER\Software\Microsoft\Command Processor" ^
     /v AutoRun ^

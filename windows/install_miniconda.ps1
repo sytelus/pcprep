@@ -28,6 +28,11 @@ cd D:\GitHubSrc\pcprep\windows
 If PowerShell blocks local scripts, first run:
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 
+.EXAMPLE
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\install_miniconda.ps1"
+
+Runs from a normal Command Prompt after changing to this script's directory.
+
 .NOTES
 Run from a normal PowerShell window, not an administrator window. Open a new
 terminal after completion so it receives the updated PATH and profile setup.

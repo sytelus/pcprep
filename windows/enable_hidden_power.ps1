@@ -23,6 +23,11 @@ Hides the allowlisted settings instead of showing them.
 
 .EXAMPLE
 .\enable_hidden_power.ps1 -Undo
+
+.EXAMPLE
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\enable_hidden_power.ps1" -WhatIf
+
+Previews the changes from an elevated Command Prompt.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
@@ -144,7 +149,8 @@ function Test-SettingIsVisible {
 }
 
 $sleepStateOutput = (Invoke-PowerCfg -Arguments @('/availablesleepstates')) -join [Environment]::NewLine
-$hasModernStandby = $sleepStateOutput -match 'Standby \(S0 Low Power Idle\)'
+# The S0 state name is localized, but the parenthesized ACPI state token is not.
+$hasModernStandby = $sleepStateOutput -match '\(S0\b'
 $allSettingsQueryOutput = (Invoke-PowerCfg -Arguments @('/qh')) -join [Environment]::NewLine
 $initialQueryOutput = (Invoke-PowerCfg -Arguments @('/query')) -join [Environment]::NewLine
 $attributeAction = if ($Undo) { '+ATTRIB_HIDE' } else { '-ATTRIB_HIDE' }

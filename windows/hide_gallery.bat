@@ -1,7 +1,8 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 
-REM hides the Gallery link in Windows explorer
+REM Hide the Gallery navigation-pane item for the current user. This does not
+REM delete files or disable the underlying Windows Gallery feature.
 
 reg.exe add "HKEY_CURRENT_USER\Software\Classes\CLSID\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}" ^
     /v "System.IsPinnedToNameSpaceTree" ^

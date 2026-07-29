@@ -26,6 +26,11 @@ cd D:\GitHubSrc\pcprep\windows
 If PowerShell blocks local scripts, allow them only for the current window:
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 
+.EXAMPLE
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\install_pip_packages.ps1"
+
+Runs from a normal Command Prompt after changing to this script's directory.
+
 .NOTES
 Run this from a normal PowerShell window; administrator rights are not needed.
 The machine-learning packages are large, so installation can take some time.
@@ -44,7 +49,9 @@ function Find-CondaExecutable {
         $candidates += $env:CONDA_EXE
     }
 
-    $condaOnPath = Get-Command conda.exe -ErrorAction SilentlyContinue
+    $condaOnPath = Get-Command conda.exe -CommandType Application `
+        -ErrorAction SilentlyContinue |
+        Select-Object -First 1
     if ($condaOnPath) {
         $candidates += $condaOnPath.Source
     }
@@ -101,7 +108,9 @@ function Get-PythonVersion {
 }
 
 function Get-NvidiaDriverInfo {
-    $nvidiaSmi = Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue
+    $nvidiaSmi = Get-Command nvidia-smi.exe -CommandType Application `
+        -ErrorAction SilentlyContinue |
+        Select-Object -First 1
     if (-not $nvidiaSmi) {
         return [pscustomobject]@{
             Available   = $false
@@ -139,9 +148,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $condaBase = ($condaBaseOutput | Select-Object -Last 1).Trim()
-$basePython = Join-Path $condaBase 'python.exe'
 $targetEnvironment = 'base'
-$pythonExe = $basePython
+$pythonExe = Join-Path $condaBase 'python.exe'
 if (-not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
     throw "Conda's base Python executable was not found: $pythonExe"
 }

@@ -40,9 +40,9 @@ git config --global core.autocrlf input || exit /b 1
 
 REM git config --global core.editor "'C:/Program Files (x86)/Notepad++/notepad++.exe' -multiInst -notabbar -nosession -noPlugin"
 git config --global merge.tool vscode || exit /b 1
-git config --global mergetool.vscode.cmd "code --wait $MERGED" || exit /b 1
+git config --global mergetool.vscode.cmd "code --wait \"$MERGED\"" || exit /b 1
 git config --global diff.tool vscode || exit /b 1
-git config --global difftool.vscode.cmd "code --wait --diff $LOCAL $REMOTE" || exit /b 1
+git config --global difftool.vscode.cmd "code --wait --diff \"$LOCAL\" \"$REMOTE\"" || exit /b 1
 git config --global core.editor "code --new-window --wait" || exit /b 1
 
 REM Rebase local commits when pulling divergent history.

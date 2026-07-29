@@ -18,6 +18,16 @@ Windows API import libraries Rust needs.
 
 This script is invoked by prepare_new_box.ps1 during its elevated phase.
 
+.EXAMPLE
+.\install_rust_prerequisites.ps1
+
+Runs from an elevated PowerShell window.
+
+.EXAMPLE
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\install_rust_prerequisites.ps1"
+
+Runs from an elevated Command Prompt after changing to this script's directory.
+
 .NOTES
 References:
 https://rust-lang.github.io/rustup/installation/windows-msvc.html
@@ -136,7 +146,8 @@ if ($nativeToolchain) {
     return
 }
 
-$winget = (Get-Command winget.exe -ErrorAction Stop).Source
+$winget = (Get-Command winget.exe -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1).Source
 $installerOverride = @(
     '--wait'
     '--passive'
