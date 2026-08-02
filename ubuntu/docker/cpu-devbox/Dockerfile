@@ -15,7 +15,6 @@ LABEL org.opencontainers.image.source="https://github.com/sytelus/pcprep" \
 LABEL org.opencontainers.image.title="cpu-devbox"
 LABEL org.opencontainers.image.description="Ubuntu 24.04 interactive terminal devbox with Azure/Git/GH CLI, kubectl/helm, AzCopy, Miniconda+ML stack, and a rich toolbox."
 LABEL org.opencontainers.image.version="2025.09"
-LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.base.name="ubuntu:24.04"
 LABEL org.opencontainers.image.ref.name="cpu-devbox"
 

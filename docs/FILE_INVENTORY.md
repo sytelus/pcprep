@@ -2,7 +2,7 @@
 
 This ledger records the complete pre-documentation repository snapshot reviewed
 on 2026-07-29: **181 files**, excluding `.git/`. Hidden files and the bundled
-binary are included. The new `REAME.md`, root `TODO.md`, and `docs/` files are
+binary are included. The new `README.md`, root `TODO.md`, and `docs/` files are
 outputs of that review and therefore are not part of the 181-file input set.
 
 ## Root and editor/container configuration (4)
@@ -14,9 +14,10 @@ outputs of that review and therefore are not part of the 181-file input set.
 .vscode/launch.json
 ```
 
-`.codex` is an empty marker file. The dev-container definition selects the GPU
-image; the VS Code launch file targets the two root smoke scripts; `.gitignore`
-contains repository exclusions.
+`.codex` is an empty marker file. At snapshot time the dev-container definition
+selected the GPU image; the remediation pass later made CPU the default and
+added an explicit GPU variant. The VS Code launch file targets the two root
+smoke scripts; `.gitignore` contains repository exclusions.
 
 ## Archived Ubuntu and Windows material (15)
 
@@ -208,7 +209,8 @@ ubuntu/docker/cpu-devbox/verify.sh
 
 This is a documented multi-architecture Ubuntu/Miniforge CPU development image
 with local/multiarch build, run, verify, inspect, prune, builder, push, and
-Docker data-migration operations. The migration script has a root P0 blocker.
+Docker data-migration operations. Its initial P0 findings were subsequently
+remediated; this section remains an inventory of the pre-remediation snapshot.
 
 ## GPU devbox (14)
 

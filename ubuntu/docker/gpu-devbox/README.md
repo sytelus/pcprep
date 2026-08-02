@@ -513,4 +513,5 @@ RUN pip install --constraint /opt/base-image-constraints.txt your-package
 
 ## License
 
-MIT - See repository root for details.
+No repository license has been granted. Contact the repository owner before
+copying or redistributing this image definition.

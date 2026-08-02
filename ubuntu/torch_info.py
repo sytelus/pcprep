@@ -94,6 +94,7 @@ class SystemInfoCollector:
 
     def collect_all(self) -> OrderedDict:
         """Collect all available information."""
+        self.collect_basic_info()
         # Collect PyTorch-specific information first
         self.collect_gpu_info()
         self.collect_pytorch_info()

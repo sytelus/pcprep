@@ -5,7 +5,7 @@ set -euo pipefail
 # Purpose: Install extra QoL and dev tools not covered by prepare_new_box.sh/min_system.sh
 # Behavior:
 # - Honors NO_NET=1 to skip any network-required installs
-# - Skips sudo-requiring installs if passwordless sudo/root is unavailable
+# - Acquires sudo explicitly and fails rather than reporting partial success
 # - Skips packages not present in current APT repos (no extra repos added)
 # - Skips select packages on WSL (not installable/useful there)
 # - Supports architectures: x86_64/amd64, arm64/aarch64, armhf/armv7l
@@ -36,20 +36,13 @@ if [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qi microsoft /proc/version 2>/dev/null
 fi
 
 # Sudo detection (passwordless) or root
-HAS_SUDO=0
-if [ "$(id -u)" = "0" ]; then
-  HAS_SUDO=1
-elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-  HAS_SUDO=1
-fi
-
 _sudo() {
-  if [ "$HAS_SUDO" = "1" ]; then sudo "$@"; else "$@"; fi
+  if [ "$(id -u)" = "0" ]; then "$@"; else sudo "$@"; fi
 }
 
 require_install_perms() {
-  if [ "$HAS_SUDO" != "1" ]; then
-    warn "Sudo/root not available. Skipping installs that require elevated privileges."
+  if [ "$(id -u)" != "0" ] && ! command -v sudo >/dev/null 2>&1; then
+    warn "sudo is required for system package installation."
     return 1
   fi
   if [ "${NO_NET:-0}" = "1" ]; then
@@ -59,10 +52,14 @@ require_install_perms() {
   return 0
 }
 
+if [ "$(id -u)" != "0" ]; then
+  sudo -v || { warn "Unable to acquire sudo; refusing a partial bootstrap."; exit 1; }
+fi
+
 APT_UPDATED=0
 apt_update_once() {
   if [ "$APT_UPDATED" = "0" ]; then
-    _sudo apt-get update -y || true
+    _sudo apt-get update -y
     APT_UPDATED=1
   fi
 }
@@ -80,13 +77,16 @@ apt_has_pkg() {
 install_pkg() {
   local pkg="$1"; shift || true
   if ! require_install_perms; then return 1; fi
+  apt_update_once
   if ! apt_has_pkg "$pkg"; then
     warn "Package '$pkg' not available in current APT sources for arch '$ARCH_DEB'. Skipping."
     return 1
   fi
-  apt_update_once
   log "Installing: $pkg"
-  _sudo apt-get install -y --no-install-recommends "$pkg" || warn "Failed to install $pkg"
+  if ! _sudo apt-get install -y --no-install-recommends "$pkg"; then
+    warn "Failed to install $pkg"
+    return 1
+  fi
 }
 
 # Install the first available package from a preference list
@@ -102,7 +102,7 @@ install_first_available() {
 # Skip helper with message
 skip() { log "Skipping: $*"; }
 
-log "Arch(uname)=$ARCH_UNAME, Arch(deb)=$ARCH_DEB, WSL=$IS_WSL, NO_NET=${NO_NET:-0}, HAS_SUDO=$HAS_SUDO"
+log "Arch(uname)=$ARCH_UNAME, Arch(deb)=$ARCH_DEB, WSL=$IS_WSL, NO_NET=${NO_NET:-0}"
 
 # ----- Everyday CLI QoL -----
 install_qol() {
@@ -297,5 +297,29 @@ install_editors_shell
 install_media_docs
 install_misc
 
-log "Extra installs complete."
+required_alternatives=(
+  'rg:ripgrep'
+  'fdfind:fd'
+  'batcat:bat'
+  'fzf:fzf'
+  'tree:tree'
+  'jq:jq'
+  'rsync:rsync'
+  'zip:zip'
+  'unzip:unzip'
+  'zstd:zstd'
+)
+missing_tools=()
+for requirement in "${required_alternatives[@]}"; do
+  IFS=: read -r first second <<< "$requirement"
+  if ! command -v "$first" >/dev/null 2>&1 && ! command -v "$second" >/dev/null 2>&1; then
+    missing_tools+=("$first/$second")
+  fi
+done
+if (( ${#missing_tools[@]} )); then
+  printf '[extra_install][ERROR] Required tools missing after installation:\n' >&2
+  printf '  - %s\n' "${missing_tools[@]}" >&2
+  exit 1
+fi
 
+log "Extra installs complete."

@@ -67,13 +67,13 @@ bash mac/verify_setup.sh
 
 ## What It Sets Up
 
-- Homebrew core CLI tools from [Brewfile.core](/home/shitals/GitHubSrc/pcprep/mac/Brewfile.core:1)
+- Homebrew core CLI tools from [Brewfile.core](Brewfile.core)
 - Codex / Claude / Copilot AI tools are installed immediately after the core CLI bundle so they are available early for debugging later setup failures
-- Optional GUI apps from [Brewfile.cask](/home/shitals/GitHubSrc/pcprep/mac/Brewfile.cask:1)
-- Shared dotfiles and helper scripts via [apply_dotfiles.sh](/home/shitals/GitHubSrc/pcprep/mac/apply_dotfiles.sh:1)
-- Managed `main` Python environment based on Homebrew Python 3.12 via [setup_python_ai.sh](/home/shitals/GitHubSrc/pcprep/mac/setup_python_ai.sh:1)
-- Conservative macOS defaults via [apply_defaults.sh](/home/shitals/GitHubSrc/pcprep/mac/apply_defaults.sh:1)
-- Final validation via [verify_setup.sh](/home/shitals/GitHubSrc/pcprep/mac/verify_setup.sh:1)
+- Optional GUI apps from [Brewfile.cask](Brewfile.cask)
+- Shared dotfiles and helper scripts via [apply_dotfiles.sh](apply_dotfiles.sh)
+- Managed `main` Python environment based on Homebrew Python 3.12 via [setup_python_ai.sh](setup_python_ai.sh)
+- Conservative macOS defaults via [apply_defaults.sh](apply_defaults.sh)
+- Final validation via [verify_setup.sh](verify_setup.sh)
 
 Normal runs end with:
 

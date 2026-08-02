@@ -77,8 +77,8 @@ The normal-user phase:
    `x86_64-pc-windows-msvc` toolchain.
 5. Compiles and runs a temporary Rust program to verify the MSVC linker and
    Windows SDK integration.
-6. Installs Command Prompt aliases in `%LOCALAPPDATA%\pcprep` and configures
-   Git, File Explorer Gallery visibility, Miniconda, and Python packages.
+6. Registers the adjacent `aliases.doskey` for Command Prompt and configures Git,
+   File Explorer Gallery visibility, Miniconda, and Python packages.
 
 The elevated phase:
 
@@ -230,11 +230,10 @@ verification and undo behavior.
 
 ## Command Prompt aliases
 
-`aliases.reg.bat` copies `aliases.doskey` to
-`%LOCALAPPDATA%\pcprep\aliases.doskey` and configures the current user's Command
-Processor `AutoRun` value. Using a stable installed copy prevents repository
-moves from leaving a broken AutoRun path. Rerun the script after editing the
-source alias file.
+`aliases.reg.bat` configures the current user's Command Processor `AutoRun` value
+to load the `aliases.doskey` file beside the installer. New Command Prompt
+windows therefore see edits to that file without another installation step. If
+the repository is moved, rerun the installer from its new location.
 
 The AutoRun value is replaced, not merged with an unrelated existing AutoRun
 command. Before the first replacement, the script exports the existing Command
@@ -243,6 +242,18 @@ Processor key to
 value before running if another program manages it; the backup is preserved on
 later runs rather than being overwritten. Setup stops without changing the
 registry if an existing key cannot be backed up.
+
+After writing the registry value, the installer starts a clean child Command
+Prompt and verifies that every alias name in `aliases.doskey` was loaded. If
+verification fails, it restores the Command Processor settings captured at the
+start of that run. DOSKEY aliases apply only to Command Prompt; start a new
+Command Prompt window or tab after installation. `cmd.exe /d` intentionally
+disables `AutoRun` and therefore does not load these aliases.
+
+This registration check does not execute macros because several aliases perform
+destructive or externally visible work. PowerShell-backed aliases use braced
+variables such as `${LASTEXITCODE}` so DOSKEY cannot reinterpret `$L`, `$T`, or
+other `$` control sequences before PowerShell receives the command.
 
 Several aliases are intentionally powerful and should be used carefully:
 
@@ -258,7 +269,8 @@ Several aliases are intentionally powerful and should be used carefully:
 - `mvx` and `smv` remove source files after successful Robocopy transfers.
 - `removepass` interactively rewrites selected SSH private-key passphrases.
 - `nvreset` attempts to reset NVIDIA GPU 0 and can interrupt GPU work.
-- `claudeyolo` and `codexyolo` disable normal permission safeguards.
+- Agent aliases retain their normal permission and approval safeguards; the
+  previous `claudeyolo` and `codexyolo` bypass aliases were removed.
 - `skillall` cancels all of the current user's Slurm jobs after confirmation.
 
 Alternative names such as `gcln`/`gclean`, `cpx`/`cpz`/`copynewfiles`, and

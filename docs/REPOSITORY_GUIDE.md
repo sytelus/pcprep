@@ -72,8 +72,8 @@ The CPU and GPU devboxes are independent products within the repository. Each
 directory contains its own requirements, README, build/run/verify scripts,
 learnings, and local TODO. Build scripts expect the repository root as their
 Docker build context so they can copy shared dotfiles. The root dev-container
-currently selects the GPU image; portability issues are tracked in the root
-TODO.
+uses the CPU image by default; `.devcontainer/gpu/devcontainer.json` is the
+explicit NVIDIA/CUDA variant.
 
 ## Configuration ownership
 
@@ -108,10 +108,10 @@ script and back up owned configuration before use.
 
 ## Validation model
 
-This documentation pass used static parsing and source inspection on Windows.
-It did not install packages or exercise macOS, Ubuntu, WSL, CUDA, Docker,
-systemd, Homebrew, apt, WinGet, or hardware-specific paths. Maintainers should
-add native-platform CI and disposable-VM integration tests; until then, successful
-parsing is not evidence that a bootstrap completed or produced the intended
-machine state. The `small2zip` tests were also not executed because `rich` was
-not available locally, and this review intentionally installed no dependencies.
+This work used static parsing/source inspection on Windows plus isolated tests
+for the `small2zip` cross-process lock, Docker dry-run, Git tool commands, and
+helper regressions. It did not install packages or exercise macOS, Ubuntu, WSL,
+CUDA, real Docker/systemd migration, Homebrew, apt, WinGet, mounts, or hardware
+paths. The full Rich-dependent `small2zip` suite was not available, but its new
+stdlib-only two-process safety test passed. Native CI and disposable integration
+tests remain necessary; parsing is not evidence that a bootstrap completed.

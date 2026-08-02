@@ -12,7 +12,6 @@ LABEL org.opencontainers.image.source="https://github.com/sytelus/pcprep" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.title="gpu-devbox" \
       org.opencontainers.image.description="NVIDIA PyTorch 25.11 based devbox with multi-arch tooling, GPU diagnostics, and ML/DL packages preinstalled." \
-      org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:25.11-py3"
 
 ENV TZ=UTC \

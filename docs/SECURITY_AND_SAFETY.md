@@ -4,24 +4,26 @@
 
 Assume every bootstrap or administrative script can change a real machine.
 Read the source, use a backup, test in an isolated environment, and give the
-script only the privilege it needs. The current repository has known P0 issues;
-[TODO.md](../TODO.md) is part of the operating documentation, not an optional
-future-work list.
+script only the privilege it needs. The initial P0 findings have source fixes
+and focused tests; [TODO.md](../TODO.md) records remaining native-integration
+and supply-chain work.
 
-## Current hard blockers
+## Safety controls added in the remediation pass
 
-Do not use these paths for their intended state-changing operation until the
-corresponding P0 is fixed and tested:
+- `small2zip` uses exclusive per-target lock ownership before archive or delete.
+- Docker data migration has a true no-write dry-run, containment rejection,
+  transactional configuration, rollback, and conclusive verification.
+- CUDA apt repair edits only matching lines/stanzas and restores backups if apt
+  validation fails.
+- CIFS reads secrets outside argv, atomically creates root-only credentials,
+  edits fstab idempotently, and rolls back a failed mount.
+- SSH known-host verification is enabled.
+- Codex defaults use workspace sandboxing and approvals; Claude project MCP
+  auto-enable, unsafe agent aliases, and Git's global ownership bypass are gone.
 
-- concurrent `utils/small2zip.py` runs against the same target;
-- `ubuntu/docker/cpu-devbox/docker-move-data.sh`, including `--dry-run`;
-- `ubuntu/fix_cuda_repo.sh` on a machine where `/etc/apt/sources.list` matters;
-- `ubuntu/mount_cifs.sh` for real credentials or persistent mounts;
-- the default `ubuntu/.ssh/config` as a global SSH configuration.
-
-The Codex/Claude/shell configurations copied by the Ubuntu and macOS flows also
-contain broad trust and approval bypasses. They must become explicit opt-ins
-rather than new-machine defaults.
+Focused local tests do not replace a disposable native-system exercise. Do not
+make the first real Docker migration, apt edit, or mount against irreplaceable
+state; that integration coverage is deferred in TODO item 14.
 
 ## Downloads and supply chain
 
@@ -54,8 +56,8 @@ Authenticode. Apply an equivalent explicit trust decision elsewhere.
   ownership/permission checks.
 - Preserve SSH host-key verification. Pre-populate known hosts through a trusted
   channel instead of using `StrictHostKeyChecking no` or `/dev/null` storage.
-- Do not commit populated versions of `ubuntu/azmount.yaml` or other local
-  credential material.
+- Keep the installed Azure config at mode 0600 and use managed identity; the
+  helper refuses plaintext account-key mode.
 
 ## Destructive and privileged operations
 
@@ -78,24 +80,22 @@ Failure or missing evidence must stop the operation.
 
 ## Agent and Git safety
 
-The shared dotfiles currently include approval-bypassing agent aliases,
-full-access Codex defaults, automatic project MCP enablement, and
-`GIT_TEST_ASSUME_ALL_SAFE=1`. These settings expand the consequences of a
-malicious repository or mistaken command. Use a sandboxed, approval-requiring
-profile by default; enable broader access per task and per trusted repository.
-Do not globally suppress Git's dubious-ownership protection.
+The shared defaults now require agent approval/workspace sandboxing, filter
+secret-named environment variables, require explicit project MCP trust, and
+preserve Git's dubious-ownership protection. Keep any future full-access mode
+outside the copied default and opt in only for a specific trusted task.
 
 ## What this review established
 
 The review parsed PowerShell and Bash sources, JSON and TOML, the bookmarklet
 JavaScript, and Python syntax; inspected every text/configuration file; and
-identified the bundled ELF binary and its repository role. The file named
-`ubuntu/install_tailscale.py` failed Python parsing because it is actually shell
-source. No installer, setup script, package manager, container build, service
-operation, registry operation, mount, or destructive tool was run.
+identified and removed the bundled ELF binary. Tailscale is now correctly named
+shell source. Focused tests exercised only temporary data: the two-process
+archive lock, Docker dry-run, Git tool arguments, and helper checks. No installer,
+package-manager change, container build, service migration, registry operation,
+or real mount was run.
 
 Static parsing can detect malformed source and unsafe logic. It cannot validate
 vendor availability, package compatibility, native OS behavior, idempotence,
 rollback, or hardware-dependent results. Those require disposable native test
 environments and automated integration coverage.
-

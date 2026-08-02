@@ -1,106 +1,107 @@
-#!/bin/bash
-set -eu -o pipefail  # fail if any command failes, -o xtrace to log all commands, -o xtrace
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-export NO_NET=${NO_NET:-0}
+NO_NET=${NO_NET:-0}
+INSTALL_PYTORCH=${INSTALL_PYTORCH:-1}
+PYTORCH_ACCELERATOR=${PYTORCH_ACCELERATOR:-auto}
+PYTORCH_VERSION=${PYTORCH_VERSION:-2.12.1}
+TORCHVISION_VERSION=${TORCHVISION_VERSION:-0.27.1}
 
-# Detect architecture
-ARCH=$(uname -m)
-case $ARCH in
-    x86_64)
-        ARCH_NAME="x86_64"
-        ;;
-    aarch64|arm64)
-        ARCH_NAME="arm64"
-        ;;
-    *)
-        echo "Unsupported architecture: $ARCH"
-        exit 1
-        ;;
+[[ $NO_NET = 0 ]] || { echo "NO_NET=$NO_NET; skipping DL framework installation."; exit 0; }
+PYTHON=$(command -v python3 || command -v python || true)
+[[ -n $PYTHON ]] || { echo "Python is required." >&2; exit 1; }
+
+case $(uname -m) in
+  x86_64|amd64) ARCH=x86_64 ;;
+  aarch64|arm64) ARCH=arm64 ;;
+  *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
-# Function to detect CUDA version
-detect_cuda_version() {
-    # Get CUDA version from nvidia-smi if available
-    if command -v nvidia-smi &> /dev/null; then
-        NVCC_PATH=$(command -v nvidia-smi)
-    else
-        echo "✗ nvidia-smi not found"
-        return 1
-    fi
+"$PYTHON" -m pip install -q pandas scikit-learn matplotlib jupyter
+"$PYTHON" -m pip install -q tensorflow tensorboard keras
 
-    CUDA_VERSION=$($NVCC_PATH | grep "CUDA Version" | sed -n 's/.*CUDA Version: \([0-9]*\.[0-9]*\).*/\1/p')
-    if [ -z "$CUDA_VERSION" ]; then
-        echo "✗ Unable to detect CUDA version"
-        return 1
-    fi
-
-    CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
-    CUDA_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f2)
-
-    echo "✓ CUDA detected:"
-    echo "  - CUDA version: $CUDA_MAJOR.$CUDA_MINOR"
-    echo "  - nvcc path: $NVCC_PATH"
-
-    # if INSTALL_PYTORCH is non-zero or y then install without prompting
-    if [ -n "${INSTALL_PYTORCH:-}" ]; then
-        low=$(printf '%s' "$INSTALL_PYTORCH" | tr '[:upper:]' '[:lower:]')
-        if echo "$INSTALL_PYTORCH" | grep -Eq '^[1-9][0-9]*$' || [ "$low" = "y" ]; then
-            :  # Skip prompt
-        else
-            read -p "Press Enter to proceed with above for Pytorch installation (Ctrl+C to terminate)." -n 1 -r
-        fi
-    else
-        read -p "Press Enter to proceed with above for Pytorch installation (Ctrl+C to terminate)." -n 1 -r
-    fi
-    echo ""
-    return 0
+bool_is_true() {
+  case ${1:-0} in 1|y|Y|yes|YES|true|TRUE|on|ON) return 0 ;; *) return 1 ;; esac
 }
 
-
-# Install additional common ML packages
-echo "Installing general data science packages..."
-pip install -q pandas scikit-learn matplotlib jupyter
-
-# Install additional frameworks based on architecture
-echo "Installing TF and other packages..."
-pip install -q tensorflow tensorboard keras
-
-# Function to install PyTorch based on CUDA version and architecture
-install_pytorch() {
-    local cuda_major=$1
-    local cuda_minor=$2
-
-    case $ARCH_NAME in
-        "x86_64"|"arm64")
-            if [ -n "$cuda_major" ]; then
-                echo "Installing PyTorch with CUDA..."
-                # Install CUDA-enabled PyTorch
-                pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu${cuda_major}${cuda_minor}
-            else
-                echo "Installing CPU-only PyTorch as no CUDA was detected"
-                # Install CPU-only version
-                # Below  was causing stange error so trying below more verbose way
-                PYTORCH_INDEX_URL="https://download.pytorch.org/whl/cpu"
-                python3 -m pip install -q torch torchvision torchaudio --index-url "$PYTORCH_INDEX_URL"
-
-            fi
-            ;;
-    esac
+version_ge() {
+  printf '%s\n%s\n' "$2" "$1" | sort -V -C
 }
 
-if [ "$NO_NET" = "0" ]; then
-    # Main installation logic
-    if detect_cuda_version; then
-        # nvcc has random version than what we installed :(, so just install hard coded version for now.
-        install_pytorch "12" "6" #  "$CUDA_MAJOR" "$CUDA_MINOR"
-    else
-        install_pytorch "" ""
-    fi
+detect_driver_cuda() {
+  command -v nvidia-smi >/dev/null 2>&1 || return 1
+  nvidia-smi | sed -n 's/.*CUDA Version: \([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n1
+}
+
+select_accelerator() {
+  local reported_cuda=$1
+  if [[ $PYTORCH_ACCELERATOR != auto ]]; then
+    printf '%s\n' "$PYTORCH_ACCELERATOR"
+    return
+  fi
+  if [[ $ARCH != x86_64 || -z $reported_cuda ]]; then
+    printf 'cpu\n'
+  elif version_ge "$reported_cuda" 13.2; then
+    printf 'cu132\n'
+  elif version_ge "$reported_cuda" 13.0; then
+    printf 'cu130\n'
+  elif version_ge "$reported_cuda" 12.6; then
+    printf 'cu126\n'
+  else
+    echo "NVIDIA driver reports CUDA $reported_cuda, below the supported cu126 wheel." >&2
+    echo "Upgrade the driver or set PYTORCH_ACCELERATOR=cpu explicitly." >&2
+    return 1
+  fi
+}
+
+if bool_is_true "$INSTALL_PYTORCH"; then
+  DRIVER_CUDA=$(detect_driver_cuda || true)
+  ACCELERATOR=$(select_accelerator "$DRIVER_CUDA")
+  case $ACCELERATOR in
+    cpu|cu126|cu130|cu132) ;;
+    *) echo "Unsupported PYTORCH_ACCELERATOR=$ACCELERATOR" >&2; exit 2 ;;
+  esac
+  if [[ $ACCELERATOR == cu* && $ARCH != x86_64 ]]; then
+    echo "CUDA wheels are not selected automatically for $ARCH; use the platform vendor's build." >&2
+    exit 1
+  fi
+  if [[ $ACCELERATOR == cu* ]]; then
+    [[ -n $DRIVER_CUDA ]] || { echo "A CUDA wheel requires a working NVIDIA driver." >&2; exit 1; }
+    case $ACCELERATOR in cu126) MIN_DRIVER_CUDA=12.6 ;; cu130) MIN_DRIVER_CUDA=13.0 ;; cu132) MIN_DRIVER_CUDA=13.2 ;; esac
+    version_ge "$DRIVER_CUDA" "$MIN_DRIVER_CUDA" \
+      || { echo "Driver supports CUDA $DRIVER_CUDA, below $ACCELERATOR." >&2; exit 1; }
+  fi
+
+  INDEX_URL="https://download.pytorch.org/whl/$ACCELERATOR"
+  echo "Installing PyTorch $PYTORCH_VERSION/$TORCHVISION_VERSION from $INDEX_URL"
+  "$PYTHON" -m pip install -q \
+    "torch==$PYTORCH_VERSION" "torchvision==$TORCHVISION_VERSION" \
+    --index-url "$INDEX_URL"
+
+  EXPECT_CUDA=0
+  [[ $ACCELERATOR == cu* ]] && EXPECT_CUDA=1
+  EXPECT_CUDA=$EXPECT_CUDA "$PYTHON" - <<'PY'
+import os
+import torch
+
+expected = os.environ["EXPECT_CUDA"] == "1"
+if expected and not torch.cuda.is_available():
+    raise SystemExit("CUDA wheel installed but torch.cuda.is_available() is false")
+device = "cuda" if expected else "cpu"
+a = torch.tensor([[1.0, 2.0], [3.0, 4.0]], device=device)
+b = a @ a
+if b.shape != (2, 2) or float(b[0, 0].cpu()) != 7.0:
+    raise SystemExit("PyTorch tensor verification failed")
+if expected:
+    torch.cuda.synchronize()
+print(f"PyTorch {torch.__version__} verified on {device}")
+PY
+else
+  echo "INSTALL_PYTORCH=$INSTALL_PYTORCH; skipping PyTorch."
 fi
 
-# pip uninstall -y transformers datasets wandb accelerate einops tokenizers sentencepiece
-echo "Installing HF and other packages..."
-pip install -q transformers datasets wandb accelerate einops tokenizers sentencepiece lightning
-
-# Verify installation
-python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
+"$PYTHON" -m pip install -q \
+  transformers datasets wandb accelerate einops tokenizers sentencepiece
+if bool_is_true "$INSTALL_PYTORCH"; then
+  "$PYTHON" -m pip install -q lightning
+fi

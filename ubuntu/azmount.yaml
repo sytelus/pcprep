@@ -1,41 +1,19 @@
-# base defaults are in https://github.com/Azure/azure-storage-fuse/blob/main/setup/baseConfig.yaml
-
+# Copy to ~/.config/pcprep/azmount.yaml, keep mode 0600, and replace only the
+# non-secret resource identifiers. Managed identity avoids a plaintext account
+# key. For a user-assigned identity, add the documented client/resource ID.
 azstorage:
-  # to get below info, goto storage account in Azure Portal, click on Containers menu, click on specific container, click on Properties menu, look at URL
   endpoint: YOUR_ACCOUNT_NAME.blob.core.windows.net
   account-name: YOUR_ACCOUNT_NAME
-  account-key: YOUR_ACCOUNT_KEY
   container: YOUR_CONTAINER_NAME
-  # don't change below
   type: block
-  mode: key
-  virtual-directory: true # support virtual directories without existence of a special marker blob
+  mode: msi
+  virtual-directory: true
   max-results-for-list: 100
 
-allow-other: true # allow other users to access the mounted directory
-read-only: true # mount in read only mode - used for Streaming and FUSE
-
-# DO NOT USE nonempty. It's no loner supported and you will have silent error.
-# nonempty: true # allow mounting on non-empty directory - used for FUSE
+allow-other: false
+read-only: true
 
 file_cache:
-  path: /tmp/blobfuse
+  path: YOUR_HOME/.cache/blobfuse2
   cleanup-on-start: true
-  allow-non-empty-temp: true
-
-# attr_cache:
-#   timeout-sec: 7200
-#   no-cache-on-list: true
-#   no-symlinks: false
-
-# components:
-#   - libfuse
-#   - file_cache
-#   - attr_cache
-#   - azstorage
-
-# # if you are getting silent error, enable below
-# # log file is in $HOME/.blobfuse2/blobfuse2.lo
-# logging:
-#   type: base
-#   level: log_debug
+  allow-non-empty-temp: false

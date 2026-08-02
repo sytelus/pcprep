@@ -42,6 +42,8 @@ cp -v --update=none .inputrc ~/.inputrc
 cp -v --update=none .tmux.conf ~/.tmux.conf
 mkdir -p ~/.codex
 cp -v --update=none .codex/config.toml ~/.codex/config.toml
+mkdir -p ~/.claude
+cp -v --update=none .claude/settings.json ~/.claude/settings.json
 
 # skip files that already exists
 cp -vr --update=none .config/ ~/
@@ -59,11 +61,10 @@ if ! grep -qF "$statement" "$bashrc"; then
     . "$bashrc"
 fi
 
-# copy some useful utils as .sh files
-chmod +x *.sh
+# Copy Linux helpers without changing executable bits in the repository.
 cp -vn rundocker.sh ~/.local/bin/rundocker.sh
-cp -vn azmount.yaml ~/.local/bin/azmount.yaml
 cp -vn azmount.sh ~/.local/bin/azmount.sh
+cp -vn azunmount.sh ~/.local/bin/azunmount.sh
 cp -vn mount_cifs.sh ~/.local/bin/mount_cifs.sh
 cp -vn start_tmux.sh ~/.local/bin/start_tmux.sh
 cp -vn sysinfo.sh ~/.local/bin/sysinfo.sh
@@ -72,3 +73,14 @@ cp -vn measure_flops.py ~/.local/bin/measure_flops.py
 cp -vn kill_vscode_srv.sh ~/.local/bin/kill_vscode_srv.sh
 cp -vn security_status.sh ~/.local/bin/security_status.sh
 cp -vn unban.sh ~/.local/bin/unban.sh
+chmod +x ~/.local/bin/rundocker.sh ~/.local/bin/azmount.sh ~/.local/bin/azunmount.sh \
+  ~/.local/bin/mount_cifs.sh ~/.local/bin/start_tmux.sh ~/.local/bin/sysinfo.sh \
+  ~/.local/bin/treesize.sh ~/.local/bin/measure_flops.py \
+  ~/.local/bin/kill_vscode_srv.sh ~/.local/bin/security_status.sh ~/.local/bin/unban.sh
+
+AZ_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pcprep"
+mkdir -p "$AZ_CONFIG_DIR"
+if [ ! -e "$AZ_CONFIG_DIR/azmount.yaml" ]; then
+    sed "s|YOUR_HOME|$HOME|g" azmount.yaml > "$AZ_CONFIG_DIR/azmount.yaml"
+    chmod 0600 "$AZ_CONFIG_DIR/azmount.yaml"
+fi

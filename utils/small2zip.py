@@ -151,6 +151,11 @@ from rich.table import Table
 #: Suffix for the in-progress archive. Never a valid final artifact.
 PARTIAL_SUFFIX = ".zip.partial"
 
+#: Exclusive ownership marker for a source/archive pair. A lock is deliberately
+#: never considered stale automatically: PID reuse, containers and network
+#: filesystems make age/PID-only recovery unsafe for a tool that deletes data.
+LOCK_SUFFIX = ".zip.lock"
+
 #: Read buffer for copy/verify streaming. 1 MiB balances syscall count against
 #: cache pressure; larger gave no measurable win on spinning or NVMe media.
 CHUNK_SIZE = 1 << 20
@@ -237,6 +242,82 @@ def _install_signal_handlers() -> None:
 
 class Cancelled(Exception):
     """Raised internally to unwind a worker when the user cancels."""
+
+
+class ArchiveLockError(RuntimeError):
+    """The per-archive ownership lock is held by another process or was lost."""
+
+
+class ArchiveLock:
+    """Cross-process, fail-closed ownership for one source/archive pair.
+
+    Creation uses O_EXCL so only one process owns the partial, final archive and
+    subsequent source deletion. The random token is checked before publishing,
+    deleting or cleaning up so replacing a lock cannot transfer ownership to a
+    running process.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        token = os.urandom(16).hex()
+        self.payload = (
+            "small2zip-lock-v1\n"
+            f"token={token}\n"
+            f"pid={os.getpid()}\n"
+            f"created_unix_ns={time.time_ns()}\n"
+            f"archive={path.name.removesuffix(LOCK_SUFFIX)}.zip\n"
+        ).encode("utf-8")
+        self.acquired = False
+
+    def acquire(self) -> None:
+        # O_BINARY prevents Windows' CRT from translating LF to CRLF; the
+        # ownership token is compared byte-for-byte when the lock is released.
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0)
+        try:
+            fd = os.open(self.path, flags, 0o600)
+        except FileExistsError as exc:
+            try:
+                holder = self.path.read_text(encoding="utf-8", errors="replace").strip()
+            except OSError:
+                holder = "<unreadable>"
+            raise ArchiveLockError(
+                f"archive lock already exists: {self.path}; holder: {holder[:500]}"
+            ) from exc
+
+        try:
+            os.write(fd, self.payload)
+            os.fsync(fd)
+        except Exception:
+            os.close(fd)
+            try:
+                os.remove(self.path)
+            except OSError:
+                pass
+            raise
+        else:
+            os.close(fd)
+            self.acquired = True
+
+    def assert_owned(self) -> None:
+        if not self.acquired:
+            raise ArchiveLockError(f"archive lock is not owned: {self.path}")
+        try:
+            current = self.path.read_bytes()
+        except OSError as exc:
+            raise ArchiveLockError(f"archive lock disappeared: {self.path}") from exc
+        if current != self.payload:
+            raise ArchiveLockError(f"archive lock ownership changed: {self.path}")
+
+    def release(self) -> None:
+        if not self.acquired:
+            return
+        try:
+            self.assert_owned()
+            os.remove(self.path)
+            self.acquired = False
+        except (ArchiveLockError, OSError) as exc:
+            # Never remove a lock we cannot prove is ours.
+            log.error("leaving unowned archive lock untouched %s: %s", self.path, exc)
 
 
 def _check_cancel() -> None:
@@ -1172,7 +1253,7 @@ def _force_remove(path: str) -> None:
         os.remove(path)
 
 
-def _discard_partial(partial: Path) -> None:
+def _discard_partial(partial: Path, owner: ArchiveLock | None = None) -> None:
     """Drop an incomplete archive. Never raises.
 
     A ``.partial`` is by definition not authoritative, so failing to remove one
@@ -1181,9 +1262,11 @@ def _discard_partial(partial: Path) -> None:
     is logged.
     """
     try:
+        if owner is not None:
+            owner.assert_owned()
         if partial.exists():
             _force_remove(str(partial))
-    except OSError as exc:
+    except (ArchiveLockError, OSError) as exc:
         log.warning("could not remove partial %s: %s", partial, exc)
 
 
@@ -1261,6 +1344,7 @@ def process_folder(
     result = FolderResult(name=label)
     dest_zip = folder.parent / f"{folder.name}.zip"
     partial = folder.parent / f"{folder.name}{PARTIAL_SUFFIX}"
+    archive_lock = ArchiveLock(folder.parent / f"{folder.name}{LOCK_SUFFIX}")
     task_id = None
     started = time.monotonic()
 
@@ -1271,6 +1355,16 @@ def process_folder(
     try:
         task_id = progress.add_task(f"{label} [dim]scanning[/]", total=None, start=True)
         log.info("=== BEGIN folder=%s archive=%s ===", folder, dest_zip)
+        # A dry run promises no writes, including lock creation. Every path that
+        # can write an archive or delete a source must first acquire ownership.
+        if not args.dry_run:
+            try:
+                archive_lock.acquire()
+            except ArchiveLockError as exc:
+                result.status = "skipped"
+                result.message = str(exc)
+                log.error("KEEP %s: %s", folder, exc)
+                return result
         if dest_zip.exists() and args.exists:
             result.status = "skipped"
             result.message = "archive exists (--exists)"
@@ -1309,6 +1403,7 @@ def process_folder(
                 result.status = "ok"
                 result.message = "empty folder (--keep, folder retained)"
                 return result
+            archive_lock.assert_owned()
             _delete_sources(folder, [], result)
             result.status = "ok" if not result.undeleted else "failed"
             result.message = "empty folder removed" if not result.undeleted else "could not remove"
@@ -1333,7 +1428,8 @@ def process_folder(
         )
         if partial.exists():
             log.warning("removing stale partial %s", partial)
-            _discard_partial(partial)
+            _discard_partial(partial, archive_lock)
+        archive_lock.assert_owned()
         manifest, write_failures = _archive_folder(
             folder, dest_zip, partial, entries, compression, level, progress, task_id, label
         )
@@ -1360,7 +1456,7 @@ def process_folder(
             result.status = "skipped"
             result.message = f"nothing archived ({len(blockers)} unarchivable paths)"
             log.warning("KEEP %s: nothing archived, %d blocker(s)", folder, len(blockers))
-            _discard_partial(partial)
+            _discard_partial(partial, archive_lock)
             return result
 
         # ---- 2. VERIFY (re-read from disk) ----------------------------------
@@ -1372,10 +1468,11 @@ def process_folder(
             for p in problems[:50]:
                 log.error("verify %s: %s", folder, p)
             log.error("ABORT %s: source folder left untouched", folder)
-            _discard_partial(partial)  # worthless; the source is intact
+            _discard_partial(partial, archive_lock)  # worthless; the source is intact
             return result
 
         # ---- 3. PUBLISH (atomic swap; only now is the archive authoritative)
+        archive_lock.assert_owned()
         os.replace(partial, dest_zip)
         _fsync_parent_dir(dest_zip)  # make the rename itself durable (POSIX)
         log.info("archive published: %s (%d entries)", dest_zip, len(manifest))
@@ -1394,6 +1491,7 @@ def process_folder(
 
         # ---- 4. DELETE (manifest-driven, per file) --------------------------
         progress.update(task_id, description=f"{label} [red]deleting[/]")
+        archive_lock.assert_owned()
         _delete_sources(folder, manifest, result)
         if result.undeleted:
             result.status = "failed"
@@ -1408,16 +1506,17 @@ def process_folder(
         result.message = "cancelled before deletion" if result.deleted_files == 0 else "cancelled mid-delete"
         # Discard the partial: it is by definition incomplete. The source folder
         # is still complete (deletion had not started, or is logged above).
-        _discard_partial(partial)
+        _discard_partial(partial, archive_lock)
         log.warning("CANCELLED folder=%s", folder)
         return result
     except Exception as exc:  # noqa: BLE001 - one bad folder must not kill the run
         result.status = "failed"
         result.message = str(exc)
         log.exception("UNEXPECTED failure on %s", folder)
-        _discard_partial(partial)
+        _discard_partial(partial, archive_lock)
         return result
     finally:
+        archive_lock.release()
         log.info("=== END folder=%s status=%s %s ===", folder, result.status, result.message)
         if cached is not None:
             # Release this folder's enumeration cache: on long runs, memory

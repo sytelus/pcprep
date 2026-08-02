@@ -2,17 +2,17 @@ model = "gpt-5.4"
 model_reasoning_effort = "xhigh"
 model_reasoning_summary = "detailed"
 model_verbosity = "high"
-approval_policy="never"
-sandbox_mode="danger-full-access"
-sandbox_workspace_write.network_access = true
-network_access = true
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+sandbox_workspace_write.network_access = false
+network_access = false
 personality = "pragmatic"
 web_search = "live"
 
 
 [shell_environment_policy]
-ignore_default_excludes = true # when false, drops vars whose NAMES contain KEY/SECRET/TOKEN
-inherit="all" # inherit all environment variables from the host environment
+ignore_default_excludes = false # drop variables whose names contain KEY/SECRET/TOKEN
+inherit = "core" # provide only the core shell environment by default
 
 [features]
 unified_exec = true             # enable background terminal sessions

@@ -118,10 +118,14 @@ def main():
     subdirs = [f for f in base_path.iterdir() if f.is_dir()]
 
     # Calculate the maximum folder name length for alignment
-    max_length = max(len(str(folder.name)) for folder in subdirs)
+    max_length = max((len(str(folder.name)) for folder in subdirs), default=0)
 
     print("\nGit Repository Status Check")
     print("=" * 50)
+
+    if not subdirs:
+        print("No immediate subdirectories found.")
+        return
 
     for folder in sorted(subdirs):
         status = check_git_status(folder)

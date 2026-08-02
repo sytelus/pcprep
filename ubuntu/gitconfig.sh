@@ -31,13 +31,10 @@ git config --global core.eol lf
 git config --global core.autocrlf input
 
 git config --global merge.tool vscode
-git config --global mergetool.vscode.cmd "code --wait $MERGED"
+git config --global mergetool.vscode.cmd 'code --wait "$MERGED"'
 git config --global diff.tool vscode
-git config --global difftool.vscode.cmd "code --wait --diff $LOCAL $REMOTE"
-git config --global core.editor "code --new-window -wait"
+git config --global difftool.vscode.cmd 'code --wait --diff "$LOCAL" "$REMOTE"'
+git config --global core.editor "code --new-window --wait"
 
 # if repo doesn't have latest, by default try rebase first
 git config --global pull.rebase true
-
-
-

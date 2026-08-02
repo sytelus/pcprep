@@ -4,7 +4,7 @@
 
 | Path | Purpose | Important boundary |
 | --- | --- | --- |
-| `utils/small2zip.py` | Select small subtrees, create verified ZIP archives, then delete archived sources | Destructive in normal mode; no concurrent writers; ZIP does not preserve all Windows metadata |
+| `utils/small2zip.py` | Select small subtrees, create verified ZIP archives, then delete archived sources | Destructive in normal mode; cross-process target locks fail closed; ZIP does not preserve all Windows metadata |
 | `utils/test_small2zip.py` | Unit and failure-injection coverage for `small2zip` | Requires dependencies from `utils/requirements.txt` |
 | `utils/copyallfiles.bat` | Robocopy-based bulk copy/move with exclusions and logging | Options can move/delete source material; inspect arguments and log path |
 | `utils/Collect-SleepDiagnostics_v2.ps1` | Collect Windows sleep/power diagnostics into a report under `C:\temp` | Reads system state but creates an output directory/report |
@@ -33,16 +33,17 @@ Before destructive use:
 - ensure the archive destination is on reliable storage with enough free space;
 - back up the source;
 - close or exclude files being modified by other processes;
-- run only one process for a given source/target pair;
+- if a `.zip.lock` remains after a crash, verify its recorded process is gone
+  before manually preserving/removing the lock and partial;
 - understand that ZIP does not preserve ACLs, alternate data streams, reparse
   point semantics, or every platform timestamp/attribute;
 - retain and inspect the log/manifest until source and archive counts are
   independently verified.
 
-The existing implementation has a confirmed cross-process race in which one
-process can remove another's partial archive and both can delete source data.
-Do not run concurrent instances until the P0 issue in [TODO.md](../TODO.md) is
-fixed and regression-tested.
+Each process atomically owns `<folder>.zip.lock` and rechecks its random token
+before partial cleanup, archive publication, and source deletion. A real
+two-process regression confirms the losing process cannot change the foreign
+partial/final archive or source.
 
 ## CPU devbox
 
@@ -53,11 +54,12 @@ verification script, builder setup, image inspection, prune, and push helpers
 are documented in its [README](../ubuntu/docker/cpu-devbox/README.md) and
 [requirements](../ubuntu/docker/cpu-devbox/REQUIREMENTS.md).
 
-`docker-move-data.sh` is not safe to use in its current form: its documented
-dry-run mode still makes persistent changes, it can proceed after failed service
-stops or inconclusive verification, and it can discard Docker configuration.
-Treat the root P0 as a hard blocker. `dockerprune.sh` is also destructive by
-design and must not be scheduled or run casually.
+`docker-move-data.sh` now keeps dry-run read-only, rejects path containment,
+requires conclusive service/config/copy/runtime verification, and rolls back
+before commit. The old store is retained unless deletion is explicit. Its
+no-mutation dry-run test passed; perform the deferred native integration test
+before relying on migration for an irreplaceable Docker store. `dockerprune.sh`
+remains destructive by design.
 
 ## GPU devbox
 
@@ -73,10 +75,8 @@ where build scripts request provenance/SBOM output.
 
 ## VS Code dev container
 
-`.devcontainer/devcontainer.json` currently points to
-`sytelus/gpu-devbox:latest`, requests `--gpus all`, and configures a Python path
-under `/opt/nanugpt-venv`. The image tag is mutable, GPU access is effectively
-mandatory despite being described as optional, and neither Dockerfile creates
-that interpreter path. Use the CPU/GPU run scripts directly until the dev
-container configuration is corrected.
-
+`.devcontainer/devcontainer.json` is the portable CPU default. It builds the
+local CPU Dockerfile and uses `/opt/conda/bin/python`. The explicit
+`.devcontainer/gpu/devcontainer.json` builds the local GPU Dockerfile, requests
+`--gpus all`, uses its real `python3`, and verifies CUDA after creation. Base
+image/dependency pinning remains deferred under root TODO item 10.

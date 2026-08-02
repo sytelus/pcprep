@@ -43,6 +43,7 @@ import argparse
 import contextlib
 import io
 import os
+import subprocess
 import sys
 import time
 import unittest
@@ -586,6 +587,53 @@ class TestAppendToExistingArchive(TempRepo):
 
 
 class TestSafetyInvariant(TempRepo):
+    def test_second_process_cannot_touch_foreign_partial_or_sources(self) -> None:
+        """Regression, data loss: two processes shared one partial/final path."""
+        write_tree(self.root, {"d/important.txt": b"source must survive"})
+        lock_path = self.root / f"d{s.LOCK_SUFFIX}"
+        partial_path = self.root / f"d{s.PARTIAL_SUFFIX}"
+        child_code = """
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import small2zip as s
+lock = s.ArchiveLock(Path(sys.argv[2]))
+lock.acquire()
+Path(sys.argv[3]).write_bytes(b'owned by first process')
+print('LOCKED', flush=True)
+sys.stdin.readline()
+lock.release()
+"""
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                child_code,
+                str(Path(s.__file__).resolve().parent),
+                str(lock_path),
+                str(partial_path),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            assert proc.stdout is not None
+            self.assertEqual(proc.stdout.readline().strip(), "LOCKED")
+            res = self.run_folder(self.root / "d")
+            self.assertEqual(res.status, "skipped", res.message)
+            self.assertIn("archive lock already exists", res.message)
+            self.assertEqual(partial_path.read_bytes(), b"owned by first process")
+            self.assertTrue((self.root / "d" / "important.txt").exists())
+            self.assertFalse((self.root / "d.zip").exists())
+        finally:
+            if proc.stdin:
+                proc.stdin.write("\n")
+                proc.stdin.flush()
+            _, stderr = proc.communicate(timeout=10)
+            self.assertEqual(proc.returncode, 0, stderr)
+
     def test_verification_failure_keeps_all_sources(self) -> None:
         """If verify reports problems, nothing may be deleted."""
         write_tree(self.root, {"d/a.txt": b"aaa", "d/b.txt": b"bbb"})

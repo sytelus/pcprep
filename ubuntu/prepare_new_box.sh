@@ -82,8 +82,17 @@ if [ -z "${NO_NET}" ]; then
     fi
 fi
 
+# Acquire elevation once, visibly, before any child installer starts. Child
+# scripts also validate sudo independently so standalone use fails closed.
+if [ "$(id -u)" -ne 0 ]; then
+    command -v sudo >/dev/null 2>&1 || { echo "sudo is required for system setup." >&2; exit 1; }
+    echo "Validating sudo access for system package and configuration steps..."
+    sudo -v || { echo "Unable to acquire sudo; no setup steps were started." >&2; exit 1; }
+    export PCPREP_SUDO_READY=1
+fi
+
 if [[ -n "$WSL_DISTRO_NAME" ]]; then
-    read -p "Make sure to follow manual steps in wsl_prep.sh. Proceed? (y/N): " response && [[ $response =~ ^[Yy]$ ]] || { echo "Exiting."; exit 1; }
+    read -p "Make sure to follow manual steps in wsl_prep.md. Proceed? (y/N): " response && [[ $response =~ ^[Yy]$ ]] || { echo "Exiting."; exit 1; }
 
     # share .ssh keys
     mkdir -p ~/.ssh
@@ -125,8 +134,11 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
 
     # if using tailscale, create alias
     if [ -f "/mnt/c/Program Files/Tailscale/tailscale.exe" ]; then
-        echo 'alias tailscale="/mnt/c/Program\ Files/Tailscale/tailscale.exe"' >> ~/.zshrc
-        echo 'alias tailscale="/mnt/c/Program\ Files/Tailscale/tailscale.exe"' >> ~/.bashrc
+        tailscale_alias='alias tailscale="/mnt/c/Program\ Files/Tailscale/tailscale.exe"'
+        for shell_rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+            touch "$shell_rc"
+            grep -qF "$tailscale_alias" "$shell_rc" || printf '%s\n' "$tailscale_alias" >> "$shell_rc"
+        done
         alias tailscale="/mnt/c/Program\ Files/Tailscale/tailscale.exe"
 
         sudo mkdir -p /Applications/Tailscale.app/Contents/MacOS
@@ -177,6 +189,24 @@ if [ "$NO_NET" = "0" ]; then
 
     # install Codex CLI
     sudo npm i -g @openai/codex
+fi
+
+required_commands=(git curl npm node)
+if [ "$NO_NET" = "0" ]; then
+    required_commands+=("$HOME/miniconda3/bin/conda" "$HOME/miniconda3/bin/python")
+fi
+missing_commands=()
+for required in "${required_commands[@]}"; do
+    if [[ $required == */* ]]; then
+        [[ -x $required ]] || missing_commands+=("$required")
+    elif ! command -v "$required" >/dev/null 2>&1; then
+        missing_commands+=("$required")
+    fi
+done
+if (( ${#missing_commands[@]} )); then
+    printf 'Bootstrap verification failed; required tools are missing:\n' >&2
+    printf '  - %s\n' "${missing_commands[@]}" >&2
+    exit 1
 fi
 
 echo "Your new box is ready! Please restart your terminal."

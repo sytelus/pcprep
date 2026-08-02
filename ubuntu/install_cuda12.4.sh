@@ -24,9 +24,6 @@ if [[ -n "$WSL_DISTRO_NAME" ]]; then
     sudo apt-get -y update
     sudo apt-get -y install cuda-toolkit-12-4
 
-    sudo apt-get -y update
-    sudo apt-get -y install cuda-toolkit
-
     # nvcc will not be in path unless .bashrc adds it to PATH
      /usr/local/cuda/bin/nvcc --version
 else
@@ -39,8 +36,6 @@ else
     sudo apt-get -y install cuda-toolkit-12-4
     #rm cuda-repo-ubuntu2204-12-4-local_12.4.0-550.54.14-1_amd64.deb
 
-    sudo apt-get -y update
-    sudo apt-get -y install cuda-toolkit
     sudo apt-get -y install nvidia-gds
 
     # nvcc will not be in path unless .bashrc adds it to PATH

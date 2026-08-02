@@ -3,10 +3,10 @@
 ## Status
 
 The `ubuntu/` directory contains an intended bootstrap flow alongside many
-standalone and legacy helpers accumulated for different machines. Several
-high-impact defects are open in [TODO.md](../TODO.md). Do not treat the directory
-as a single safe batch of scripts, and do not run the full bootstrap unattended
-until the P0 and bootstrap-integrity issues are resolved.
+standalone and legacy helpers accumulated for different machines. The initial
+safety blockers were remediated, while supply-chain pinning and native
+integration remain in [TODO.md](../TODO.md). Do not treat every standalone
+script as part of one supported batch.
 
 ## Intended bootstrap flow
 
@@ -36,9 +36,8 @@ The orchestrator uses these environment variables:
 | `INSTALL_PYTORCH` | `1` | Controls framework installation in the downstream DL script |
 | `WSL_DISTRO_NAME` | inherited from WSL | Selects WSL-specific SSH, browser, apt, and Windows credential-manager integration |
 
-The WSL branch refers to `wsl_prep.sh`, but the repository contains
-`wsl_prep.md`. Follow the Markdown instructions manually and treat the stale
-prompt as a documentation defect.
+The WSL prompt now points to the existing `wsl_prep.md`; follow those manual
+host-side instructions before continuing.
 
 ## Script families
 
@@ -52,10 +51,9 @@ prompt as a documentation defect.
 - `gitclones.sh`, `create_data_dirs.sh`, `gsettings.sh`, and `codefonts.sh`
   apply personal workspace or desktop preferences.
 
-The current privilege preflight in the package scripts only accepts root or
-already-passwordless/cached non-interactive sudo. A normal fresh terminal can
-therefore skip required packages while the parent bootstrap continues. This is
-tracked as a bootstrap blocker.
+The orchestrator and child package scripts now acquire sudo explicitly and fail
+instead of silently skipping required system work. A final required-command
+manifest prevents a partial run from reporting “ready.”
 
 ### NVIDIA, CUDA, and ML
 
@@ -70,9 +68,9 @@ tracked as a bootstrap blocker.
   its package and filesystem scope.
 
 Framework wheels, drivers, toolkits, and container runtimes have compatibility
-constraints. The current DL installer hard-codes a PyTorch CUDA channel rather
-than deriving a compatible choice from the detected driver; resolve the root
-TODO before relying on it.
+constraints. The DL installer maps the driver-reported maximum to the reviewed
+PyTorch 2.12.1 `cu126`, `cu130`, `cu132`, or CPU wheel and verifies a real tensor
+operation. Native GPU validation remains part of deferred integration testing.
 
 ### Storage, mounts, network, and system administration
 
@@ -80,16 +78,15 @@ TODO before relying on it.
 `cpu_cap.sh`, `update_dsvm.sh`, `vps_setup.sh`, `security_status.sh`,
 `unban.sh`, `system.sh`, `sysinfo.sh`, `treesize.sh`, and
 `kill_vscode_srv.sh` are standalone operations, not one supported workflow.
-Some require root, alter persistent configuration, contain credentials, stop
-services, or delete state. `mount_cifs.sh` is currently broken and unsafe for
-credentials; do not use it until its P0 item is closed.
+Some require root, alter persistent configuration, stop services, or delete
+state. CIFS now reads passwords outside argv and rolls back failed persistent
+mount configuration; Azure mounting uses a protected managed-identity config.
 
 ### Kubernetes and containers
 
-`kubectl.sh` and the bundled `minikube-linux-amd64` are legacy. The kubectl
-repository command is malformed and obsolete, while the 48.6 MB binary has no
-documented provenance or checked-in verification record. Prefer a current,
-pinned, checksum-verified upstream installation after the TODO is resolved.
+`kubectl.sh` now configures the signed `pkgs.k8s.io` repository for a selected
+minor version. The bundled 48.6 MB executable was removed; `install_minikube.sh`
+downloads pinned v1.38.1 for amd64/arm64 and checks the upstream release hash.
 
 The maintained container material lives under `ubuntu/docker/`; see
 [Tools and containers](TOOLS_AND_CONTAINERS.md).
@@ -102,17 +99,16 @@ the user's active defaults on a new machine.
 
 Review these files before copying anything:
 
-- `.ssh/config` disables host-key verification for every host;
-- `.codex/config.toml` grants an agent full filesystem/process access without
-  approval prompts;
-- `.claude/settings.json` enables all project MCP servers;
-- `.bashrc` globally sets `GIT_TEST_ASSUME_ALL_SAFE=1`;
-- `.bash_aliases` includes forceful cleanup/revert and approval-bypassing agent
-  shortcuts;
-- `azmount.yaml` is a credential-bearing configuration template.
+- `.ssh/config` uses normal known-host verification;
+- `.codex/config.toml` requires approval, workspace sandboxing, and secret-name
+  environment filtering;
+- `.claude/settings.json` does not auto-enable project MCP servers;
+- `.bashrc` preserves Git ownership checks and reuses one valid SSH agent;
+- approval-bypassing agent aliases were removed;
+- `azmount.yaml` uses managed identity and is installed at mode 0600.
 
-These are not safe generic defaults. The root TODO calls for explicit opt-in
-profiles and secure baseline settings.
+Forceful Git cleanup/revert aliases still exist as interactive user tools; read
+their definitions before use.
 
 ## Archived material
 
@@ -120,4 +116,3 @@ Everything under `archived/ubuntu/` predates the active flow and exists for
 reference. It includes old CUDA, ML, home relocation, sandbox, and WSL setup
 approaches. Do not use it to fill gaps in the active bootstrap without a fresh
 review and a deliberate port.
-

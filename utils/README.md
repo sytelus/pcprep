@@ -429,12 +429,13 @@ per-file `DEBUG` detail when you need to trace an individual file. Warnings
   parsed, the folder is reported `FAIL` and left untouched — safe, but stuck.
   Recover by moving the bad zip aside (it may still be partially extractable)
   and re-running.
-* **Never run two instances against the same root.** The swap file
-  (`<folder>.zip.partial`) is not locked: a second instance treats the first's
-  in-flight partial as stale and deletes it, and whichever instance publishes
-  last overwrites the other's freshly appended archive. Each instance deletes
-  sources it verified against *its own* archive, so files present only in the
-  overwritten archive are lost. Concurrency belongs inside one instance (`-w`).
+* **One process owns each target.** A process atomically creates
+  `<folder>.zip.lock`, records a random ownership token, and rechecks that token
+  before publishing or deleting. A second process fails closed without touching
+  the partial, final archive, or source. Locks are never declared stale
+  automatically; after a crash, inspect the recorded PID, confirm no run is
+  active, preserve any `.partial` for investigation, and only then remove the
+  `.lock` manually. Concurrency belongs inside one instance (`-w`).
 * **Concurrent modification is not fully guarded.** A file created *after* the
   scan is not archived and is left on disk (so the folder survives). A file
   *modified* between the scan and its archive write is archived with its

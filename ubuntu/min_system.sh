@@ -44,20 +44,13 @@ if [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qi microsoft /proc/version 2>/dev/null
     IS_WSL=1
 fi
 
-HAS_SUDO=0
-if [ "$(id -u)" = "0" ]; then
-    HAS_SUDO=1
-elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-    HAS_SUDO=1
-fi
-
 _sudo() {
-    if [ "$HAS_SUDO" = "1" ]; then sudo "$@"; else "$@"; fi
+    if [ "$(id -u)" = "0" ]; then "$@"; else sudo "$@"; fi
 }
 
-if [ "$HAS_SUDO" != "1" ]; then
-    warn "Sudo/root not available. Skipping system package installation."
-    exit 0
+if [ "$(id -u)" != "0" ]; then
+    command -v sudo >/dev/null 2>&1 || { warn "sudo is required for system package installation."; exit 1; }
+    sudo -v || { warn "Unable to acquire sudo; refusing a partial bootstrap."; exit 1; }
 fi
 
 if [ "$NO_NET" != "0" ]; then
@@ -68,7 +61,7 @@ fi
 APT_UPDATED=0
 apt_update_once() {
     if [ "$APT_UPDATED" = "0" ]; then
-        _sudo apt-get update -y || warn "apt-get update failed; continuing with existing package index."
+        _sudo apt-get update -y
         APT_UPDATED=1
     fi
 }
@@ -318,5 +311,16 @@ install_github_cli
 install_pkg zsh || true
 bash install_rust.sh || warn "Rust installation failed."
 install_user_tools
+
+required_commands=(git curl wget tar npm node cmake g++ tmux zsh)
+missing_commands=()
+for required in "${required_commands[@]}"; do
+    command -v "$required" >/dev/null 2>&1 || missing_commands+=("$required")
+done
+if (( ${#missing_commands[@]} )); then
+    printf '[min_system][ERROR] Required commands missing after installation:\n' >&2
+    printf '  - %s\n' "${missing_commands[@]}" >&2
+    exit 1
+fi
 
 log "Minimal system setup complete."

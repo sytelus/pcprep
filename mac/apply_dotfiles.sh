@@ -125,22 +125,11 @@ copy_if_absent \
 
 # --------------------------------------------------------- Local bin helpers
 
-# Cross-machine helper scripts copied from ubuntu/ into ~/.local/bin.  Most of
-# these are Linux-oriented and may only be useful when the same home directory
-# or repo is shared with Linux hosts, but copying them here is harmless and
-# keeps the per-user toolbox consistent across machines.
+# Install only helpers whose commands and filesystem assumptions are portable
+# to macOS. Linux service, mount, security and GPU helpers remain Linux-only.
 for local_bin_file in \
-  rundocker.sh \
-  azmount.yaml \
-  azmount.sh \
-  mount_cifs.sh \
   start_tmux.sh \
-  sysinfo.sh \
-  treesize.sh \
-  measure_flops.py \
-  kill_vscode_srv.sh \
-  security_status.sh \
-  unban.sh
+  treesize.sh
 do
   install_local_bin_asset \
     "$UBUNTU_DOTFILES_DIR/$local_bin_file" \
