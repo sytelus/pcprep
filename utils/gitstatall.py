@@ -62,6 +62,16 @@ class FolderStatus:
     def dirty(self) -> bool:
         return any((self.staged, self.unstaged, self.untracked, self.conflicts))
 
+    @property
+    def non_primary_branch(self) -> bool:
+        """Whether this worktree is on a named branch other than main/master."""
+        return (
+            self.kind == "worktree"
+            and bool(self.branch)
+            and self.branch not in ("main", "master", "unborn")
+            and not self.branch.startswith("detached@")
+        )
+
 
 def _decode(data: bytes) -> str:
     encoding = locale.getpreferredencoding(False) or "utf-8"
@@ -427,11 +437,13 @@ def _summary(results: Sequence[FolderStatus]) -> str:
     clean = len(worktrees) - dirty
     ahead = sum(bool(item.ahead) for item in worktrees)
     behind = sum(bool(item.behind) for item in worktrees)
+    non_primary = sum(item.non_primary_branch for item in worktrees)
     errors = sum(bool(item.error or item.notes) or item.kind == "error" for item in results)
     non_repositories = sum(item.kind == "non-repository" for item in results)
     return (
         f"{len(repositories)} repositories  |  {clean} clean  |  {dirty} dirty  |  "
-        f"{ahead} ahead  |  {behind} behind  |  {errors} errors  |  "
+        f"{non_primary} non-main/master  |  {ahead} ahead  |  {behind} behind  |  "
+        f"{errors} errors  |  "
         f"{non_repositories} non-repositories"
     )
 
@@ -445,6 +457,13 @@ def _rich_style_worktree(status: FolderStatus) -> str:
     if status.kind == "worktree":
         return f"[green]{text}[/]"
     return f"[dim]{text}[/]"
+
+
+def _rich_style_branch(status: FolderStatus) -> str:
+    text = escape(status.branch or "-")
+    if status.non_primary_branch:
+        return f"[bold yellow]⚑ {text}[/]"
+    return text
 
 
 def _rich_style_sync(status: FolderStatus) -> str:
@@ -483,9 +502,11 @@ def _render_rich(
         notes = list(status.notes)
         if status.error:
             notes.insert(0, status.error)
+        if status.non_primary_branch:
+            notes.insert(0, "non-main/master branch")
         table.add_row(
             escape(status.name),
-            escape(status.branch or "-"),
+            _rich_style_branch(status),
             _rich_style_worktree(status),
             escape(_upstream_text(status)) if status.kind in ("worktree", "bare") else "[dim]-[/]",
             _rich_style_sync(status),
@@ -516,6 +537,8 @@ def _render_plain(
         notes = list(status.notes)
         if status.error:
             notes.insert(0, status.error)
+        if status.non_primary_branch:
+            notes.insert(0, "non-main/master branch")
         rows.append(
             (
                 status.name,
