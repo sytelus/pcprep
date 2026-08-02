@@ -34,6 +34,35 @@ grep -q 'mode:[[:space:]]*msi' "$SCRIPT_DIR/azmount.yaml"
 ! AZMOUNT_POINT=/ bash "$SCRIPT_DIR/azunmount.sh" >/dev/null 2>&1
 [[ -f $SCRIPT_DIR/install_tailscale.sh && ! -e $SCRIPT_DIR/install_tailscale.py ]]
 [[ -f $SCRIPT_DIR/install_minikube.sh && ! -e $SCRIPT_DIR/minikube-linux-amd64 ]]
+grep -Fqx 'claudeyolo=claude --dangerously-skip-permissions --remote-control= $*' \
+  "$SCRIPT_DIR/../windows/aliases.doskey"
+grep -Fqx 'codexyolo=codex --yolo' "$SCRIPT_DIR/../windows/aliases.doskey"
+
+(
+  export USER=${USER:-pcprep}
+  # The alias file starts by removing this name; seed it so that cleanup also
+  # succeeds while this test suite has errexit enabled.
+  alias pcprep_unalias=true
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/.bash_aliases"
+  claude() {
+    [[ $# -eq 5 ]]
+    [[ $1 == --dangerously-skip-permissions ]]
+    [[ $2 == --remote-control= ]]
+    [[ $3 == --model ]]
+    [[ $4 == "opus test" ]]
+    [[ $5 == "prompt words" ]]
+  }
+  codex() {
+    [[ $# -eq 4 ]]
+    [[ $1 == --yolo ]]
+    [[ $2 == --model ]]
+    [[ $3 == "gpt test" ]]
+    [[ $4 == "prompt words" ]]
+  }
+  claudeyolo --model "opus test" "prompt words"
+  codexyolo --model "gpt test" "prompt words"
+)
 
 if bash "$SCRIPT_DIR/mount_cifs.sh" bad/name //server/share user </dev/null >/dev/null 2>&1; then
   echo "mount_cifs accepted an invalid mount name" >&2

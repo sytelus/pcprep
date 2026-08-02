@@ -70,7 +70,7 @@ values with environment variables or documented placeholders.
 | 3 | CUDA apt repair now backs up and edits only matching `.list` lines or Deb822 stanzas, validates the key, and rolls back on apt failure | Bash parse; privileged apt integration remains under item 14 |
 | 4 | Restored normal SSH known-host verification | Configuration inspection and regression scan passed |
 | 5 | CIFS now reads secrets silently/stdin, validates inputs, writes root-only credentials atomically, updates fstab idempotently, uses least-privilege modes, and rolls back on mount failure | Bash parse and invalid-input tests passed; real mount remains under item 14 |
-| 6 | Codex defaults now require approval/workspace sandboxing, project MCP auto-enable and Git safe-directory bypass were disabled, and unsafe agent aliases were removed | TOML/JSON parsing and repository regression scan passed |
+| 6 | Codex defaults now require approval/workspace sandboxing, and project MCP auto-enable and Git safe-directory bypass were disabled; explicitly named agent bypass aliases remain available for intentional use | TOML/JSON parsing, Bash argument-forwarding tests, DOSKEY loading, and installed CLI flag checks passed |
 | 7 | Ubuntu setup explicitly acquires sudo, propagates apt/install failures, and verifies a required command manifest | Bash parse and static flow inspection; native bootstrap remains under item 14 |
 | 8 | Git editor/merge/diff commands preserve deferred path variables and use `--wait` | Isolated fake-`code` argument test passed |
 | 9 | PyTorch selection uses a reviewed driver/wheel matrix (`cu126`, `cu130`, `cu132`, or CPU) and verifies a real tensor operation | Bash parse; package/GPU execution remains under item 14 |

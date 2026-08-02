@@ -269,8 +269,12 @@ Several aliases are intentionally powerful and should be used carefully:
 - `mvx` and `smv` remove source files after successful Robocopy transfers.
 - `removepass` interactively rewrites selected SSH private-key passphrases.
 - `nvreset` attempts to reset NVIDIA GPU 0 and can interrupt GPU work.
-- Agent aliases retain their normal permission and approval safeguards; the
-  previous `claudeyolo` and `codexyolo` bypass aliases were removed.
+- `claudeyolo` forwards additional arguments to Claude, bypasses permission
+  checks, and enables Remote Control. `codexyolo` starts Codex in YOLO mode.
+  Both intentionally bypass normal permission and approval safeguards.
+- `claudeyolo` passes an explicit empty value as `--remote-control=` before
+  forwarded arguments. Without the equals sign, Claude can consume the first
+  positional argument as the optional Remote Control session name.
 - `skillall` cancels all of the current user's Slurm jobs after confirmation.
 
 Alternative names such as `gcln`/`gclean`, `cpx`/`cpz`/`copynewfiles`, and

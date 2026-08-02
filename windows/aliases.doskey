@@ -35,6 +35,7 @@ cpz=robocopy $1 $2 /E /Z /DCOPY:DATE /V /FP /ETA /W:0 /R:0
 mirfiles=robocopy $1 $2 /MIR /Z /DCOPY:DATE /V /FP /ETA /W:0 /R:0
 gsrc=cd /d "d:\GitHubSrc\"
 bashrt=wsl.exe -u root
+claudeyolo=claude --dangerously-skip-permissions --remote-control= $*
 gchk=git checkout $*
 gmain=git checkout main
 dockerls=docker container ls
@@ -53,6 +54,7 @@ kjobsall=kubectl get vcjob -L created-by-name,submitter
 kpod=kubectl describe pod $*
 kdel=kubectl delete vcjob $*
 klog=kubectl logs -f $*
+codexyolo=codex --yolo
 undocommit=git reset --soft HEAD~1
 kquota=kubectl describe resourcequota bonete61-compute-quota
 kjob=kubectl get vcjob --show-labels $*$T kubectl get pods -l volcano.sh/job-name=$*

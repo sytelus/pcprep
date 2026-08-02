@@ -19,7 +19,9 @@ and supply-chain work.
   edits fstab idempotently, and rolls back a failed mount.
 - SSH known-host verification is enabled.
 - Codex defaults use workspace sandboxing and approvals; Claude project MCP
-  auto-enable, unsafe agent aliases, and Git's global ownership bypass are gone.
+  auto-enable and Git's global ownership bypass are gone. The explicitly named
+  `claudeyolo` and `codexyolo` aliases remain available for intentional use and
+  bypass the agents' normal permission or approval safeguards.
 
 Focused local tests do not replace a disposable native-system exercise. Do not
 make the first real Docker migration, apt edit, or mount against irreplaceable

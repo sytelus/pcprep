@@ -369,6 +369,14 @@ function treesize {
   fi
 }
 
+pcprep_unalias claudeyolo
+function claudeyolo {
+  claude --dangerously-skip-permissions --remote-control= "$@"
+}
+pcprep_unalias codexyolo
+function codexyolo {
+  codex --yolo "$@"
+}
 
 pcprep_unalias codexupdate
 codexupdate() {

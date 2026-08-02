@@ -104,7 +104,8 @@ Review these files before copying anything:
   environment filtering;
 - `.claude/settings.json` does not auto-enable project MCP servers;
 - `.bashrc` preserves Git ownership checks and reuses one valid SSH agent;
-- approval-bypassing agent aliases were removed;
+- the explicitly named `claudeyolo` and `codexyolo` helpers bypass normal agent
+  safeguards and should be used only intentionally;
 - `azmount.yaml` uses managed identity and is installed at mode 0600.
 
 Forceful Git cleanup/revert aliases still exist as interactive user tools; read
