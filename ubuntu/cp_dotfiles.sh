@@ -10,7 +10,7 @@ DEFAULT_BASHRC="/etc/skel/.bashrc"
 # in Ubuntu 22.04 does not support `--update=none`. Select the equivalent
 # no-clobber spelling supported by the running WSL/Ubuntu release.
 CP_NO_CLOBBER=(-n)
-if cp --help 2>&1 | grep -F -- '--update=UPDATE' >/dev/null; then
+if cp --update=none --version >/dev/null 2>&1; then
     CP_NO_CLOBBER=(--update=none)
 fi
 
@@ -69,17 +69,13 @@ if ! grep -qF "$statement" "$bashrc"; then
 fi
 
 # Copy Linux helpers without changing executable bits in the repository.
-cp -vn rundocker.sh ~/.local/bin/rundocker.sh
-cp -vn azmount.sh ~/.local/bin/azmount.sh
-cp -vn azunmount.sh ~/.local/bin/azunmount.sh
-cp -vn mount_cifs.sh ~/.local/bin/mount_cifs.sh
-cp -vn start_tmux.sh ~/.local/bin/start_tmux.sh
-cp -vn sysinfo.sh ~/.local/bin/sysinfo.sh
-cp -vn treesize.sh ~/.local/bin/treesize.sh
-cp -vn measure_flops.py ~/.local/bin/measure_flops.py
-cp -vn kill_vscode_srv.sh ~/.local/bin/kill_vscode_srv.sh
-cp -vn security_status.sh ~/.local/bin/security_status.sh
-cp -vn unban.sh ~/.local/bin/unban.sh
+helpers=(
+  rundocker.sh azmount.sh azunmount.sh mount_cifs.sh start_tmux.sh sysinfo.sh
+  treesize.sh measure_flops.py kill_vscode_srv.sh security_status.sh unban.sh
+)
+for helper in "${helpers[@]}"; do
+  cp -v "${CP_NO_CLOBBER[@]}" "$helper" "$HOME/.local/bin/$helper"
+done
 chmod +x ~/.local/bin/rundocker.sh ~/.local/bin/azmount.sh ~/.local/bin/azunmount.sh \
   ~/.local/bin/mount_cifs.sh ~/.local/bin/start_tmux.sh ~/.local/bin/sysinfo.sh \
   ~/.local/bin/treesize.sh ~/.local/bin/measure_flops.py \
