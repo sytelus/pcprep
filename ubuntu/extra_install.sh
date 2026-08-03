@@ -93,6 +93,7 @@ install_pkg() {
 install_first_available() {
   # usage: install_first_available pkgA [pkgB ...]
   local chosen=""
+  apt_update_once
   for p in "$@"; do
     if apt_has_pkg "$p"; then chosen="$p"; break; fi
   done
@@ -110,7 +111,7 @@ install_qol() {
   install_pkg fd-find || true
   install_pkg bat || true
   install_pkg fzf || true
-  install_pkg tldr || true
+  install_first_available tealdeer tldr tldr-py || true
   install_pkg tree || true
 
   # Disk usage tools: install all available variants
@@ -226,14 +227,16 @@ install_filesystems() {
   install_pkg cifs-utils || true
   install_pkg mergerfs || true
   install_pkg lsof || true
-  install_pkg pstree || true
+  # pstree is a command shipped by the psmisc package.
+  install_pkg psmisc || true
 }
 
 # ----- Compression & Archiving -----
 install_archivers() {
   install_pkg zip || true
   install_pkg unzip || true
-  install_pkg p7zip-full || true
+  # p7zip-full is virtual in Ubuntu 26.04 and is provided by 7zip.
+  install_first_available 7zip p7zip-full || true
   install_pkg zstd || true
   install_pkg pigz || true
   install_pkg pbzip2 || true
@@ -272,9 +275,11 @@ install_media_docs() {
 
 # ----- Misc -----
 install_misc() {
-  install_pkg watch || true
+  # watch is a command shipped by the procps package.
+  install_pkg procps || true
   install_pkg whois || true
-  install_pkg dnsutils || true
+  # dnsutils is virtual in Ubuntu 26.04 and is provided by bind9-dnsutils.
+  install_first_available bind9-dnsutils dnsutils || true
   install_pkg uuid-runtime || true
   install_pkg time || true
   # install_pkg colordiff || true

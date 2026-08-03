@@ -6,6 +6,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
 export NO_NET=${NO_NET:-0}
 export INSTALL_FUN_PACKAGES=${INSTALL_FUN_PACKAGES:-0}
+export NVM_VERSION=${NVM_VERSION:-0.40.6}
 
 log() { echo "[min_system] $*"; }
 warn() { echo "[min_system][WARN] $*" >&2; }
@@ -123,9 +124,8 @@ enable_ubuntu_components() {
 
 install_core_packages() {
     install_packages \
-        git curl wget xclip xsel xz-utils tar apt-transport-https trash-cli bash-completion \
+        git curl wget xclip xsel xz-utils tar apt-transport-https trash-cli bash-completion pciutils \
         ufw fail2ban unattended-upgrades at \
-        npm nodejs \
         htop procps build-essential cmake g++ libopencv-dev libopenmpi-dev zlib1g-dev \
         fdupes keychain pass micro zlib1g \
         ca-certificates gnupg lsb-release \
@@ -182,7 +182,21 @@ install_toolchain_updates() {
 install_azure_cli() {
     if ! command -v az >/dev/null 2>&1; then
         log "Azure CLI not found. Installing..."
-        curl -sL https://aka.ms/InstallAzureCLIDeb | _sudo bash || warn "Azure CLI installation failed."
+        local os_id os_version
+        os_id=$(. /etc/os-release; printf '%s' "${ID:-}")
+        os_version=$(. /etc/os-release; printf '%s' "${VERSION_ID:-}")
+        if [ "$os_id:$os_version" = "ubuntu:26.04" ]; then
+            # Microsoft has no Resolute suite yet. Its maintained installer and
+            # documentation use the Jammy repository for newer Ubuntu releases.
+            warn "Azure CLI has no Ubuntu 26.04 repository; using Microsoft's Jammy fallback."
+            curl -sL https://aka.ms/InstallAzureCLIDeb \
+                | _sudo env DIST_CODE=jammy bash \
+                || warn "Azure CLI installation failed."
+        else
+            curl -sL https://aka.ms/InstallAzureCLIDeb \
+                | _sudo bash \
+                || warn "Azure CLI installation failed."
+        fi
     fi
 
     if command -v az >/dev/null 2>&1; then
@@ -222,24 +236,41 @@ install_github_cli() {
 }
 
 install_user_tools() {
+    local installed_nvm_version=""
+
     mkdir -p "$HOME/.local/bin"
 
     if ! command -v micro >/dev/null 2>&1; then
         (cd "$HOME/.local/bin" && curl https://getmic.ro | MICRO_DESTDIR="$HOME/.local" sh) || warn "micro installer failed."
     fi
 
-    if [ ! -s "$HOME/.nvm/nvm.sh" ]; then
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash || warn "nvm installer failed."
-    fi
-
     export NVM_DIR="$HOME/.nvm"
     set +u
     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-    [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
     if command -v nvm >/dev/null 2>&1; then
-        nvm install --lts || warn "nvm failed to install latest LTS Node."
-        nvm use --lts || warn "nvm failed to activate latest LTS Node."
+        installed_nvm_version=$(nvm --version)
     fi
+    set -u
+
+    if [ "$installed_nvm_version" != "$NVM_VERSION" ]; then
+        log "Installing NVM $NVM_VERSION (found ${installed_nvm_version:-none})."
+        curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" \
+            | bash \
+            || warn "nvm installer failed."
+    fi
+
+    set +u
+    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
+    command -v nvm >/dev/null 2>&1 \
+        || { set -u; warn "NVM is unavailable after installation."; return 1; }
+    installed_nvm_version=$(nvm --version)
+    [ "$installed_nvm_version" = "$NVM_VERSION" ] \
+        || { set -u; warn "Expected NVM $NVM_VERSION, found $installed_nvm_version."; return 1; }
+    nvm install --lts || { set -u; warn "nvm failed to install latest LTS Node."; return 1; }
+    nvm use --lts || { set -u; warn "nvm failed to activate latest LTS Node."; return 1; }
+    nvm alias default 'lts/*' \
+        || { set -u; warn "nvm failed to make the LTS release the default Node."; return 1; }
     set -u
 
     install_zellij

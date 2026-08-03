@@ -135,9 +135,9 @@ ubuntu/gitclones.sh
 ubuntu/gitconfig.sh
 ubuntu/gsettings.sh
 ubuntu/install_azcopy.sh
+ubuntu/install_cuda.sh
 ubuntu/install_cuda12.4.sh
 ubuntu/install_cuda12.6.sh
-ubuntu/install_cuda12.8.sh
 ubuntu/install_cudnn.sh
 ubuntu/install_dl_frameworks.sh
 ubuntu/install_docker.sh

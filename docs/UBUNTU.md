@@ -8,6 +8,11 @@ safety blockers were remediated, while supply-chain pinning and native
 integration remain in [TODO.md](../TODO.md). Do not treat every standalone
 script as part of one supported batch.
 
+The intended bootstrap path now handles Ubuntu 26.04 LTS (Resolute) package and
+repository differences on amd64 and arm64. Package availability was checked
+against the official Resolute APT indexes; native installation, desktop, WSL,
+and GPU integration still need to be exercised on representative machines.
+
 ## Intended bootstrap flow
 
 `setupbox.sh` is a download-and-clone convenience wrapper:
@@ -16,9 +21,10 @@ script as part of one supported batch.
 setupbox.sh
   -> clone pcprep into ~/GitHubSrc/pcprep
   -> ubuntu/prepare_new_box.sh
-       -> optional WSL or CUDA branch
+       -> optional WSL preparation
        -> cp_dotfiles.sh
        -> min_system.sh
+       -> optional WSL utility or CUDA branch
        -> gitconfig.sh
        -> extra_install.sh
        -> install_miniconda.sh
@@ -33,11 +39,25 @@ The orchestrator uses these environment variables:
 | `user_name` | empty/prompted downstream | Global Git user name |
 | `user_email` | empty/prompted downstream | Global Git email |
 | `INSTALL_CUDA` | `0` | Opt in to CUDA installation on non-WSL Linux when a compatible GPU is detected |
+| `CUDA_VERSION` | `13.2` | Toolkit-only NVIDIA CUDA version aligned with the newest CUDA wheel provided by stable PyTorch |
 | `INSTALL_PYTORCH` | `1` | Controls framework installation in the downstream DL script |
-| `WSL_DISTRO_NAME` | inherited from WSL | Selects WSL-specific SSH, browser, apt, and Windows credential-manager integration |
+| `PYTHON_VERSION` | `3.14` | Latest stable Python feature series installed into Miniconda base; Conda resolves its newest patch release |
+| `PYTORCH_VERSION` | `2.13.0` | Reviewed stable PyTorch release |
+| `TORCHVISION_VERSION` | `0.28.0` | TorchVision release paired with the reviewed PyTorch version |
+| `WSL_DISTRO_NAME` | inherited from WSL | Selects WSL-specific SSH, browser, apt, and Windows credential-manager integration; `/proc/version` is used as a fallback |
+| `PCPREP_WIN_GCM_PATH` | auto-detected | Optional WSL path to a nonstandard Windows `git-credential-manager.exe` installation |
 
 The WSL prompt now points to the existing `wsl_prep.md`; follow those manual
-host-side instructions before continuing.
+host-side instructions before continuing. Ubuntu 26.04 removed `wslu`, and the
+upstream PPA has no Resolute suite, so the bootstrap skips that optional package
+when unavailable instead of leaving a broken APT source. Standard WSL Windows
+interop through `cmd.exe` and `explorer.exe` remains available. Windows SSH
+files are located from `%USERPROFILE%` instead of assuming the Windows and Linux
+usernames match, and existing WSL SSH files are never overwritten. Git is
+installed by `min_system.sh` before Windows Git Credential Manager is configured
+using its WSL-safe escaped path. If Windows interop is disabled, the Windows
+credential and Tailscale integrations are skipped without breaking the rest of
+the bootstrap. Run the orchestrator as the regular WSL user, not with `sudo`.
 
 ## Script families
 
@@ -53,12 +73,23 @@ host-side instructions before continuing.
 
 The orchestrator and child package scripts now acquire sudo explicitly and fail
 instead of silently skipping required system work. A final required-command
-manifest prevents a partial run from reporting “ready.”
+manifest prevents a partial run from reporting “ready.” Microsoft does not yet
+publish an Azure CLI `resolute` suite, so Ubuntu 26.04 uses the vendor-documented
+`jammy` repository fallback explicitly. Node.js is installed through NVM 0.40.6
+using the current LTS release, and the Codex CLI is installed into that
+user-owned NVM tree rather than through Ubuntu's older system npm.
 
 ### NVIDIA, CUDA, and ML
 
-- CUDA version installers exist for 12.4, 12.6, and 12.8. Only 12.8 is selected
-  by the current orchestrator when `INSTALL_CUDA=1`.
+- Legacy standalone CUDA version installers exist for 12.4 and 12.6. The
+  orchestrator uses `install_cuda.sh`, which defaults to toolkit-only CUDA 13.2,
+  selects NVIDIA's Ubuntu 22.04/24.04/26.04 repository, supports amd64 and
+  arm64/SBSA, and does not install driver packages. NVIDIA does not publish the
+  older 13.2 toolkit in its Ubuntu 26.04 repository, so the orchestrator's
+  preflight skips that optional toolkit on Resolute instead of using an
+  unsupported cross-release repository. PyTorch's `cu132` wheel includes the
+  runtime it needs and remains usable with a sufficiently new Windows/WSL or
+  native NVIDIA driver.
 - `install_nvidia_drivers.sh`, `nv_container_tk.sh`, `install_cudnn.sh`,
   `install_nccl.sh`, `install_flash_attn.sh`, and
   `install_transformerengine.sh` are independent specialist installers.
@@ -69,8 +100,12 @@ manifest prevents a partial run from reporting “ready.”
 
 Framework wheels, drivers, toolkits, and container runtimes have compatibility
 constraints. The DL installer maps the driver-reported maximum to the reviewed
-PyTorch 2.12.1 `cu126`, `cu130`, `cu132`, or CPU wheel and verifies a real tensor
-operation. Native GPU validation remains part of deferred integration testing.
+PyTorch 2.13.0/TorchVision 0.28.0 `cu126`, `cu130`, `cu132`, or CPU wheel on
+amd64 or arm64 and verifies a real tensor operation. Miniconda 26.5.3-1 is
+upgraded to the latest Python 3.14 patch available from Anaconda's defaults
+channel. TensorFlow is removed because its current stable release has no Python
+3.14 wheel; Keras is retained with its PyTorch backend and TensorBoard remains
+available. Native GPU validation remains part of deferred integration testing.
 
 ### Storage, mounts, network, and system administration
 

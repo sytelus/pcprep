@@ -1,30 +1,30 @@
-# Steps to prepare WSL environment
+# Steps to prepare a WSL environment
 
-To start from  scratch:
+To start from scratch:
 
-1. Go to Apps > Installed Apps > Ubuntu > Uninstall.
-2. Reinstall and update wsl and install distro:
-```bash
-# in admin prompt
-wsl --uninstall
+1. Back up anything needed from an existing distribution. `wsl --unregister`
+   permanently deletes that distribution's filesystem; use it only when you
+   really intend to replace the named distribution.
+2. From an Administrator PowerShell or Command Prompt, update WSL and install
+   Ubuntu 26.04 under the local name `u2`:
+
+```powershell
+# Optional destructive reset of this one distribution:
+# wsl --unregister u2
 wsl --update
-# wsl --install -d Ubuntu-22.04
-wsl --install -d Ubuntu-24.04 --name u2
-# init distro, enter user name, password and complete the setup
-wsl -s u2 # set u2 as default distro
-wsl
+wsl --install -d Ubuntu-26.04 --name u2
+# Initialize the distro, enter a user name and password, and complete setup.
+wsl -s u2
+wsl -d u2
 ```
 
 3. (Optional) Move WSL vhd file
 
-```bash
-# exit from wsl, go back to command prompt
-# make dir to vhd file which can big and you
-# probably want to move it to a different drive
+```powershell
+# Exit WSL first. The VHDX can grow large, so another drive may be preferable.
 mkdir e:\wsl_vhd
 wsl --shutdown
-wsl --manage Ubuntu-22.04 --move e:\wsl_vhd
-# list your distros to verify
+wsl --manage u2 --move e:\wsl_vhd
 wsl -l -v
 ```
 
@@ -33,7 +33,7 @@ wsl -l -v
 ## Install stuff
 
 ```bash
-# in wsl
+# Run these as the regular WSL user, not with sudo.
 mkdir ~/GitHubSrc
 cd ~/GitHubSrc
 git clone https://github.com/sytelus/pcprep

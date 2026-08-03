@@ -1,51 +1,40 @@
-# find tensorflow packages
-import pkg_resources
-l = [d for d in pkg_resources.working_set  if 'tensorflow' in str(d)]
-print(l)
-
-# what devices tensorflow see?
-import tensorflow.compat.v1 as tensorflow
-print('TF version', tensorflow.__version__)
-
-from tensorflow.python.client import device_lib
-print('Tensorflow devices:')
-print(device_lib.list_local_devices())
-
-try: # TF 2.x
-    import tensorflow.compat.v1 as tf
-    tf.disable_eager_execution()
-except Exception as ex:
-    # TF 1.x
-    print(ex)
-    import tensoflow as tf
-
-a = tf.constant(5.0)
-b = tf.constant(6.0)
-c = a * b
-sess=tf.Session()
-sess.run(c)
-
-# find PyTorch packages
-import pkg_resources
-l = [d for d in pkg_resources.working_set  if 'pytorch' in str(d)]
-print(l)
-
-# confirm PyTorch sees the GPU
-from torch import cuda
-import torch
-print('PyTorch version', torch.__version__)
-print('PyTorch cuda available', cuda.is_available())
-print('PyTorch device count', cuda.device_count())
-print('PyTorch device', cuda.get_device_name(cuda.current_device()))
-
-# confirm Keras sees the GPU
-# from tensorflow.keras import backend
-# print('keras GPUs:', backend.tensorflow_backend._get_available_gpus())
-
 import os
-os.system('nvidia-smi')
-os.system('nvcc --version')
+import shutil
+import subprocess
 
-import ray
-ray.init(num_gpus=1)
-print('ray GPU IDs', ray.get_gpu_ids())
+# The managed Python 3.14 environment intentionally excludes TensorFlow. Keras
+# uses the installed PyTorch package as its backend.
+os.environ.setdefault("KERAS_BACKEND", "torch")
+
+import keras
+import torch
+import torchvision
+
+print("Python framework smoke test")
+print("Keras version", keras.__version__)
+print("Keras backend", keras.backend.backend())
+print("PyTorch version", torch.__version__)
+print("TorchVision version", torchvision.__version__)
+
+if keras.backend.backend() != "torch":
+    raise SystemExit("Keras is not using the PyTorch backend")
+
+cpu_result = torch.tensor([[1.0, 2.0], [3.0, 4.0]]) @ torch.eye(2)
+print("PyTorch CPU tensor test", cpu_result.tolist())
+
+print("PyTorch CUDA available", torch.cuda.is_available())
+print("PyTorch CUDA device count", torch.cuda.device_count())
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    gpu_result = torch.ones((2, 2), device=device) @ torch.ones((2, 2), device=device)
+    torch.cuda.synchronize()
+    print("PyTorch CUDA device", torch.cuda.get_device_name(0))
+    print("PyTorch CUDA tensor test", gpu_result.cpu().tolist())
+else:
+    print("SKIP: no CUDA device is available to PyTorch")
+
+for command in (("nvidia-smi",), ("nvcc", "--version")):
+    if shutil.which(command[0]):
+        subprocess.run(command, check=True)
+    else:
+        print(f"SKIP: {command[0]} is not installed")

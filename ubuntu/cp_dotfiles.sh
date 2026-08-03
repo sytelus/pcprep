@@ -6,6 +6,13 @@ set -o xtrace
 USER_BASHRC="$HOME/.bashrc"
 DEFAULT_BASHRC="/etc/skel/.bashrc"
 
+# GNU coreutils 9.7 warns that `cp -n` is deprecated, while the 8.32 version
+# in Ubuntu 22.04 does not support `--update=none`. Select the equivalent
+# no-clobber spelling supported by the running WSL/Ubuntu release.
+CP_NO_CLOBBER=(-n)
+if cp --help 2>&1 | grep -F -- '--update=UPDATE' >/dev/null; then
+    CP_NO_CLOBBER=(--update=none)
+fi
 
 check_bashrc_modification() {
     # Check if user's .bashrc exists
@@ -37,18 +44,18 @@ else
     cp -f .bashrc ~/.bashrc
 fi
 
-cp -v --update=none .bash_aliases ~/.bash_aliases
-cp -v --update=none .inputrc ~/.inputrc
-cp -v --update=none .tmux.conf ~/.tmux.conf
+cp -v "${CP_NO_CLOBBER[@]}" .bash_aliases ~/.bash_aliases
+cp -v "${CP_NO_CLOBBER[@]}" .inputrc ~/.inputrc
+cp -v "${CP_NO_CLOBBER[@]}" .tmux.conf ~/.tmux.conf
 mkdir -p ~/.codex
-cp -v --update=none .codex/config.toml ~/.codex/config.toml
+cp -v "${CP_NO_CLOBBER[@]}" .codex/config.toml ~/.codex/config.toml
 mkdir -p ~/.claude
-cp -v --update=none .claude/settings.json ~/.claude/settings.json
+cp -v "${CP_NO_CLOBBER[@]}" .claude/settings.json ~/.claude/settings.json
 
-# skip files that already exists
-cp -vr --update=none .config/ ~/
-cp -vr --update=none .ssh/ ~/
-cp -vr --update=none .local/ ~/
+# Skip files that already exist.
+cp -vr "${CP_NO_CLOBBER[@]}" .config/ ~/
+cp -vr "${CP_NO_CLOBBER[@]}" .ssh/ ~/
+cp -vr "${CP_NO_CLOBBER[@]}" .local/ ~/
 
 
 # create local bin where we can store our apps as sudo is not supported

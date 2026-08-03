@@ -39,10 +39,10 @@ time-bounded managed-update replacement exists.
 
 ### 22. Make smoke tests current and self-describing
 
-Update `tests/atari.py` and `tests/cuda.py`: correct the TensorFlow import typo
-and obsolete Atari/Gym interfaces, declare optional dependencies, report
-hardware-dependent skips explicitly, and separate examples from automated
-pass/fail tests.
+Update `tests/atari.py`: replace obsolete Atari/Gym interfaces, declare optional
+dependencies, report hardware-dependent skips explicitly, and separate examples
+from automated pass/fail tests. `tests/cuda.py` now reflects the supported
+PyTorch/Keras stack and reports missing GPU/toolkit commands as explicit skips.
 
 ## Privacy decisions
 
