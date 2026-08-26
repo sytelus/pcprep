@@ -275,6 +275,9 @@ Several aliases are intentionally powerful and should be used carefully:
 - `claudeyolo` passes an explicit empty value as `--remote-control=` before
   forwarded arguments. Without the equals sign, Claude can consume the first
   positional argument as the optional Remote Control session name.
+- `claudeupdate` runs Claude Code's documented `claude update` command.
+  `codexupdate` reruns OpenAI's documented standalone Windows installer to
+  update the Codex CLI.
 - `skillall` cancels all of the current user's Slurm jobs after confirmation.
 
 Alternative names such as `gcln`/`gclean`, `cpx`/`cpz`/`copynewfiles`, and

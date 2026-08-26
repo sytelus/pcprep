@@ -70,6 +70,9 @@ grep -q 'mode:[[:space:]]*msi' "$SCRIPT_DIR/azmount.yaml"
 grep -Fqx 'claudeyolo=claude --dangerously-skip-permissions --remote-control= $*' \
   "$SCRIPT_DIR/../windows/aliases.doskey"
 grep -Fqx 'codexyolo=codex --yolo' "$SCRIPT_DIR/../windows/aliases.doskey"
+grep -Fqx 'claudeupdate=claude update' "$SCRIPT_DIR/../windows/aliases.doskey"
+grep -Fqx 'codexupdate=powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"' \
+  "$SCRIPT_DIR/../windows/aliases.doskey"
 
 (
   export USER=${USER:-pcprep}
