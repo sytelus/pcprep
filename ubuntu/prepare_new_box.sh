@@ -237,6 +237,58 @@ install_wslu_if_available() {
     fi
 }
 
+configure_wsl_sudo_timeout() {
+    local timeout_minutes="153722867280912930"
+    local sudoers_file="/etc/sudoers.d/99-pcprep-wsl-timestamp-timeout"
+    local sudoers_candidate=""
+
+    # sudo-rs, the Ubuntu 26.04 default, rejects the traditional -1 value for
+    # "never expire". This is floor(INT64_MAX / 60), the largest whole-minute
+    # timeout its signed-seconds timestamp arithmetic can safely represent
+    # (about 292 billion years). Timestamp records are still invalid after a
+    # reboot, and sudo's normal per-terminal scoping remains in effect.
+    sudoers_candidate=$(mktemp) || {
+        echo "Unable to create a temporary sudoers policy." >&2
+        return 1
+    }
+    if ! printf '%s\n' \
+        '# Managed by pcprep/ubuntu/prepare_new_box.sh.' \
+        '# System-wide maximum sudo timestamp timeout for this WSL distro.' \
+        "Defaults timestamp_timeout=$timeout_minutes" \
+        > "$sudoers_candidate"; then
+        rm -f -- "$sudoers_candidate"
+        echo "Unable to prepare the sudo timestamp policy." >&2
+        return 1
+    fi
+
+    # Validate the candidate before placing it under /etc. Install through a
+    # temporary name and rename atomically so interruption cannot leave a
+    # partially written sudoers file.
+    if ! sudo visudo -cf "$sudoers_candidate" >/dev/null; then
+        rm -f -- "$sudoers_candidate"
+        echo "Refusing to install an invalid sudo timestamp policy." >&2
+        return 1
+    fi
+    if ! sudo install -o root -g root -m 0440 \
+        "$sudoers_candidate" "$sudoers_file.pcprep-new"; then
+        rm -f -- "$sudoers_candidate"
+        echo "Unable to stage $sudoers_file." >&2
+        return 1
+    fi
+    rm -f -- "$sudoers_candidate"
+    if ! sudo mv -f -- "$sudoers_file.pcprep-new" "$sudoers_file"; then
+        sudo rm -f -- "$sudoers_file.pcprep-new" || true
+        echo "Unable to install $sudoers_file." >&2
+        return 1
+    fi
+    sudo visudo -cf /etc/sudoers >/dev/null || {
+        echo "The aggregate sudoers policy failed validation after installing $sudoers_file." >&2
+        return 1
+    }
+
+    echo "Configured the system-wide WSL sudo timestamp timeout to $timeout_minutes minutes."
+}
+
 IS_WSL=0
 if is_wsl_environment; then
     IS_WSL=1
@@ -279,6 +331,7 @@ sudo -v || { echo "Unable to acquire sudo; no setup steps were started." >&2; ex
 export PCPREP_SUDO_READY=1
 
 if [ "$IS_WSL" = "1" ]; then
+    configure_wsl_sudo_timeout
     copy_windows_ssh_keys
 fi
 

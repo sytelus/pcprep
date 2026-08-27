@@ -79,6 +79,17 @@ publish an Azure CLI `resolute` suite, so Ubuntu 26.04 uses the vendor-documente
 using the current LTS release, and the Codex CLI is installed into that
 user-owned NVM tree rather than through Ubuntu's older system npm.
 
+On WSL, immediately after the initial interactive `sudo -v`, the orchestrator
+installs `/etc/sudoers.d/99-pcprep-wsl-timestamp-timeout` with mode `0440`. The
+drop-in applies `Defaults timestamp_timeout=153722867280912930` system-wide.
+Ubuntu 26.04's `sudo-rs` does not support the traditional negative “never
+expire” value; this is its largest runtime-safe whole-minute timeout and is
+effectively non-expiring. Sudo timestamp records remain scoped normally (usually
+per terminal) and are invalidated across reboot. The candidate drop-in and the
+aggregate sudoers policy are checked with `visudo` during installation. To
+restore the distro default, remove that drop-in with sudo and run `sudo -k` to
+invalidate existing timestamp records.
+
 ### NVIDIA, CUDA, and ML
 
 - Legacy standalone CUDA version installers exist for 12.4 and 12.6. The
