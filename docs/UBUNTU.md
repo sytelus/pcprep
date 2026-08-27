@@ -140,7 +140,10 @@ Review these files before copying anything:
 - `.claude/settings.json` does not auto-enable project MCP servers;
 - `.bashrc` preserves Git ownership checks and reuses one valid SSH agent;
 - the explicitly named `claudeyolo` and `codexyolo` helpers bypass normal agent
-  safeguards and should be used only intentionally;
+  safeguards and should be used only intentionally. They invoke only the
+  native `$HOME/.local/bin/claude` and `$HOME/.local/bin/codex` executables and
+  fail instead of falling through to a Windows executable imported into WSL's
+  `PATH`;
 - `azmount.yaml` uses managed identity and is installed at mode 0600.
 
 Forceful Git cleanup/revert aliases still exist as interactive user tools; read

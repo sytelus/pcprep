@@ -76,28 +76,53 @@ grep -Fqx 'codexupdate=powershell -ExecutionPolicy ByPass -c "irm https://chatgp
 
 (
   export USER=${USER:-pcprep}
+  export HOME="$TEST_ROOT/agent-home"
+  mkdir -p "$HOME/.local/bin"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
+    '[[ $# -eq 5 ]]' \
+    '[[ $1 == --dangerously-skip-permissions ]]' \
+    '[[ $2 == --remote-control= ]]' \
+    '[[ $3 == --model ]]' \
+    '[[ $4 == "opus test" ]]' \
+    '[[ $5 == "prompt words" ]]' \
+    > "$HOME/.local/bin/claude"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
+    '[[ $# -eq 4 ]]' \
+    '[[ $1 == --yolo ]]' \
+    '[[ $2 == --model ]]' \
+    '[[ $3 == "gpt test" ]]' \
+    '[[ $4 == "prompt words" ]]' \
+    > "$HOME/.local/bin/codex"
+  chmod +x "$HOME/.local/bin/claude" "$HOME/.local/bin/codex"
   # The alias file starts by removing this name; seed it so that cleanup also
   # succeeds while this test suite has errexit enabled.
   alias pcprep_unalias=true
   # shellcheck disable=SC1091
   source "$SCRIPT_DIR/.bash_aliases"
-  claude() {
-    [[ $# -eq 5 ]]
-    [[ $1 == --dangerously-skip-permissions ]]
-    [[ $2 == --remote-control= ]]
-    [[ $3 == --model ]]
-    [[ $4 == "opus test" ]]
-    [[ $5 == "prompt words" ]]
-  }
-  codex() {
-    [[ $# -eq 4 ]]
-    [[ $1 == --yolo ]]
-    [[ $2 == --model ]]
-    [[ $3 == "gpt test" ]]
-    [[ $4 == "prompt words" ]]
-  }
   claudeyolo --model "opus test" "prompt words"
   codexyolo --model "gpt test" "prompt words"
+
+  chmod -x "$HOME/.local/bin/claude" "$HOME/.local/bin/codex"
+  if claudeyolo 2>"$TEST_ROOT/missing-claude"; then
+    echo "claudeyolo accepted a missing native executable" >&2
+    exit 1
+  else
+    [[ $? -eq 127 ]]
+  fi
+  grep -Fqx "Native Claude executable not found: $HOME/.local/bin/claude" \
+    "$TEST_ROOT/missing-claude"
+  if codexyolo 2>"$TEST_ROOT/missing-codex"; then
+    echo "codexyolo accepted a missing native executable" >&2
+    exit 1
+  else
+    [[ $? -eq 127 ]]
+  fi
+  grep -Fqx "Native Codex executable not found: $HOME/.local/bin/codex" \
+    "$TEST_ROOT/missing-codex"
 )
 
 if bash "$SCRIPT_DIR/mount_cifs.sh" bad/name //server/share user </dev/null >/dev/null 2>&1; then

@@ -371,11 +371,21 @@ function treesize {
 
 pcprep_unalias claudeyolo
 function claudeyolo {
-  claude --dangerously-skip-permissions --remote-control= "$@"
+  local claude_bin="$HOME/.local/bin/claude"
+  if [ ! -x "$claude_bin" ]; then
+    printf 'Native Claude executable not found: %s\n' "$claude_bin" >&2
+    return 127
+  fi
+  "$claude_bin" --dangerously-skip-permissions --remote-control= "$@"
 }
 pcprep_unalias codexyolo
 function codexyolo {
-  codex --yolo "$@"
+  local codex_bin="$HOME/.local/bin/codex"
+  if [ ! -x "$codex_bin" ]; then
+    printf 'Native Codex executable not found: %s\n' "$codex_bin" >&2
+    return 127
+  fi
+  "$codex_bin" --yolo "$@"
 }
 
 pcprep_unalias codexupdate
