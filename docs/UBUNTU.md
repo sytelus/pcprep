@@ -46,6 +46,30 @@ The orchestrator uses these environment variables:
 | `TORCHVISION_VERSION` | `0.28.0` | TorchVision release paired with the reviewed PyTorch version |
 | `WSL_DISTRO_NAME` | inherited from WSL | Selects WSL-specific SSH, browser, apt, and Windows credential-manager integration; `/proc/version` is used as a fallback |
 | `PCPREP_WIN_GCM_PATH` | auto-detected | Optional WSL path to a nonstandard Windows `git-credential-manager.exe` installation |
+| `PCPREP_AUDIT_DIR` | `~/.pcprep` | Private directory containing one complete audit log for every orchestrator run |
+
+## Per-run audit trail
+
+Every non-root invocation of `ubuntu/prepare_new_box.sh` creates a uniquely
+named log such as `~/.pcprep/prepare_new_box.20260827T220000Z.A1b2C3.log` and
+updates `~/.pcprep/prepare_new_box.latest.log` to point to the newest run. The
+directory is mode `0700`, and each log is mode `0600`.
+
+The log begins before prompts, network checks, or privileged work. It records
+the start time, script hash, repository commit and clean/dirty state, invoking
+user, host and kernel, WSL detection, and the reviewed installer configuration.
+All subsequent stdout and stderr from the orchestrator and its child installers
+is mirrored into the log. A final record contains the result, exit status,
+duration, and finish time. Signal exits are identified; if the process is
+forcibly killed and cannot run its exit trap, the missing final record leaves
+the run visibly incomplete.
+
+The audit deliberately does not enable shell tracing or dump the process
+environment, which avoids intentionally recording passwords, tokens, and
+unrelated secrets. Installer output can still contain system paths or other
+machine details, which is why the audit directory and logs are private. Set
+`PCPREP_AUDIT_DIR` before launch only when the logs need to live somewhere other
+than `~/.pcprep`.
 
 The WSL prompt now points to the existing `wsl_prep.md`; follow those manual
 host-side instructions before continuing. Ubuntu 26.04 removed `wslu`, and the

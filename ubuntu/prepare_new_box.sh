@@ -2,6 +2,7 @@
 #fail if any errors
 set -Eeuo pipefail # -o xtrace # fail if any command fails
 
+INVOCATION_DIR=$PWD
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cd "$SCRIPT_DIR"
 
@@ -16,6 +17,119 @@ export PYTORCH_VERSION=${PYTORCH_VERSION:-2.13.0}
 export TORCHVISION_VERSION=${TORCHVISION_VERSION:-0.28.0}
 export WSL_DISTRO_NAME=${WSL_DISTRO_NAME:-}
 export PCPREP_WIN_GCM_PATH=${PCPREP_WIN_GCM_PATH:-}
+
+audit_timestamp() {
+    date --iso-8601=seconds
+}
+
+audit_run_finished() {
+    local exit_status="${1:-1}"
+    local result="failed"
+    local duration_seconds=0
+
+    # An EXIT trap must never replace the bootstrap's original exit status.
+    set +e
+    if [ "$exit_status" -eq 0 ]; then
+        result="succeeded"
+    fi
+    duration_seconds=$((SECONDS - PCPREP_RUN_START_SECONDS))
+    printf '\nevent=run_finished\n'
+    printf 'finished_at=%s\n' "$(audit_timestamp)"
+    printf 'result=%s\n' "$result"
+    printf 'exit_status=%s\n' "$exit_status"
+    printf 'duration_seconds=%s\n' "$duration_seconds"
+    printf 'audit_log=%s\n' "$PCPREP_AUDIT_LOG"
+}
+
+audit_signal() {
+    local signal_name="$1"
+    local exit_status="$2"
+
+    printf '\nevent=signal_received\nsignal=%s\n' "$signal_name"
+    trap - "$signal_name"
+    exit "$exit_status"
+}
+
+start_run_audit() {
+    local audit_dir="${PCPREP_AUDIT_DIR:-$HOME/.pcprep}"
+    local log_timestamp=""
+    local latest_link=""
+    local repo_commit="unavailable"
+    local repo_state="unavailable"
+    local script_sha256="unavailable"
+
+    command -v tee >/dev/null 2>&1 || {
+        echo "tee is required to create the pcprep run audit log." >&2
+        return 1
+    }
+    install -d -m 0700 -- "$audit_dir" || {
+        echo "Unable to create the private pcprep audit directory: $audit_dir" >&2
+        return 1
+    }
+    chmod 0700 -- "$audit_dir" || {
+        echo "Unable to secure the pcprep audit directory: $audit_dir" >&2
+        return 1
+    }
+
+    log_timestamp=$(date -u '+%Y%m%dT%H%M%SZ')
+    PCPREP_AUDIT_LOG=$(mktemp "$audit_dir/prepare_new_box.${log_timestamp}.XXXXXX.log") || {
+        echo "Unable to create a pcprep audit log in $audit_dir." >&2
+        return 1
+    }
+    chmod 0600 -- "$PCPREP_AUDIT_LOG"
+    latest_link="$audit_dir/prepare_new_box.latest.log"
+    PCPREP_RUN_START_SECONDS=$SECONDS
+    PCPREP_RUN_STARTED_AT=$(audit_timestamp)
+    PCPREP_RUN_ID=$(basename -- "$PCPREP_AUDIT_LOG" .log)
+    export PCPREP_AUDIT_LOG PCPREP_RUN_ID PCPREP_RUN_STARTED_AT
+
+    exec > >(tee -a -- "$PCPREP_AUDIT_LOG") 2>&1
+    if [ ! -e "$latest_link" ] || [ -L "$latest_link" ]; then
+        ln -sfn -- "$(basename -- "$PCPREP_AUDIT_LOG")" "$latest_link"
+    else
+        echo "Warning: $latest_link is not a symlink; leaving it unchanged." >&2
+    fi
+
+    trap 'audit_run_finished "$?"' EXIT
+    trap 'audit_signal HUP 129' HUP
+    trap 'audit_signal INT 130' INT
+    trap 'audit_signal TERM 143' TERM
+
+    if command -v git >/dev/null 2>&1 \
+        && git -C "$SCRIPT_DIR/.." rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        repo_commit=$(git -C "$SCRIPT_DIR/.." rev-parse HEAD 2>/dev/null || printf 'unavailable')
+        repo_state="clean"
+        if [ -n "$(git -C "$SCRIPT_DIR/.." status --porcelain 2>/dev/null)" ]; then
+            repo_state="dirty"
+        fi
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        script_sha256=$(sha256sum "$SCRIPT_DIR/prepare_new_box.sh" | awk '{print $1}')
+    fi
+
+    printf 'event=run_started\n'
+    printf 'run_id=%s\n' "$PCPREP_RUN_ID"
+    printf 'started_at=%s\n' "$PCPREP_RUN_STARTED_AT"
+    printf 'audit_log=%s\n' "$PCPREP_AUDIT_LOG"
+    printf 'latest_log=%s\n' "$latest_link"
+    printf 'script=%s\n' "$SCRIPT_DIR/prepare_new_box.sh"
+    printf 'script_sha256=%s\n' "$script_sha256"
+    printf 'repo_commit=%s\n' "$repo_commit"
+    printf 'repo_state=%s\n' "$repo_state"
+    printf 'invocation_directory=%s\n' "$INVOCATION_DIR"
+    printf 'user=%s\n' "$(id -un)"
+    printf 'uid=%s\n' "$(id -u)"
+    printf 'hostname=%s\n' "$(hostname)"
+    printf 'kernel=%s\n' "$(uname -srmo)"
+    printf 'wsl=%s\n' "$IS_WSL"
+    printf 'config.NO_NET=%s\n' "${NO_NET:-auto}"
+    printf 'config.INSTALL_CUDA=%s\n' "$INSTALL_CUDA"
+    printf 'config.CUDA_VERSION=%s\n' "$CUDA_VERSION"
+    printf 'config.INSTALL_PYTORCH=%s\n' "$INSTALL_PYTORCH"
+    printf 'config.PYTHON_VERSION=%s\n' "$PYTHON_VERSION"
+    printf 'config.PYTORCH_VERSION=%s\n' "$PYTORCH_VERSION"
+    printf 'config.TORCHVISION_VERSION=%s\n\n' "$TORCHVISION_VERSION"
+}
 
 is_wsl_environment() {
     [ -n "${WSL_DISTRO_NAME:-}" ] \
@@ -301,6 +415,8 @@ if [ "$(id -u)" -eq 0 ]; then
     echo "Run prepare_new_box.sh as your regular Linux user, without sudo; it will request sudo when needed." >&2
     exit 1
 fi
+
+start_run_audit
 
 if [ "$IS_WSL" = "1" ]; then
     read -p "Make sure to follow manual steps in wsl_prep.md. Proceed? (y/N): " response \

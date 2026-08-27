@@ -46,6 +46,12 @@ grep -Fq 'Defaults timestamp_timeout=$timeout_minutes' "$SCRIPT_DIR/prepare_new_
 grep -Fq '153722867280912930' "$SCRIPT_DIR/prepare_new_box.sh"
 grep -Fq '/etc/sudoers.d/99-pcprep-wsl-timestamp-timeout' "$SCRIPT_DIR/prepare_new_box.sh"
 grep -Fq 'sudo visudo -cf "$sudoers_candidate"' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq 'PCPREP_AUDIT_DIR:-$HOME/.pcprep' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq 'prepare_new_box.latest.log' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq 'event=run_started' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq 'event=run_finished' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq 'chmod 0600 -- "$PCPREP_AUDIT_LOG"' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq "trap 'audit_run_finished" "$SCRIPT_DIR/prepare_new_box.sh"
 grep -Fq 'CP_NO_CLOBBER=(--update=none)' "$SCRIPT_DIR/cp_dotfiles.sh"
 grep -Fq 'if cp --update=none --version' "$SCRIPT_DIR/cp_dotfiles.sh"
 grep -Fq 'cp -vr "${CP_NO_CLOBBER[@]}" .config/' "$SCRIPT_DIR/cp_dotfiles.sh"
@@ -65,6 +71,54 @@ grep -A4 'def collect_all' "$SCRIPT_DIR/torch_info.py" | grep -q 'collect_basic_
 ! grep -q 'is_vscode_Shell' "$SCRIPT_DIR/.bashrc"
 ! grep -q 'GIT_TEST_ASSUME_ALL_SAFE' "$SCRIPT_DIR/.bashrc"
 [[ $(grep -Ec '^[[:space:]]*ssh-agent -s' "$SCRIPT_DIR/.bashrc") -eq 1 ]]
+
+run_audit_failure_fixture() (
+  set -Eeuo pipefail
+  # Source only the audit helpers; sourcing the entire orchestrator would start
+  # the real bootstrap. The final sed removes the is_wsl_environment signature.
+  # shellcheck disable=SC1090
+  source <(sed -n '/^audit_timestamp()/,/^is_wsl_environment()/p' \
+    "$SCRIPT_DIR/prepare_new_box.sh" | sed '$d')
+
+  export HOME="$TEST_ROOT/audit-home"
+  mkdir -p "$HOME"
+  INVOCATION_DIR="$TEST_ROOT/invocation"
+  IS_WSL=1
+  NO_NET=""
+  INSTALL_CUDA=0
+  CUDA_VERSION=13.2
+  INSTALL_PYTORCH=1
+  PYTHON_VERSION=3.14
+  PYTORCH_VERSION=2.13.0
+  TORCHVISION_VERSION=0.28.0
+
+  start_run_audit
+  printf 'isolated-audit-test-marker\n'
+  exit 7
+)
+
+audit_fixture_status=0
+if run_audit_failure_fixture >/dev/null 2>&1; then
+  echo "Audit failure fixture unexpectedly succeeded." >&2
+  exit 1
+else
+  audit_fixture_status=$?
+fi
+[[ $audit_fixture_status -eq 7 ]]
+audit_dir="$TEST_ROOT/audit-home/.pcprep"
+audit_logs=("$audit_dir"/prepare_new_box.*Z.*.log)
+[[ ${#audit_logs[@]} -eq 1 && -f ${audit_logs[0]} ]]
+audit_log=${audit_logs[0]}
+[[ $(stat -c '%a' "$audit_dir") == 700 ]]
+[[ $(stat -c '%a' "$audit_log") == 600 ]]
+[[ -L $audit_dir/prepare_new_box.latest.log ]]
+[[ $(readlink "$audit_dir/prepare_new_box.latest.log") == "$(basename "$audit_log")" ]]
+grep -Fqx 'event=run_started' "$audit_log"
+grep -Fqx 'isolated-audit-test-marker' "$audit_log"
+grep -Fqx 'event=run_finished' "$audit_log"
+grep -Fqx 'result=failed' "$audit_log"
+grep -Fqx 'exit_status=7' "$audit_log"
+
 grep -q 'mode:[[:space:]]*msi' "$SCRIPT_DIR/azmount.yaml"
 ! grep -q 'account-key:' "$SCRIPT_DIR/azmount.yaml"
 ! AZMOUNT_POINT=/ bash "$SCRIPT_DIR/azmount.sh" >/dev/null 2>&1
