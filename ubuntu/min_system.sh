@@ -7,6 +7,12 @@ export DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
 export NO_NET=${NO_NET:-0}
 export INSTALL_FUN_PACKAGES=${INSTALL_FUN_PACKAGES:-0}
 export NVM_VERSION=${NVM_VERSION:-0.40.6}
+export ALLOW_UNSUPPORTED_AZURE_CLI=${ALLOW_UNSUPPORTED_AZURE_CLI:-0}
+export AZURE_CLI_FALLBACK_SUITE=${AZURE_CLI_FALLBACK_SUITE:-noble}
+export INSTALL_TOOLCHAIN_TEST_PPA=${INSTALL_TOOLCHAIN_TEST_PPA:-0}
+export REMOVE_LEGACY_TOOLCHAIN_TEST_PPA=${REMOVE_LEGACY_TOOLCHAIN_TEST_PPA:-0}
+export RUSAGE_URL=${RUSAGE_URL:-https://cosmo.zip/pub/cosmos/bin/rusage}
+export RUSAGE_SHA256=${RUSAGE_SHA256:-270e10853812f6c650f0eb4773354070a398f41738b95c4cb9f7e2f918d4833b}
 
 log() { echo "[min_system] $*"; }
 warn() { echo "[min_system][WARN] $*" >&2; }
@@ -51,7 +57,8 @@ _sudo() {
 
 if [ "$(id -u)" != "0" ]; then
     command -v sudo >/dev/null 2>&1 || { warn "sudo is required for system package installation."; exit 1; }
-    sudo -v || { warn "Unable to acquire sudo; refusing a partial bootstrap."; exit 1; }
+    sudo -n true 2>/dev/null || sudo -v \
+        || { warn "Unable to acquire sudo; refusing a partial bootstrap."; exit 1; }
 fi
 
 if [ "$NO_NET" != "0" ]; then
@@ -162,11 +169,35 @@ install_power_and_hardware_packages() {
 }
 
 install_toolchain_updates() {
-    if command -v add-apt-repository >/dev/null 2>&1; then
-        _sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test || warn "Unable to add ubuntu-toolchain-r/test PPA."
-        APT_UPDATED=0
+    local ppa_url="ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu"
+    local ppa_configured=0
+
+    if grep -RqsF "$ppa_url" /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
+        ppa_configured=1
+    fi
+
+    if bool_is_true "$INSTALL_TOOLCHAIN_TEST_PPA"; then
+        if command -v add-apt-repository >/dev/null 2>&1; then
+            _sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test \
+                || warn "Unable to add ubuntu-toolchain-r/test PPA."
+            APT_UPDATED=0
+        else
+            warn "add-apt-repository unavailable; cannot enable ubuntu-toolchain-r/test."
+        fi
+    elif bool_is_true "$REMOVE_LEGACY_TOOLCHAIN_TEST_PPA" && (( ppa_configured )); then
+        if command -v add-apt-repository >/dev/null 2>&1; then
+            log "Removing the legacy ubuntu-toolchain-r/test PPA."
+            _sudo add-apt-repository --remove -y ppa:ubuntu-toolchain-r/test \
+                || warn "Unable to remove ubuntu-toolchain-r/test PPA."
+            APT_UPDATED=0
+        else
+            warn "add-apt-repository unavailable; cannot remove ubuntu-toolchain-r/test."
+        fi
     else
-        warn "add-apt-repository unavailable; skipping ubuntu-toolchain-r/test PPA."
+        log "Using Ubuntu's supported toolchain packages; the test-build PPA is disabled."
+        if (( ppa_configured )); then
+            warn "ubuntu-toolchain-r/test is already configured. Set REMOVE_LEGACY_TOOLCHAIN_TEST_PPA=1 to remove it."
+        fi
     fi
 
     install_pkg gcc || true
@@ -179,24 +210,96 @@ install_toolchain_updates() {
     fi
 }
 
+azure_cli_repo_has_package() {
+    local suite="$1"
+    local deb_arch=""
+
+    deb_arch=$(dpkg --print-architecture)
+    curl -fsSL --retry 3 \
+        "https://packages.microsoft.com/repos/azure-cli/dists/${suite}/main/binary-${deb_arch}/Packages.gz" \
+        | gzip -dc \
+        | awk '$0 == "Package: azure-cli" { found=1 } END { exit !found }'
+}
+
+azure_cli_configured_suite() {
+    local source_file=""
+
+    for source_file in \
+        /etc/apt/sources.list.d/azure-cli.sources \
+        /etc/apt/sources.list.d/azure-cli.list; do
+        [ -r "$source_file" ] || continue
+        if [[ $source_file == *.sources ]]; then
+            awk '$1 == "Suites:" { print $2; exit }' "$source_file"
+        else
+            awk '
+                $1 == "deb" {
+                    for (i = 1; i <= NF; i++) {
+                        if ($i ~ /packages\.microsoft\.com\/repos\/azure-cli/) {
+                            print $(i + 1)
+                            exit
+                        }
+                    }
+                }
+            ' "$source_file"
+        fi
+        return 0
+    done
+}
+
+run_azure_cli_installer() {
+    local forced_suite="${1:-}"
+
+    if [ -n "$forced_suite" ]; then
+        curl -fsSL --retry 3 https://aka.ms/InstallAzureCLIDeb \
+            | _sudo env DIST_CODE="$forced_suite" bash
+    else
+        curl -fsSL --retry 3 https://aka.ms/InstallAzureCLIDeb \
+            | _sudo bash
+    fi
+}
+
 install_azure_cli() {
-    if ! command -v az >/dev/null 2>&1; then
-        log "Azure CLI not found. Installing..."
-        local os_id os_version
-        os_id=$(. /etc/os-release; printf '%s' "${ID:-}")
-        os_version=$(. /etc/os-release; printf '%s' "${VERSION_ID:-}")
-        if [ "$os_id:$os_version" = "ubuntu:26.04" ]; then
-            # Microsoft has no Resolute suite yet. Its maintained installer and
-            # documentation use the Jammy repository for newer Ubuntu releases.
-            warn "Azure CLI has no Ubuntu 26.04 repository; using Microsoft's Jammy fallback."
-            curl -sL https://aka.ms/InstallAzureCLIDeb \
-                | _sudo env DIST_CODE=jammy bash \
+    local os_id="" os_codename="" configured_suite="" native_available=0
+
+    os_id=$(. /etc/os-release; printf '%s' "${ID:-}")
+    os_codename=$(. /etc/os-release; printf '%s' "${VERSION_CODENAME:-}")
+    configured_suite=$(azure_cli_configured_suite || true)
+
+    if [ -n "$os_codename" ] && azure_cli_repo_has_package "$os_codename"; then
+        native_available=1
+    fi
+
+    if (( native_available )); then
+        if ! command -v az >/dev/null 2>&1 || [ "$configured_suite" != "$os_codename" ]; then
+            log "Configuring Azure CLI from its native $os_codename repository."
+            run_azure_cli_installer \
                 || warn "Azure CLI installation failed."
         else
-            curl -sL https://aka.ms/InstallAzureCLIDeb \
-                | _sudo bash \
-                || warn "Azure CLI installation failed."
+            log "Azure CLI is already configured from its native $os_codename repository."
         fi
+    elif ! command -v az >/dev/null 2>&1; then
+        if bool_is_true "$ALLOW_UNSUPPORTED_AZURE_CLI"; then
+            case $AZURE_CLI_FALLBACK_SUITE in
+                jammy|noble) ;;
+                *)
+                    warn "Unsupported AZURE_CLI_FALLBACK_SUITE=$AZURE_CLI_FALLBACK_SUITE; expected jammy or noble."
+                    return 1
+                    ;;
+            esac
+            if ! azure_cli_repo_has_package "$AZURE_CLI_FALLBACK_SUITE"; then
+                warn "Azure CLI fallback repository '$AZURE_CLI_FALLBACK_SUITE' has no package for this architecture."
+            else
+                warn "No native Azure CLI package exists for $os_id/$os_codename; using unsupported $AZURE_CLI_FALLBACK_SUITE fallback by explicit request."
+                run_azure_cli_installer "$AZURE_CLI_FALLBACK_SUITE" \
+                    || warn "Azure CLI installation failed."
+            fi
+        else
+            warn "No native Azure CLI package exists for $os_id/$os_codename; skipping it. Set ALLOW_UNSUPPORTED_AZURE_CLI=1 to opt into a cross-release fallback."
+        fi
+    elif [ -n "$configured_suite" ] && [ "$configured_suite" != "$os_codename" ]; then
+        warn "Azure CLI remains configured from unsupported suite '$configured_suite'; native '$os_codename' packages are not available yet."
+    else
+        warn "Azure CLI is installed, but no native $os_codename repository package is currently available."
     fi
 
     if command -v az >/dev/null 2>&1; then
@@ -305,23 +408,38 @@ install_zellij() {
 }
 
 install_rusage() {
-    if [ "$ARCH" != "x86_64" ]; then
-        log "Skipping rusage installation; not available for $ARCH architecture."
+    local installed_rusage="$HOME/.local/bin/rusage"
+
+    case $ARCH in
+        x86_64|aarch64|arm64) ;;
+        *)
+            log "Skipping rusage installation; unsupported architecture $ARCH."
+            return 0
+            ;;
+    esac
+
+    if ! [[ $RUSAGE_SHA256 =~ ^[0-9a-f]{64}$ ]]; then
+        warn "Skipping rusage installation; RUSAGE_SHA256 must be 64 lowercase hexadecimal characters."
         return 0
     fi
-
-    if command -v rusage >/dev/null 2>&1; then
-        log "rusage is already installed."
+    if [ -f "$installed_rusage" ] \
+        && printf '%s  %s\n' "$RUSAGE_SHA256" "$installed_rusage" | sha256sum -c - >/dev/null 2>&1; then
+        log "The checksum-verified rusage binary is already installed."
+        return 0
+    fi
+    if [ ! -e "$installed_rusage" ] && command -v rusage >/dev/null 2>&1; then
+        log "An externally managed rusage command is already available; leaving it unchanged."
         return 0
     fi
 
     local tmp_rusage
     tmp_rusage="$(mktemp)"
-    if curl -fsSL "https://justine.lol/rusage/rusage.com" -o "$tmp_rusage" \
-        || curl -fsSL "https://github.com/jart/cosmopolitan/raw/master/examples/rusage.com" -o "$tmp_rusage"; then
-        install -m 0755 "$tmp_rusage" "$HOME/.local/bin/rusage"
+    if curl -fsSL --retry 3 "$RUSAGE_URL" -o "$tmp_rusage" \
+        && printf '%s  %s\n' "$RUSAGE_SHA256" "$tmp_rusage" | sha256sum -c - >/dev/null; then
+        install -m 0755 "$tmp_rusage" "$installed_rusage"
+        log "Installed checksum-verified rusage for $ARCH."
     else
-        warn "Skipping rusage installation; download failed from both URLs."
+        warn "Skipping rusage installation; download or SHA-256 verification failed."
     fi
     rm -f "$tmp_rusage"
 }

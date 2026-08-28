@@ -235,8 +235,6 @@ fi
 printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l' 2>/dev/null
 
 bind '"\t":menu-complete'
-set show-all-if-ambiguous on
-set menu-complete-display-prefix on
 
 if [ "$IS_CONTAINER" = false ]; then # otherwise use docker settings
     # Use local CUDA version instead of one in /usr/bin

@@ -53,7 +53,8 @@ require_install_perms() {
 }
 
 if [ "$(id -u)" != "0" ]; then
-  sudo -v || { warn "Unable to acquire sudo; refusing a partial bootstrap."; exit 1; }
+  sudo -n true 2>/dev/null || sudo -v \
+    || { warn "Unable to acquire sudo; refusing a partial bootstrap."; exit 1; }
 fi
 
 APT_UPDATED=0

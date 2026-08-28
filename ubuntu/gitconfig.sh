@@ -1,7 +1,6 @@
 #!/bin/bash
 #fail if any errors
 set -e
-set -o xtrace
 
 # git config --global merge.tool bc trustExitCode true
 # git config --global mergetool.bc.path "c:/Program Files/Beyond Compare 4/bcomp.exe"

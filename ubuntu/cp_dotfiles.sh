@@ -44,6 +44,14 @@ else
     cp -f .bashrc ~/.bashrc
 fi
 
+# Older pcprep revisions accidentally put Readline settings through Bash's
+# `set` builtin. Remove only those exact legacy lines; .inputrc owns the valid
+# settings, and all other user customizations remain untouched.
+sed -i \
+  -e '/^set show-all-if-ambiguous on$/d' \
+  -e '/^set menu-complete-display-prefix on$/d' \
+  "$USER_BASHRC"
+
 cp -v "${CP_NO_CLOBBER[@]}" .bash_aliases ~/.bash_aliases
 cp -v "${CP_NO_CLOBBER[@]}" .inputrc ~/.inputrc
 cp -v "${CP_NO_CLOBBER[@]}" .tmux.conf ~/.tmux.conf
@@ -68,18 +76,16 @@ if ! grep -qF "$statement" "$bashrc"; then
     . "$bashrc"
 fi
 
-# Copy Linux helpers without changing executable bits in the repository.
+# These are pcprep-managed commands rather than user-owned configuration.
+# Refresh them on every run so fixes reach machines that were bootstrapped by
+# an older revision, while the dotfiles above retain no-clobber semantics.
 helpers=(
   rundocker.sh azmount.sh azunmount.sh mount_cifs.sh start_tmux.sh sysinfo.sh
   treesize.sh measure_flops.py kill_vscode_srv.sh security_status.sh unban.sh
 )
 for helper in "${helpers[@]}"; do
-  cp -v "${CP_NO_CLOBBER[@]}" "$helper" "$HOME/.local/bin/$helper"
+  install -v -m 0755 -- "$helper" "$HOME/.local/bin/$helper"
 done
-chmod +x ~/.local/bin/rundocker.sh ~/.local/bin/azmount.sh ~/.local/bin/azunmount.sh \
-  ~/.local/bin/mount_cifs.sh ~/.local/bin/start_tmux.sh ~/.local/bin/sysinfo.sh \
-  ~/.local/bin/treesize.sh ~/.local/bin/measure_flops.py \
-  ~/.local/bin/kill_vscode_srv.sh ~/.local/bin/security_status.sh ~/.local/bin/unban.sh
 
 AZ_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pcprep"
 mkdir -p "$AZ_CONFIG_DIR"

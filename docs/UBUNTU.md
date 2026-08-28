@@ -39,7 +39,7 @@ The orchestrator uses these environment variables:
 | `user_name` | existing Git value or startup prompt | Global Git user name; set it to bypass the prompt |
 | `user_email` | existing Git value or startup prompt | Global Git email; set it to bypass the prompt |
 | `INSTALL_CUDA` | `0` | Opt in to CUDA installation on non-WSL Linux when a compatible GPU is detected |
-| `CUDA_VERSION` | `13.2` | Toolkit-only NVIDIA CUDA version aligned with the newest CUDA wheel provided by stable PyTorch |
+| `CUDA_VERSION` | `13.2` on 24.04; `13.3` on 26.04 | Toolkit-only NVIDIA CUDA version selected from the native repository; override it when compiling against an exact version |
 | `INSTALL_PYTORCH` | `1` | Controls framework installation in the downstream DL script |
 | `PYTHON_VERSION` | `3.14` | Latest stable Python feature series installed into Miniconda base; Conda resolves its newest patch release |
 | `PYTORCH_VERSION` | `2.13.0` | Reviewed stable PyTorch release |
@@ -47,6 +47,12 @@ The orchestrator uses these environment variables:
 | `WSL_DISTRO_NAME` | inherited from WSL | Selects WSL-specific SSH, browser, apt, and Windows credential-manager integration; `/proc/version` is used as a fallback |
 | `PCPREP_WIN_GCM_PATH` | auto-detected | Optional WSL path to a nonstandard Windows `git-credential-manager.exe` installation |
 | `PCPREP_AUDIT_DIR` | `~/.pcprep` | Private directory containing one complete audit log for every orchestrator run |
+| `ALLOW_UNSUPPORTED_AZURE_CLI` | `0` | Set to `1` when no native Azure CLI package exists to allow an explicitly unsupported cross-release repository |
+| `AZURE_CLI_FALLBACK_SUITE` | `noble` | `noble` or `jammy` suite used only when the unsupported Azure CLI fallback is enabled |
+| `INSTALL_TOOLCHAIN_TEST_PPA` | `0` | Opt in to the Ubuntu Toolchain test-build PPA instead of staying on supported archive packages |
+| `REMOVE_LEGACY_TOOLCHAIN_TEST_PPA` | `0` | Remove the test-build PPA left by an older pcprep run; ignored when installation of that PPA is enabled |
+| `RUSAGE_URL` | reviewed Cosmopolitan binary | Override the optional portable `rusage` download location together with `RUSAGE_SHA256` |
+| `RUSAGE_SHA256` | reviewed digest | Required SHA-256 for the `rusage` asset; a changed upstream binary is not installed silently |
 
 Before installing packages, the orchestrator completes one startup questionnaire:
 the WSL manual-step confirmation when applicable, Git identity, and the offline
@@ -116,13 +122,25 @@ the bootstrap. Run the orchestrator as the regular WSL user, not with `sudo`.
 
 The orchestrator and child package scripts now acquire sudo explicitly and fail
 instead of silently skipping required system work. A final required-command
-manifest prevents a partial run from reporting “ready.” Microsoft does not yet
-publish an Azure CLI `resolute` suite, so Ubuntu 26.04 uses the vendor-documented
-`jammy` repository fallback explicitly. Node.js is installed through NVM 0.40.6
-using the current LTS release, and the Codex CLI is installed into that
-user-owned NVM tree rather than through Ubuntu's older system npm.
+manifest prevents a partial run from reporting “ready.” Azure CLI installation
+first verifies that Microsoft's repository contains a package for the running
+Ubuntu codename and architecture. Ubuntu 24.04 uses its native Noble package.
+Ubuntu 26.04 skips Azure CLI while Microsoft's Resolute index is empty; a Noble
+or Jammy fallback is available only through the explicit unsupported opt-in.
+When native packages appear, a rerun replaces a stale cross-release source with
+the native suite. Node.js is installed through NVM 0.40.6 using the current LTS
+release, and the Codex CLI is installed into that user-owned NVM tree rather
+than through Ubuntu's older system npm.
 
-On WSL, immediately after the initial interactive `sudo -v`, the orchestrator
+The Ubuntu Toolchain test-build PPA is disabled by default on both releases.
+Set `INSTALL_TOOLCHAIN_TEST_PPA=1` only when test compiler packages are
+intentional. An older run may already have added the PPA; set
+`REMOVE_LEGACY_TOOLCHAIN_TEST_PPA=1` once to remove that source during a rerun.
+The optional portable `rusage` command is downloaded for amd64 or arm64 from
+Cosmopolitan's current binary directory and must match the reviewed SHA-256
+before installation.
+
+On WSL, immediately after startup sudo authorization, the orchestrator
 installs `/etc/sudoers.d/99-pcprep-wsl-timestamp-timeout` with mode `0440`. The
 drop-in applies `Defaults timestamp_timeout=153722867280912930` system-wide.
 Ubuntu 26.04's `sudo-rs` does not support the traditional negative “never
@@ -133,17 +151,23 @@ aggregate sudoers policy are checked with `visudo` during installation. To
 restore the distro default, remove that drop-in with sudo and run `sudo -k` to
 invalidate existing timestamp records.
 
+Privilege preflight first tries a harmless noninteractive `sudo` command. This
+allows passwordless or still-cached authorization to remain unattended on
+Ubuntu 26.04, where sudo-rs otherwise asks for authentication for `sudo -v`
+even under a `NOPASSWD` policy. When no authorization is available, the startup
+questionnaire is followed by the normal password prompt before setup begins.
+
 ### NVIDIA, CUDA, and ML
 
 - Legacy standalone CUDA version installers exist for 12.4 and 12.6. The
-  orchestrator uses `install_cuda.sh`, which defaults to toolkit-only CUDA 13.2,
-  selects NVIDIA's Ubuntu 22.04/24.04/26.04 repository, supports amd64 and
-  arm64/SBSA, and does not install driver packages. NVIDIA does not publish the
-  older 13.2 toolkit in its Ubuntu 26.04 repository, so the orchestrator's
-  preflight skips that optional toolkit on Resolute instead of using an
-  unsupported cross-release repository. PyTorch's `cu132` wheel includes the
-  runtime it needs and remains usable with a sufficiently new Windows/WSL or
-  native NVIDIA driver.
+  orchestrator uses `install_cuda.sh`, selects NVIDIA's native Ubuntu
+  22.04/24.04/26.04 repository, supports amd64 and arm64/SBSA, and does not
+  install driver packages. The native toolkit default is CUDA 13.2 on Ubuntu
+  22.04/24.04 and CUDA 13.3 on Ubuntu 26.04 because NVIDIA's Resolute repository
+  does not carry 13.2. PyTorch independently installs its reviewed `cu132`
+  wheel, which carries its own runtime. Set `CUDA_VERSION=13.2` explicitly when
+  an extension build requires an exact match; the preflight will then report
+  that the package is unavailable on Resolute instead of mixing repositories.
 - `install_nvidia_drivers.sh`, `nv_container_tk.sh`, `install_cudnn.sh`,
   `install_nccl.sh`, `install_flash_attn.sh`, and
   `install_transformerengine.sh` are independent specialist installers.
@@ -183,8 +207,12 @@ The maintained container material lives under `ubuntu/docker/`; see
 ## Dotfiles and security-sensitive defaults
 
 `cp_dotfiles.sh` seeds shell, SSH, Codex, Claude, terminal, editor, desktop, and
-local-bin content. Some files are copied only when absent, but they still become
-the user's active defaults on a new machine.
+local-bin content. User-owned configuration files are copied only when absent,
+but they still become the user's active defaults on a new machine. The explicit
+helper-command list under `~/.local/bin` is pcprep-managed and is refreshed on
+every run so compatibility and security fixes propagate to existing machines.
+A rerun also removes the two exact obsolete `set ...` Readline lines written by
+older pcprep `.bashrc` versions; all other user shell customizations are kept.
 
 Review these files before copying anything:
 

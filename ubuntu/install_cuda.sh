@@ -4,19 +4,19 @@
 
 set -Eeuo pipefail
 
-CUDA_VERSION=${CUDA_VERSION:-13.2}
+CUDA_VERSION=${CUDA_VERSION:-}
 OS_RELEASE_FILE=${PCPREP_OS_RELEASE_FILE:-/etc/os-release}
 ARCH=${PCPREP_ARCH:-$(uname -m)}
 MODE=install
 
 usage() {
     cat <<'EOF'
-Usage: sudo CUDA_VERSION=13.2 bash install_cuda.sh
+Usage: sudo CUDA_VERSION=13.3 bash install_cuda.sh
        bash install_cuda.sh --check
 
 --check verifies that the matching NVIDIA repository and toolkit package exist
-without changing the system. CUDA_VERSION defaults to 13.2, matching the
-newest CUDA wheel offered by the current stable PyTorch release.
+without changing the system. CUDA_VERSION defaults to 13.2 on Ubuntu 22.04 and
+24.04, and 13.3 on Ubuntu 26.04, following NVIDIA's native repositories.
 EOF
 }
 
@@ -29,17 +29,23 @@ if [ "$#" -ne 0 ]; then
     exit 2
 fi
 
-[[ $CUDA_VERSION =~ ^[0-9]+\.[0-9]+$ ]] || {
-    echo "CUDA_VERSION must have major.minor form (for example, 13.2)." >&2
-    exit 2
-}
-
 [ -r "$OS_RELEASE_FILE" ] || {
     echo "Unable to read OS release metadata: $OS_RELEASE_FILE" >&2
     exit 1
 }
 # shellcheck disable=SC1090
 . "$OS_RELEASE_FILE"
+
+if [ -z "$CUDA_VERSION" ]; then
+    case ${VERSION_ID:-} in
+        26.04) CUDA_VERSION=13.3 ;;
+        *) CUDA_VERSION=13.2 ;;
+    esac
+fi
+[[ $CUDA_VERSION =~ ^[0-9]+\.[0-9]+$ ]] || {
+    echo "CUDA_VERSION must have major.minor form (for example, 13.3)." >&2
+    exit 2
+}
 
 if [ "${ID:-}" != "ubuntu" ]; then
     echo "This installer supports Ubuntu only; detected ${PRETTY_NAME:-unknown}." >&2

@@ -23,8 +23,10 @@ HOME="$TEST_ROOT/home" PCPREP_SKIP_PROCESS_KILL=1 USER="${USER:-pcprep}" \
 [[ -f $SCRIPT_DIR/install_cuda.sh && ! -e $SCRIPT_DIR/install_cuda12.8.sh ]]
 grep -q '22.04|24.04|26.04' "$SCRIPT_DIR/install_cuda.sh"
 grep -q 'aarch64|arm64) CUDA_ARCH=sbsa' "$SCRIPT_DIR/install_cuda.sh"
-grep -Fq 'CUDA_VERSION=${CUDA_VERSION:-13.2}' "$SCRIPT_DIR/install_cuda.sh"
-grep -Fq 'CUDA_VERSION=${CUDA_VERSION:-13.2}' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq '26.04) CUDA_VERSION=13.3' "$SCRIPT_DIR/install_cuda.sh"
+grep -Fq '26.04) CUDA_VERSION=13.3' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq '*) CUDA_VERSION=13.2' "$SCRIPT_DIR/install_cuda.sh"
+grep -Fq '*) CUDA_VERSION=13.2' "$SCRIPT_DIR/prepare_new_box.sh"
 grep -Fq 'MINICONDA_VERSION=${MINICONDA_VERSION:-26.5.3-1}' "$SCRIPT_DIR/install_miniconda.sh"
 grep -Fq 'PYTHON_VERSION=${PYTHON_VERSION:-3.14}' "$SCRIPT_DIR/install_miniconda.sh"
 grep -Fq 'https://repo.anaconda.com/pkgs/main' "$SCRIPT_DIR/install_miniconda.sh"
@@ -56,15 +58,37 @@ grep -Fq 'chmod 0600 -- "$PCPREP_AUDIT_LOG"' "$SCRIPT_DIR/prepare_new_box.sh"
 grep -Fq "trap 'audit_run_finished" "$SCRIPT_DIR/prepare_new_box.sh"
 grep -Fq 'CP_NO_CLOBBER=(--update=none)' "$SCRIPT_DIR/cp_dotfiles.sh"
 grep -Fq 'if cp --update=none --version' "$SCRIPT_DIR/cp_dotfiles.sh"
+grep -Fq 'if cp --update=none --version' "$SCRIPT_DIR/prepare_new_box.sh"
+! grep -Fq -- '--update=UPDATE' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq 'sudo -n true 2>/dev/null || sudo -v' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq 'sudo -n true 2>/dev/null || sudo -v' "$SCRIPT_DIR/min_system.sh"
+grep -Fq 'sudo -n true 2>/dev/null || sudo -v' "$SCRIPT_DIR/extra_install.sh"
 grep -Fq 'cp -vr "${CP_NO_CLOBBER[@]}" .config/' "$SCRIPT_DIR/cp_dotfiles.sh"
-grep -Fq 'cp -v "${CP_NO_CLOBBER[@]}" "$helper" "$HOME/.local/bin/$helper"' \
+grep -Fq 'install -v -m 0755 -- "$helper" "$HOME/.local/bin/$helper"' \
   "$SCRIPT_DIR/cp_dotfiles.sh"
 ! grep -Eq 'cp[[:space:]]+-[^[:space:]]*n' "$SCRIPT_DIR/cp_dotfiles.sh"
 grep -q 'install_first_available 7zip p7zip-full' "$SCRIPT_DIR/extra_install.sh"
 grep -q 'install_first_available bind9-dnsutils dnsutils' "$SCRIPT_DIR/extra_install.sh"
 grep -q 'install_pkg psmisc' "$SCRIPT_DIR/extra_install.sh"
 grep -q 'install_pkg procps' "$SCRIPT_DIR/extra_install.sh"
-grep -q 'DIST_CODE=jammy' "$SCRIPT_DIR/min_system.sh"
+grep -q '^azure_cli_repo_has_package()' "$SCRIPT_DIR/min_system.sh"
+grep -q 'ALLOW_UNSUPPORTED_AZURE_CLI' "$SCRIPT_DIR/min_system.sh"
+grep -q 'AZURE_CLI_FALLBACK_SUITE' "$SCRIPT_DIR/min_system.sh"
+! grep -q 'DIST_CODE=jammy' "$SCRIPT_DIR/min_system.sh"
+grep -q 'INSTALL_TOOLCHAIN_TEST_PPA' "$SCRIPT_DIR/min_system.sh"
+grep -q 'REMOVE_LEGACY_TOOLCHAIN_TEST_PPA' "$SCRIPT_DIR/min_system.sh"
+grep -Fq 'https://cosmo.zip/pub/cosmos/bin/rusage' "$SCRIPT_DIR/min_system.sh"
+grep -Fq '270e10853812f6c650f0eb4773354070a398f41738b95c4cb9f7e2f918d4833b' \
+  "$SCRIPT_DIR/min_system.sh"
+grep -Fq 'sha256sum -c -' "$SCRIPT_DIR/min_system.sh"
+grep -Fq 'tmpdir=$(mktemp -d)' "$SCRIPT_DIR/install_azcopy.sh"
+grep -Fq 'azcopy --version >/dev/null 2>&1' "$SCRIPT_DIR/install_azcopy.sh"
+grep -Fq 'sudo install -m 0755 -- "$azcopy_binary"' "$SCRIPT_DIR/install_azcopy.sh"
+grep -Fq 'sudo apt-get update' "$SCRIPT_DIR/install_rust.sh"
+grep -Fq 'rustup is already installed' "$SCRIPT_DIR/install_rust.sh"
+! grep -q 'set -o xtrace' "$SCRIPT_DIR/gitconfig.sh"
+! grep -q '^set show-all-if-ambiguous on$' "$SCRIPT_DIR/.bashrc"
+! grep -q '^set menu-complete-display-prefix on$' "$SCRIPT_DIR/.bashrc"
 ! grep -q 'newgrp[[:space:]]\+docker' "$SCRIPT_DIR/install_docker.sh"
 grep -q 'wsl_prep.md' "$SCRIPT_DIR/prepare_new_box.sh"
 ! grep -q 'wsl_prep.sh' "$SCRIPT_DIR/prepare_new_box.sh"
@@ -77,10 +101,39 @@ grep -A4 'def collect_all' "$SCRIPT_DIR/torch_info.py" | grep -q 'collect_basic_
 grep -q '^collect_git_identity()' "$SCRIPT_DIR/prepare_new_box.sh"
 grep -q '^collect_bootstrap_inputs()' "$SCRIPT_DIR/prepare_new_box.sh"
 startup_input_line=$(grep -n '^collect_bootstrap_inputs$' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
-sudo_validation_line=$(grep -n '^sudo -v ' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
+sudo_validation_line=$(grep -n '^sudo -n true ' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
 gitconfig_line=$(grep -n '^bash gitconfig.sh$' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
 [[ -n $startup_input_line && -n $sudo_validation_line && -n $gitconfig_line ]]
 (( startup_input_line < sudo_validation_line && startup_input_line < gitconfig_line ))
+
+# Resolve release-specific native CUDA defaults without touching the network.
+cuda_fixture_bin="$TEST_ROOT/cuda-fixture-bin"
+cuda_fixture_packages="$TEST_ROOT/cuda-Packages.gz"
+mkdir -p "$cuda_fixture_bin"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'url=${!#}' \
+  'case $url in' \
+  '  */Packages.gz) cat "$PCPREP_TEST_CUDA_PACKAGES" ;;' \
+  '  *) exit 0 ;;' \
+  'esac' \
+  > "$cuda_fixture_bin/curl"
+chmod +x "$cuda_fixture_bin/curl"
+printf 'Package: cuda-toolkit-13-2\n\nPackage: cuda-toolkit-13-3\n' \
+  | gzip -c > "$cuda_fixture_packages"
+printf 'ID=ubuntu\nVERSION_ID=24.04\n' > "$TEST_ROOT/os-release-24.04"
+printf 'ID=ubuntu\nVERSION_ID=26.04\n' > "$TEST_ROOT/os-release-26.04"
+cuda_24_output=$(PATH="$cuda_fixture_bin:$PATH" \
+  PCPREP_TEST_CUDA_PACKAGES="$cuda_fixture_packages" \
+  PCPREP_OS_RELEASE_FILE="$TEST_ROOT/os-release-24.04" PCPREP_ARCH=x86_64 \
+  bash "$SCRIPT_DIR/install_cuda.sh" --check)
+grep -Fq 'cuda-toolkit-13-2' <<< "$cuda_24_output"
+cuda_26_output=$(PATH="$cuda_fixture_bin:$PATH" \
+  PCPREP_TEST_CUDA_PACKAGES="$cuda_fixture_packages" \
+  PCPREP_OS_RELEASE_FILE="$TEST_ROOT/os-release-26.04" PCPREP_ARCH=x86_64 \
+  bash "$SCRIPT_DIR/install_cuda.sh" --check)
+grep -Fq 'cuda-toolkit-13-3' <<< "$cuda_26_output"
 
 # Exercise the startup identity collector without sourcing the orchestrator's
 # executable main section. Blank answers accept existing global Git values.
@@ -257,6 +310,10 @@ run_audit_failure_fixture() (
   PYTHON_VERSION=3.14
   PYTORCH_VERSION=2.13.0
   TORCHVISION_VERSION=0.28.0
+  ALLOW_UNSUPPORTED_AZURE_CLI=0
+  AZURE_CLI_FALLBACK_SUITE=noble
+  INSTALL_TOOLCHAIN_TEST_PPA=0
+  REMOVE_LEGACY_TOOLCHAIN_TEST_PPA=0
 
   start_run_audit
   printf 'isolated-audit-test-marker\n'

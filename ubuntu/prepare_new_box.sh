@@ -10,13 +10,23 @@ export NO_NET=${NO_NET:-}
 export user_name=${user_name:-}
 export user_email=${user_email:-}
 export INSTALL_CUDA=${INSTALL_CUDA:-0}
-export CUDA_VERSION=${CUDA_VERSION:-13.2}
+if [ -z "${CUDA_VERSION:-}" ]; then
+    case $(. /etc/os-release 2>/dev/null; printf '%s' "${VERSION_ID:-}") in
+        26.04) CUDA_VERSION=13.3 ;;
+        *) CUDA_VERSION=13.2 ;;
+    esac
+fi
+export CUDA_VERSION
 export INSTALL_PYTORCH=${INSTALL_PYTORCH:-1}
 export PYTHON_VERSION=${PYTHON_VERSION:-3.14}
 export PYTORCH_VERSION=${PYTORCH_VERSION:-2.13.0}
 export TORCHVISION_VERSION=${TORCHVISION_VERSION:-0.28.0}
 export WSL_DISTRO_NAME=${WSL_DISTRO_NAME:-}
 export PCPREP_WIN_GCM_PATH=${PCPREP_WIN_GCM_PATH:-}
+export ALLOW_UNSUPPORTED_AZURE_CLI=${ALLOW_UNSUPPORTED_AZURE_CLI:-0}
+export AZURE_CLI_FALLBACK_SUITE=${AZURE_CLI_FALLBACK_SUITE:-noble}
+export INSTALL_TOOLCHAIN_TEST_PPA=${INSTALL_TOOLCHAIN_TEST_PPA:-0}
+export REMOVE_LEGACY_TOOLCHAIN_TEST_PPA=${REMOVE_LEGACY_TOOLCHAIN_TEST_PPA:-0}
 
 audit_timestamp() {
     date --iso-8601=seconds
@@ -128,7 +138,11 @@ start_run_audit() {
     printf 'config.INSTALL_PYTORCH=%s\n' "$INSTALL_PYTORCH"
     printf 'config.PYTHON_VERSION=%s\n' "$PYTHON_VERSION"
     printf 'config.PYTORCH_VERSION=%s\n' "$PYTORCH_VERSION"
-    printf 'config.TORCHVISION_VERSION=%s\n\n' "$TORCHVISION_VERSION"
+    printf 'config.TORCHVISION_VERSION=%s\n' "$TORCHVISION_VERSION"
+    printf 'config.ALLOW_UNSUPPORTED_AZURE_CLI=%s\n' "$ALLOW_UNSUPPORTED_AZURE_CLI"
+    printf 'config.AZURE_CLI_FALLBACK_SUITE=%s\n' "$AZURE_CLI_FALLBACK_SUITE"
+    printf 'config.INSTALL_TOOLCHAIN_TEST_PPA=%s\n' "$INSTALL_TOOLCHAIN_TEST_PPA"
+    printf 'config.REMOVE_LEGACY_TOOLCHAIN_TEST_PPA=%s\n\n' "$REMOVE_LEGACY_TOOLCHAIN_TEST_PPA"
 }
 
 is_wsl_environment() {
@@ -172,7 +186,7 @@ copy_windows_ssh_keys() {
     if windows_home=$(windows_home_path) && [ -d "$windows_home/.ssh" ]; then
         echo "Copying missing SSH files from $windows_home/.ssh."
         # Do not overwrite Linux-side keys or configuration on repeated runs.
-        if cp --help 2>&1 | grep -F -- '--update=UPDATE' >/dev/null; then
+        if cp --update=none --version >/dev/null 2>&1; then
             cp -a --update=none "$windows_home/.ssh/." "$HOME/.ssh/"
         else
             cp -an "$windows_home/.ssh/." "$HOME/.ssh/"
@@ -517,7 +531,11 @@ collect_bootstrap_inputs
 # scripts also validate sudo independently so standalone use fails closed.
 command -v sudo >/dev/null 2>&1 || { echo "sudo is required for system setup." >&2; exit 1; }
 echo "Validating sudo access for system package and configuration steps..."
-sudo -v || { echo "Unable to acquire sudo; no setup steps were started." >&2; exit 1; }
+# sudo-rs (Ubuntu 26.04's default) asks for interactive authentication for
+# `sudo -v` even when policy grants NOPASSWD. First exercise a harmless command
+# noninteractively; only prompt when no cached/passwordless authorization exists.
+sudo -n true 2>/dev/null || sudo -v \
+    || { echo "Unable to acquire sudo; no setup steps were started." >&2; exit 1; }
 export PCPREP_SUDO_READY=1
 echo "Startup authorization complete; beginning unattended setup."
 
@@ -545,10 +563,10 @@ else
         echo "No CUDA-capable GPU detected. Skipping CUDA installation."
     elif has_aligned_cuda_toolkit; then
         echo "CUDA Toolkit $CUDA_VERSION is already installed."
-    # PyTorch 2.13's newest stable Linux wheel uses CUDA 13.2. NVIDIA does not
-    # publish every older toolkit in every newer Ubuntu repository (notably,
-    # CUDA 13.2 is absent from Ubuntu 26.04). Skip instead of installing an
-    # unreviewed cross-release package or a toolkit that does not match PyTorch.
+    # Native toolkit defaults follow NVIDIA's per-release repositories: 13.2 on
+    # Ubuntu 24.04 and 13.3 on Ubuntu 26.04. PyTorch's independently selected
+    # cu132 wheel carries its own runtime; locally compiled CUDA extensions may
+    # still require an explicitly matching CUDA_VERSION.
     elif ! CUDA_VERSION="$CUDA_VERSION" bash install_cuda.sh --check; then
         echo "CUDA Toolkit $CUDA_VERSION is unavailable for this Ubuntu release/architecture; skipping it."
         echo "The PyTorch cu132 wheel includes its own CUDA runtime and only needs a compatible NVIDIA driver."
