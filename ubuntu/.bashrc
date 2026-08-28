@@ -261,21 +261,6 @@ shopt -s lithist              # keep line breaks and indentation
 mkdir -p ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"
 
-# HuggingFace cache and other locations
-# links allows to use same paths in docker and host
-export DATA_ROOT=$HOME/data
-export CACHE_ROOT=$HOME/misc_caches
-export MODELS_ROOT=$HOME/models
-export OUT_DIR=$HOME/out_dir
-
-#export XDG_CACHE_HOME=$CACHE_ROOT/misc  # don't set this, it interfers in some containers
-export HF_HOME=$CACHE_ROOT/hf_home
-export HF_DATASETS_CACHE=$CACHE_ROOT/datasets
-export TIKTOKEN_CACHE_DIR=$CACHE_ROOT/tiktoken_cache
-export WANDB_CACHE_DIR=$CACHE_ROOT/wandb_cache
-export OLLAMA_MODELS=$MODELS_ROOT/ollama
-
-
 #-------------------------------------------------------------------------------------------------------------
 #---------------------------------------------- Custom Stuff -------------------------------------------------
 #-------------------------------------------------------------------------------------------------------------
@@ -298,6 +283,21 @@ if [ -d "$BIG_DISK" ]; then
         ln -s $BIG_DISK/misc_caches ~/misc_caches
     fi
 fi
+
+# HuggingFace cache and other locations
+# links allows to use same paths in docker and host
+export DATA_ROOT=$HOME/data
+export CACHE_ROOT=$HOME/misc_caches
+export MODELS_ROOT=$HOME/models
+export OUT_DIR=$HOME/out_dir
+
+#export XDG_CACHE_HOME=$CACHE_ROOT/misc  # don't set this, it interfers in some containers
+export HF_HOME=$CACHE_ROOT/hf_home
+export HF_DATASETS_CACHE=$CACHE_ROOT/datasets
+export TIKTOKEN_CACHE_DIR=$CACHE_ROOT/tiktoken_cache
+export WANDB_CACHE_DIR=$CACHE_ROOT/wandb_cache
+export OLLAMA_MODELS=$MODELS_ROOT/ollama
+
 echo DATA_ROOT=$DATA_ROOT
 echo OUT_DIR=$OUT_DIR
 
