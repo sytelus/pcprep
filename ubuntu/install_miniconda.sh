@@ -7,6 +7,23 @@ export MINICONDA_VERSION=${MINICONDA_VERSION:-26.5.3-1}
 export MINICONDA_PYTHON_SERIES=${MINICONDA_PYTHON_SERIES:-py313}
 export PYTHON_VERSION=${PYTHON_VERSION:-3.14}
 
+CONDA="$HOME/miniconda3/bin/conda"
+CONDA_PYTHON="$HOME/miniconda3/bin/python"
+
+ANACONDA_TOS_CHANNELS=(
+    "https://repo.anaconda.com/pkgs/main"
+    "https://repo.anaconda.com/pkgs/r"
+)
+
+accept_anaconda_terms() {
+    local channel
+
+    for channel in "${ANACONDA_TOS_CHANNELS[@]}"; do
+        echo "Accepting Anaconda Terms of Service for $channel..."
+        "$CONDA" tos accept --override-channels --channel "$channel"
+    done
+}
+
 # Detect architecture
 ARCH=$(uname -m)
 case $ARCH in
@@ -27,34 +44,46 @@ case $ARCH in
         ;;
 esac
 
-# Check if MINICONDA_FILE is set, if not set use the path where we will download it
-if [ -z "$MINICONDA_FILE" ]; then
-    if [ "$NO_NET" = "0" ]; then
-        # use target download path
-        MINICONDA_FILE="$HOME/miniconda3/miniconda.sh"
+# Preserve a working installation on reruns. Reapplying an older bootstrap
+# installer over an upgraded base can downgrade Python and leave mixed package
+# metadata, so the installer is only for a missing or non-working prefix.
+if [ -x "$CONDA" ] && "$CONDA" --version >/dev/null 2>&1; then
+    echo "Miniconda is already installed at $HOME/miniconda3; preserving it."
+else
+    # Check if MINICONDA_FILE is set, if not set use the path where we will download it
+    if [ -z "$MINICONDA_FILE" ]; then
+        if [ "$NO_NET" = "0" ]; then
+            # use target download path
+            MINICONDA_FILE="$HOME/miniconda3/miniconda.sh"
 
-        # Create directory for miniconda installation
-        mkdir -p "$(dirname "$MINICONDA_FILE")"
+            # Create directory for miniconda installation
+            mkdir -p "$(dirname "$MINICONDA_FILE")"
 
-        # Download miniconda installer
-        wget "$MINICONDA_URL" -O "$MINICONDA_FILE"
-    else
-        echo "MINICONDA_FILE is not set but NO_NET is set so won't install miniconda"
-        exit 0
+            # Download miniconda installer
+            wget "$MINICONDA_URL" -O "$MINICONDA_FILE"
+        else
+            echo "MINICONDA_FILE is not set but NO_NET is set so won't install miniconda"
+            exit 0
+        fi
     fi
+
+    # Install miniconda. Update mode permits the freshly downloaded installer
+    # to live inside the otherwise-new target directory.
+    bash "$MINICONDA_FILE" -b -u -p "$HOME/miniconda3"
 fi
 
-# Install miniconda
-bash "$MINICONDA_FILE" -b -u -p "$HOME/miniconda3"
-
-CONDA="$HOME/miniconda3/bin/conda"
-CONDA_PYTHON="$HOME/miniconda3/bin/python"
 [ -x "$CONDA" ] || { echo "Miniconda installation did not create $CONDA" >&2; exit 1; }
 
 # The latest Miniconda installer currently bootstraps with Python 3.13. Move
 # base to the latest stable Python feature series requested by the orchestrator.
 if [ "$NO_NET" = "0" ]; then
-    "$CONDA" install --yes "python=$PYTHON_VERSION" pip
+    # Package transactions against Anaconda's default channels require an
+    # explicit ToS record. Accept before the unattended transaction, then
+    # accept again because upgrading base can replace the ToS plugin and clear
+    # its acceptance record.
+    accept_anaconda_terms
+    "$CONDA" install --yes --solver classic "python=$PYTHON_VERSION" pip
+    accept_anaconda_terms
 fi
 
 ACTUAL_PYTHON_VERSION=$(

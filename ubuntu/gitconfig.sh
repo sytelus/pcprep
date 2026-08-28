@@ -14,11 +14,16 @@ set -o xtrace
 # Prompt the user for their name and email
 # Prompt only if not already set via environment
 if [ -z "${user_name:-}" ]; then
-    read -p "Enter your git username: " user_name
+    read -r -p "Enter your git username: " user_name
 fi
 if [ -z "${user_email:-}" ]; then
-    read -p "Enter your git email: " user_email
+    read -r -p "Enter your git email: " user_email
 fi
+
+[[ $user_name != *$'\n'* && $user_name != *$'\r'* && $user_name =~ [^[:space:]] ]] \
+    || { echo "Git user name must be a nonblank, single-line value." >&2; exit 1; }
+[[ $user_email != *$'\n'* && $user_email != *$'\r'* && $user_email =~ [^[:space:]] ]] \
+    || { echo "Git email must be a nonblank, single-line value." >&2; exit 1; }
 
 # Set global Git configurations using the user's input
 git config --global user.name "$user_name"

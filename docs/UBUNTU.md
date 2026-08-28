@@ -36,8 +36,8 @@ The orchestrator uses these environment variables:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `NO_NET` | auto-detected | `1` selects the limited offline path; `0` permits network-dependent work |
-| `user_name` | empty/prompted downstream | Global Git user name |
-| `user_email` | empty/prompted downstream | Global Git email |
+| `user_name` | existing Git value or startup prompt | Global Git user name; set it to bypass the prompt |
+| `user_email` | existing Git value or startup prompt | Global Git email; set it to bypass the prompt |
 | `INSTALL_CUDA` | `0` | Opt in to CUDA installation on non-WSL Linux when a compatible GPU is detected |
 | `CUDA_VERSION` | `13.2` | Toolkit-only NVIDIA CUDA version aligned with the newest CUDA wheel provided by stable PyTorch |
 | `INSTALL_PYTORCH` | `1` | Controls framework installation in the downstream DL script |
@@ -47,6 +47,25 @@ The orchestrator uses these environment variables:
 | `WSL_DISTRO_NAME` | inherited from WSL | Selects WSL-specific SSH, browser, apt, and Windows credential-manager integration; `/proc/version` is used as a fallback |
 | `PCPREP_WIN_GCM_PATH` | auto-detected | Optional WSL path to a nonstandard Windows `git-credential-manager.exe` installation |
 | `PCPREP_AUDIT_DIR` | `~/.pcprep` | Private directory containing one complete audit log for every orchestrator run |
+
+Before installing packages, the orchestrator completes one startup questionnaire:
+the WSL manual-step confirmation when applicable, Git identity, and the offline
+fallback confirmation if connectivity detection fails. Existing global Git
+identity values are offered as defaults. After the immediately following sudo
+authorization succeeds, the repository-owned setup steps no longer prompt for
+configuration input. Set `user_name`, `user_email`, and `NO_NET` ahead of time
+to automate those answers as well.
+
+The online Miniconda setup automatically accepts Anaconda's Terms of Service
+for the `pkgs/main` and `pkgs/r` default channels for the current user before
+its first unattended package transaction. It reapplies the acceptance after
+upgrading the base environment in case the ToS plugin was replaced. Each
+acceptance is visible in the per-run audit log. Review
+[Anaconda's legal terms](https://www.anaconda.com/legal) before running the
+online bootstrap. On a rerun, a working existing Miniconda installation is
+preserved instead of applying the older bootstrap installer over its updated
+base environment; the Python version transaction and ToS checks remain
+idempotent.
 
 ## Per-run audit trail
 

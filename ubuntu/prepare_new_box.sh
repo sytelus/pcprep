@@ -351,6 +351,100 @@ install_wslu_if_available() {
     fi
 }
 
+bootstrap_value_is_valid() {
+    local value="${1:-}"
+
+    [[ $value != *$'\n'* && $value != *$'\r'* && $value =~ [^[:space:]] ]]
+}
+
+prompt_required_bootstrap_value() {
+    local variable_name="$1"
+    local label="$2"
+    local default_value="${3:-}"
+    local value="${!variable_name:-}"
+
+    # Explicit environment values make the entire startup questionnaire
+    # automatable. Reject malformed values before any installation starts.
+    if [ -n "$value" ]; then
+        bootstrap_value_is_valid "$value" || {
+            echo "$variable_name must be a nonblank, single-line value." >&2
+            return 1
+        }
+        export "$variable_name"
+        return 0
+    fi
+    if ! bootstrap_value_is_valid "$default_value"; then
+        default_value=""
+    fi
+
+    while true; do
+        if [ -n "$default_value" ]; then
+            if ! IFS= read -r -p "$label [$default_value]: " value; then
+                echo "Unable to read $label. Set $variable_name before running the bootstrap noninteractively." >&2
+                return 1
+            fi
+            value=${value:-$default_value}
+        else
+            if ! IFS= read -r -p "$label: " value; then
+                echo "Unable to read $label. Set $variable_name before running the bootstrap noninteractively." >&2
+                return 1
+            fi
+        fi
+
+        if bootstrap_value_is_valid "$value"; then
+            printf -v "$variable_name" '%s' "$value"
+            export "$variable_name"
+            return 0
+        fi
+        echo "$label must be a nonblank, single-line value." >&2
+    done
+}
+
+collect_git_identity() {
+    local existing_name=""
+    local existing_email=""
+
+    if command -v git >/dev/null 2>&1; then
+        existing_name=$(git config --global --get user.name 2>/dev/null || true)
+        existing_email=$(git config --global --get user.email 2>/dev/null || true)
+    fi
+
+    prompt_required_bootstrap_value user_name "Git user name" "$existing_name"
+    prompt_required_bootstrap_value user_email "Git email" "$existing_email"
+}
+
+collect_bootstrap_inputs() {
+    local response=""
+
+    echo "Collecting startup configuration before installation begins..."
+    if [ "$IS_WSL" = "1" ]; then
+        IFS= read -r -p "Make sure to follow manual steps in wsl_prep.md. Proceed? (y/N): " response \
+            && [[ $response =~ ^[Yy]$ ]] || { echo "Exiting."; return 1; }
+    fi
+
+    collect_git_identity
+
+    # Check if NO_NET is not set and test internet connectivity now, so an
+    # offline confirmation can never interrupt a later installation phase.
+    if [ -z "$NO_NET" ]; then
+        echo "Checking Internet connection..."
+        export NO_NET=0
+
+        if ! net_ok; then
+            echo "Internet connectivity test failed."
+            response=""
+            IFS= read -r -p "No internet detected. Continue offline? (y/N): " response || response=""
+            if ! [[ $response =~ ^[Yy]$ ]]; then
+                echo "Aborting."
+                return 1
+            fi
+            export NO_NET=1
+        fi
+    fi
+
+    echo "Startup configuration collected."
+}
+
 configure_wsl_sudo_timeout() {
     local timeout_minutes="153722867280912930"
     local sudoers_file="/etc/sudoers.d/99-pcprep-wsl-timestamp-timeout"
@@ -417,27 +511,7 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 
 start_run_audit
-
-if [ "$IS_WSL" = "1" ]; then
-    read -p "Make sure to follow manual steps in wsl_prep.md. Proceed? (y/N): " response \
-        && [[ $response =~ ^[Yy]$ ]] || { echo "Exiting."; exit 1; }
-fi
-
-# Check if NO_NET is not set and test internet connectivity
-if [ -z "${NO_NET}" ]; then
-    echo "Checking Internet connection..."
-    export NO_NET=0
-
-    if ! net_ok; then
-        echo "Internet connectivity test failed."
-        read -p "No internet detected. Continue offline? (y/N): " resp
-        if ! [[ $resp =~ ^[Yy]$ ]]; then
-            echo "Aborting."
-            exit 1
-        fi
-        export NO_NET=1
-    fi
-fi
+collect_bootstrap_inputs
 
 # Acquire elevation once, visibly, before any child installer starts. Child
 # scripts also validate sudo independently so standalone use fails closed.
@@ -445,6 +519,7 @@ command -v sudo >/dev/null 2>&1 || { echo "sudo is required for system setup." >
 echo "Validating sudo access for system package and configuration steps..."
 sudo -v || { echo "Unable to acquire sudo; no setup steps were started." >&2; exit 1; }
 export PCPREP_SUDO_READY=1
+echo "Startup authorization complete; beginning unattended setup."
 
 if [ "$IS_WSL" = "1" ]; then
     configure_wsl_sudo_timeout
