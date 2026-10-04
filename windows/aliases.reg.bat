@@ -2,6 +2,8 @@
 setlocal EnableExtensions DisableDelayedExpansion
 
 set "SOURCE_FILE=%~dp0aliases.doskey"
+set "SHORTCUTS_FILE=%~dp0codex-shortcuts.ps1"
+for %%I in ("%~dp0.") do set "WINDOWS_DIRECTORY=%%~fI"
 set "INSTALL_DIRECTORY=%LOCALAPPDATA%\pcprep"
 set "AUTORUN_BACKUP=%INSTALL_DIRECTORY%\command-processor-before-pcprep.reg"
 set "COMMAND_PROCESSOR_KEY=HKEY_CURRENT_USER\Software\Microsoft\Command Processor"
@@ -12,6 +14,10 @@ set "FINDSTR_EXE=%SystemRoot%\System32\findstr.exe"
 
 if not exist "%SOURCE_FILE%" (
     echo ERROR: Command Prompt aliases file was not found: %SOURCE_FILE%
+    exit /b 1
+)
+if not exist "%SHORTCUTS_FILE%" (
+    echo ERROR: Codex shortcuts file was not found: %SHORTCUTS_FILE%
     exit /b 1
 )
 for %%I in ("%SOURCE_FILE%") do if %%~zI LEQ 0 (
@@ -73,10 +79,12 @@ if not errorlevel 1 (
 
 REM Register the aliases file beside this installer as the source of truth. A
 REM new Command Prompt therefore sees edits to that file without another copy.
+REM Set the adjacent helpers' location before loading macros so they work from
+REM any current directory. DOSKEY expands this variable when a macro is invoked.
 "%REG_EXE%" add "%COMMAND_PROCESSOR_KEY%" ^
     /v AutoRun ^
     /t REG_SZ ^
-    /d "if exist \"%SOURCE_FILE%\" \"%DOSKEY_EXE%\" /macrofile=\"%SOURCE_FILE%\"" ^
+    /d "set \"PCPREP_WINDOWS_DIR=%WINDOWS_DIRECTORY%\"& if exist \"%SOURCE_FILE%\" \"%DOSKEY_EXE%\" /macrofile=\"%SOURCE_FILE%\"" ^
     /f >nul
 if errorlevel 1 (
     echo ERROR: Could not configure Command Prompt aliases.

@@ -285,6 +285,61 @@ Alternative names such as `gcln`/`gclean`, `cpx`/`cpz`/`copynewfiles`, and
 Their command definitions are duplicated because DOSKEY does not reliably
 perform recursive macro expansion when one macro merely names another.
 
+### Git status across subfolders
+
+`gstatall` runs the adjacent `git-status.ps1` with Windows PowerShell and Git.
+It checks each immediate child directory of the current directory, including
+non-repositories and linked worktrees. You can also supply a parent path:
+
+```bat
+cd /d D:\GitHubSrc
+gstatall
+gstatall "D:\another folder"
+```
+
+The table shows the branch, changed entries, commits `Ahead` (pending push),
+commits `Behind`, and a status. Changes and unpushed commits are reported
+together. Repositories without an upstream, detached HEADs, and repositories
+without commits have explicit labels. Bare repositories are identified but
+have no working-tree status.
+
+Ahead and Behind use locally cached upstream refs; the helper does not fetch.
+It does not commit or push. The Windows shortcut has no `mgitstatus` or Python
+dependency. Open a new Command Prompt to load the updated alias, or reload it
+in the current window with `doskey /macrofile="D:\GitHubSrc\pcprep\windows\aliases.doskey"`.
+Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\test_git_status.ps1`
+for local repository checks.
+
+### Codex `ask` and `act`
+
+The supplied Codex shortcuts v3 are available as `ask` and `act`. They send one
+English request to Codex using your ChatGPT login and return to the shell:
+
+```bat
+ask show the top 3 processes by CPU usage
+ask what is using disk space in "C:\my folder"
+act rename "old report.txt" to "new report.txt"
+ask --help
+act --help
+```
+
+`ask` uses a read-only filesystem sandbox. `ask --host` and `act` run with full
+access and no per-command approvals, as in the supplied wrappers. `--help` and
+`-h` display local help without running Codex. With no request words, the wrapper
+reads one raw request line; use this for punctuation that the shell would parse.
+Quote paths containing spaces. These are one-shot requests, not ongoing chats.
+
+Rerun `aliases.reg.bat` once when upgrading from an older pcprep alias setup.
+It sets `PCPREP_WINDOWS_DIR` in each new Command Prompt so the macros can find
+the adjacent `codex-shortcuts.ps1` from any working directory, including paths
+with spaces. Requests go through PowerShell's `-File` argument interface.
+Normal Command Prompt expansion still applies to inline arguments.
+
+For PowerShell, dot-source `codex-shortcuts.ps1` from its actual location, or
+add that command to `$PROFILE`. DOSKEY registration does not modify PowerShell
+profiles. `Get-Help ask -Detailed` and `Get-Help act -Detailed` are also available.
+Run `powershell.exe -NoProfile -File .\test_codex_shortcuts.ps1` for offline checks.
+
 ## Git configuration
 
 `gitconfig.bat` changes the current user's global Git configuration. It

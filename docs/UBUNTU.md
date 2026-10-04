@@ -231,6 +231,33 @@ Review these files before copying anything:
 Forceful Git cleanup/revert aliases still exist as interactive user tools; read
 their definitions before use.
 
+## Codex `ask` and `act`
+
+`ubuntu/.bash_aliases` includes the supplied Codex shortcuts v3. `ask` sends a
+one-shot English inspection request with a read-only filesystem sandbox; `act`
+performs requested changes with full access and no per-command approvals.
+`ask --host` explicitly selects full access for inspection. Both use the native
+`$HOME/.local/bin/codex`, like `codexyolo`, and fail if it is missing.
+
+```bash
+source ~/.bash_aliases
+ask show the top 3 processes by CPU usage
+ask what is using disk space in "~/my folder"
+act rename "old report.txt" to "new report.txt"
+ask --help
+act --help
+```
+
+Help is local and needs no Codex installation or login. For requests, sign in to
+Codex with ChatGPT. API-key overrides are unset only in the invocation's subshell.
+Quote paths with spaces, or enter `ask`/`act` alone to read one raw request line.
+Normal shell parsing still applies to inline text. In WSL, the environment is
+the WSL distribution. Existing terminals must source the updated alias file;
+the dotfile installer's no-clobber behavior preserves an existing copy.
+
+Run `python3 ubuntu/test_codex_shortcuts.py` from the repository root for offline
+tests using a fake native Codex executable; no model requests are made.
+
 ## Archived material
 
 Everything under `archived/ubuntu/` predates the active flow and exists for
