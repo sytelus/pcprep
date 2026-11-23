@@ -273,8 +273,8 @@ export BIG_DISK=__YOUR_BIG_DISK__
 
 #-------------------------------------------------------------------------------------------------------------
 
-# if $BIG_DISK exists
-if [ -d "$BIG_DISK" ]; then
+# Disk setup can prompt for sudo, so run it only from a terminal.
+if [[ -t 0 && -t 1 && -d "$BIG_DISK" ]]; then
     if [ ! -d "$BIG_DISK/data" ]; then
         sudo mkdir -m 777 -p $BIG_DISK/data $BIG_DISK/misc_caches $BIG_DISK/models $BIG_DISK/out_dir
         ln -s $BIG_DISK/data ~/data
