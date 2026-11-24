@@ -5,7 +5,6 @@
 #   sudo bash ubuntu/add_user.sh guest no ''     # passwd prompts for the password
 # The third argument can also be a quoted OpenSSH public key. The script prompts
 # for omitted arguments. Press Enter at the key prompt to use password login.
-# If using vps_harden.sh, run it first. It sets the initial SSH allowlist.
 set -euo pipefail
 umask 077
 export LC_ALL=C
@@ -23,8 +22,8 @@ key=${3:-}
 [[ $username =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "Invalid Ubuntu username: $username"
 [[ -n $sudo_answer ]] || read -rp 'Allow passwordless sudo? [y/N] ' sudo_answer || die "No sudo choice supplied."
 case ${sudo_answer,,} in
-    y|yes|true|1) grant_sudo=1 ;;
-    n|no|false|0|'') grant_sudo=0 ;;
+    y|yes|true|1) sudo_group=(--groups sudo) ;;
+    n|no|false|0|'') sudo_group=() ;;
     *) die "Use yes or no for sudo." ;;
 esac
 if (( $# < 3 )); then
@@ -34,14 +33,13 @@ if [[ -n $key ]]; then
     if [[ -f $key ]]; then key=$(< "$key"); fi
     key=${key%$'\r'}  # Also accept .pub files copied from Windows.
     read -r key_type key_data _ <<< "$key"
-    [[ $key != *$'\n'* && $key_type =~ ^(ssh-|ecdsa-|sk-) ]] &&
-        ssh-keygen -lf - <<< "$key_type $key_data" >/dev/null || die "Supply one valid OpenSSH public key or its .pub file."
+    [[ $key != *$'\n'* && $key_type =~ ^(ssh-|ecdsa-|sk-) ]] ||
+        die "Supply one OpenSSH public key or the path to its .pub file."
+    ssh-keygen -lf - <<< "$key_type $key_data" >/dev/null || die "Invalid SSH public key."
 fi
 
 main=/etc/ssh/sshd_config
 hardening=/etc/ssh/sshd_config.d/00-hardening.conf
-configs=("$main")
-if [[ -f $hardening ]]; then configs=("$hardening" "$main"); fi
 sudo_rule="/etc/sudoers.d/90-pcprep-$username"
 user_home="/home/$username"
 
@@ -66,7 +64,11 @@ cleanup() {
     set +e  # Attempt each rollback step even if another one fails.
     if (( status != 0 )); then
         printf 'Setup failed. Rolling back changes for %s.\n' "$username" >&2
-        for i in "${!changed_files[@]}"; do mv -f -- "$work/$i" "${changed_files[i]}"; done
+        for i in "${!changed_files[@]}"; do
+            if [[ -f $work/$i ]]; then mv -f -- "$work/$i" "${changed_files[i]}"
+            else rm -f -- "${changed_files[i]}"
+            fi
+        done
         if (( sudo_installed )); then rm -f -- "$sudo_rule"; fi
         if (( created )); then userdel --remove "$username"; fi
         if (( reload_attempted )); then sshd -t && systemctl reload ssh.service; fi
@@ -76,17 +78,16 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
-# An unusable password hash keeps the account available for public-key SSH.
-useradd --create-home --home-dir "$user_home" --shell /bin/bash --password '*' "$username"
+# Start with an unusable password hash until the requested login policy is ready.
+useradd --create-home --home-dir "$user_home" --shell /bin/bash --password '*' "${sudo_group[@]}" "$username"
 created=1
-if (( grant_sudo )); then
+if (( ${#sudo_group[@]} )); then
     # Give only this user a passwordless rule and test it as that user.
     printf '%s ALL=(ALL:ALL) NOPASSWD: ALL\n' "$username" > "$work/sudoers"
     visudo -cf "$work/sudoers" >/dev/null
     sudo_installed=1
     install -m 0440 -o root -g root "$work/sudoers" "$sudo_rule"
     visudo -c >/dev/null
-    usermod -aG sudo "$username"
     runuser -u "$username" -- sudo -k -n /usr/bin/true || die "Passwordless sudo failed for $username."
 fi
 
@@ -111,21 +112,28 @@ elif ! accepts_password "$global" || ! accepts_password "$effective"; then
     options=('PasswordAuthentication yes' 'AuthenticationMethods publickey password')
 fi
 
-# Extend an existing global allowlist. Creating one on an unrestricted server
-# would lock out its other users. OpenSSH combines multiple AllowUsers lines.
+# sshd -T prints one AllowUsers pattern per line. Honor an existing grant,
+# including a wildcard or user@host, so its source restriction survives.
+lists_user() {
+    local directive pattern
+    while read -r directive pattern; do
+        [[ $directive == allowusers && $username == ${pattern%%@*} ]] && return 0
+    done <<< "$1"
+    return 1
+}
+
+# Add a global entry only if the server already restricts logins with AllowUsers.
+# Ubuntu includes *.conf by default. Older standalone configs use the main file.
 allow_file=''
-has_user="^allowusers( [^ ]+)* $username( |$)"
-if grep -q '^allowusers ' <<< "$global" && ! grep -Eq "$has_user" <<< "$global"; then
-    # Prefer the hardening drop-in. Older VPS setups used the main file.
-    allow_file=$(awk '
-        FNR == 1 { in_match = 0 }
-        tolower($1) ~ /^match(=|$)/ { in_match = 1 }
-        !in_match && tolower($1) ~ /^allowusers(=|$)/ { print FILENAME; exit }
-    ' "${configs[@]}")
-    allow_file=${allow_file:-$main}  # A global restriction in another Include.
+if grep -q '^allowusers ' <<< "$global" && ! lists_user "$global"; then
+    allow_file=$main
+    stock_include='^[[:space:]]*Include[[:space:]=]+[^#]*sshd_config\.d/\*\.conf(["[:space:]#]|$)'
+    if [[ -f $hardening ]] || grep -Eiq "$stock_include" "$main"; then
+        [[ ! -d ${hardening%/*} ]] || allow_file=$hardening
+    fi
 fi
 
-for file in "${configs[@]}"; do
+for file in "$hardening" "$main"; do
     allow='' block=''
     if [[ $file == "$allow_file" ]]; then allow=$username; fi
     if [[ $file == "$main" ]] && (( ${#options[@]} )); then
@@ -135,16 +143,20 @@ for file in "${configs[@]}"; do
 
     # Keep global settings first. Insert our block before other Match rules
     # because the first matching value wins. Keep an original for rollback.
-    target=$(realpath -e -- "$file")
+    target=$(realpath -- "$file")
     backup="$work/${#changed_files[@]}"
-    cp -p -- "$target" "$backup"
-    cp -p -- "$target" "$backup.new"
+    original=/dev/null
+    if [[ -e $target ]]; then
+        cp -p -- "$target" "$backup"
+        cp -p -- "$target" "$backup.new"
+        original=$backup
+    fi
     awk -v allow="$allow" -v block="$block" '
         BEGIN { if (allow != "") print "AllowUsers " allow }
         tolower($1) ~ /^match(=|$)/ && block != "" { print block "\n"; block = "" }
         { print }
         END { if (block != "") print block }
-    ' "$backup" > "$backup.new"
+    ' "$original" > "$backup.new"
     changed_files+=("$target")
     mv -f -- "$backup.new" "$target"
 done
@@ -154,21 +166,8 @@ effective=$(sshd -T -C "$connection")
 for option in "${options[@]}"; do
     grep -Fxq "${option,,}" <<< "$effective" || die "Another SSH rule overrides '$option' for $username."
 done
-if [[ -n $allow_file ]] && ! grep -Eq "$has_user" <<< "$effective"; then
-    die "Another SSH rule overrides the AllowUsers entry for $username."
-fi
-
-if [[ -n $key ]]; then
-    # Write as the new user so files in their home are owned by that user.
-    runuser -u "$username" -- sh -ec '
-        cd "$1"
-        umask 077
-        install -d -m 0700 .ssh
-        cat > .ssh/authorized_keys
-        chmod 0600 .ssh/authorized_keys
-    ' sh "$user_home" <<< "$key"
-else
-    passwd "$username"
+if [[ -n $allow_file ]] || grep -q '^allowusers ' <<< "$effective"; then
+    lists_user "$effective" || die "The SSH allowlist excludes $username. Check the active Include and Match rules."
 fi
 
 # An idle, socket-activated sshd reads the new files when it starts.
@@ -178,5 +177,19 @@ if (( ${#changed_files[@]} )); then
         reload_attempted=1
         systemctl reload ssh.service
     fi
+fi
+
+# Enable the chosen credential once SSH and sudo have passed validation.
+if [[ -n $key ]]; then
+    # Write as the account owner, including when /etc/skel supplies .ssh.
+    runuser -u "$username" -- sh -ec '
+        cd "$1"
+        umask 077
+        install -d -m 0700 .ssh
+        cat > .ssh/authorized_keys
+        chmod 0600 .ssh/authorized_keys
+    ' sh "$user_home" <<< "$key"
+else
+    passwd "$username"
 fi
 printf 'Created user %s.\n' "$username"
