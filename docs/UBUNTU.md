@@ -74,8 +74,11 @@ bash ubuntu/prepare_new_vps.sh
 
 **Your SSH key comes first.** After hardening, the server accepts SSH logins
 only with a key, not a password. The server lists the public keys allowed for
-an account in that account's `~/.ssh/authorized_keys`. If yours isn't there
-yet, add it once from your own computer (create a key first with
+an account in that account's `~/.ssh/authorized_keys`, or in another file that
+`AuthorizedKeysFile` names in `sshd_config` (for example in a `Match User`
+block). The scripts read whichever file `sshd` uses, and `add_vps_users.sh`
+copies its keys to the new accounts. If you can't log in with a key yet, add
+yours once from your own computer (create a key first with
 `ssh-keygen -t ed25519` if you don't have one):
 
 ```powershell
