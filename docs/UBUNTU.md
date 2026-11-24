@@ -65,7 +65,7 @@ These switches affect what gets installed. They don't remove anything an earlier
 For a VPS that hosts websites through a Cloudflare Tunnel and runs coding agents:
 
 1. **Make sure you log in with an SSH key** (see below).
-2. **Run `bash ubuntu/prepare_new_vps.sh`** as your regular user. It is the workstation setup without CUDA, PyTorch, Azure or workstation packages, and it first creates `sy_agent`, `sy_dev` and `sy_deploy`.
+2. **Run `bash ubuntu/prepare_new_vps.sh`** as your regular user. It is the workstation setup without CUDA, PyTorch, Azure or workstation packages. It first creates `sy_agent`, `sy_dev` and `sy_deploy`, and at the end upgrades every installed package, since the provider's image is often weeks behind. Reboot afterwards if it says so.
 3. **Run `sudo bash ubuntu/vps_harden.sh`** from your admin account. Keep that terminal open. From a second terminal, log in with your key and run the confirmation command it prints, within 10 minutes. Otherwise a timer restores the previous settings, even if your first session drops. Do this before you reboot.
 
 ### Your SSH key comes first
