@@ -227,6 +227,45 @@ deferred integration testing.
 
 The [VPS setup script](../ubuntu/vps_setup.sh) lists its system changes at the top.
 
+For a VPS serving sites through Cloudflare Tunnel, run the following from the checkout.
+
+```bash
+sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_setup.sh
+```
+
+SSH uses the existing port (usually 22). The script opens no public web ports.
+Bind each origin to loopback or a private container network. Keep outbound TCP
+and UDP 7844 available for the tunnel. Review any existing web allow rules on
+the host and at the provider, including rules left by older installs.
+
+When access settings change, keep the first terminal open. From a second
+terminal, connect with your SSH key and run the printed `sudo` confirmation
+command within ten minutes. A timer restores the previous settings on timeout
+even if the first session disconnects. Finish this step before rebooting.
+For a port move, allow the new port at the provider first. Setup copies simple
+UFW source restrictions and asks for a manual migration on complex policies.
+Review any operator-owned old-port rules after a successful move.
+
+| Optional setting | Effect |
+|---|---|
+| `SSH_PORT=2222` | Move SSH to this port after confirming a fresh login. |
+| `AUTO_REBOOT=1` | Allow required reboots at `AUTO_REBOOT_TIME` (default 03:30 server time). |
+| `RECIDIVE=1` | Enable week-long, all-port bans for repeat offenders. |
+| `AGENT_USERS="agent dev"` | Report passwordless sudo rules and Docker group membership for these accounts. |
+| `TUNNEL_HOSTNAME=www.example.com` | Check HTTPS through Cloudflare after the site is deployed. |
+
+Test direct exposure from a computer outside the VPS network. Supply your own
+public IPv4 and IPv6 addresses and the TCP ports intended to be private. Omit
+the port intentionally used for public SSH. With SSH on 22, for example:
+
+```bash
+python ubuntu/vps_audit.py external www.example.com --origin 192.0.2.10 --origin 2001:db8::10 --port 80 --port 443 --port 3000
+```
+
+This checks one external vantage point. A Cloudflare HTTPS response confirms
+the public route, while the direct checks independently test the listed origin
+ports. An authenticated site may redirect to its sign-in page.
+
 `azmount.sh`, `azunmount.sh`, `mount_cifs.sh`, `wsl_vpn.py`, `killer_wifi.sh`,
 `cpu_cap.sh`, `update_dsvm.sh`, `vps_setup.sh`, `security_status.sh`,
 `unban.sh`, `system.sh`, `sysinfo.sh`, `treesize.sh`, and

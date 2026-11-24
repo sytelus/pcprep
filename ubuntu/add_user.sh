@@ -49,6 +49,7 @@ user_home="/home/$username"
 # be rolled back safely if the password prompt, config check or reload fails.
 exec 9>/run/pcprep-add-user.lock
 flock -x 9
+[[ ! -e /run/pcprep-vps-pending ]] || die "Confirm the pending VPS access change or wait for rollback before adding a user."
 if id "$username" >/dev/null 2>&1; then die "User $username already exists."; fi
 [[ ! -e $user_home && ! -L $user_home ]] || die "Home already exists: $user_home"
 [[ ! -e $sudo_rule && ! -L $sudo_rule ]] || die "Sudo rule already exists: $sudo_rule"
@@ -115,7 +116,7 @@ fi
 allow_file=''
 has_user="^allowusers( [^ ]+)* $username( |$)"
 if grep -q '^allowusers ' <<< "$global" && ! grep -Eq "$has_user" <<< "$global"; then
-    # Prefer the hardening drop-in. vps_setup.sh keeps its list in the main file.
+    # Prefer the hardening drop-in. Older VPS setups used the main file.
     allow_file=$(awk '
         FNR == 1 { in_match = 0 }
         tolower($1) ~ /^match(=|$)/ { in_match = 1 }
