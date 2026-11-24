@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Harden an Ubuntu 24.04 or 26.04 VPS serving websites via Cloudflare Tunnel.
-# Run after prepare_new_vps.sh: sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_harden.sh
+# Run after prepare_new_vps.sh, from your admin account: sudo bash ubuntu/vps_harden.sh
+# (from another account, name the admin: sudo env SSH_ALLOWED_USER=<admin> bash ...).
+# The admin must already log in with an SSH key; the script checks this first.
 #
 # - Allows key login for the admin. Without an existing SSH allowlist, it also keeps
 #   every account that has its own "Match User" block in sshd_config (add_user.sh
@@ -38,6 +40,28 @@ for cmd in sshd ufw nft fail2ban-client unattended-upgrade systemd-run ss sudo f
     command -v "$cmd" >/dev/null || die "Missing $cmd; install the VPS prerequisites."
 done
 /usr/bin/python3 -c 'from systemd import journal' || die "Install python3-systemd."
+
+# Hardening turns off SSH passwords, so the admin needs a key on this server
+# first. Check the files sshd actually reads (AuthorizedKeysFile).
+[[ -d /run/sshd ]] || install -d -m 0755 /run/sshd
+admin_home=$(getent passwd -- "$admin" | cut -d: -f6)
+admin_has_key=0
+for key_file in $(sshd -T -C "user=$admin,host=localhost,addr=127.0.0.1" |
+                  awk '$1 == "authorizedkeysfile" { $1 = ""; print }'); do
+    [[ $key_file == none ]] && continue
+    key_file=${key_file//\%h/$admin_home}
+    key_file=${key_file//\%u/$admin}
+    [[ $key_file == /* ]] || key_file="$admin_home/$key_file"
+    if [[ -f $key_file ]] && grep -Eq '(^|[[:space:]])(ssh-|ecdsa-|sk-)[^[:space:]]+[[:space:]]+AAAA' "$key_file"; then
+        admin_has_key=1
+    fi
+done
+(( admin_has_key )) || die "$admin has no SSH key on this server, and hardening turns off SSH passwords.
+Add your public key first, from your own computer:
+  Windows PowerShell: type \$env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh $admin@<server> \"umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys\"
+  Linux, macOS or Git Bash: ssh-copy-id $admin@<server>
+(No key yet? Run ssh-keygen -t ed25519 first.) Then log in with the key and run this script again."
+
 auto_reboot=${AUTO_REBOOT:-1}
 recidive=${RECIDIVE:-0}
 [[ $auto_reboot =~ ^[01]$ && $recidive =~ ^[01]$ ]] || die "AUTO_REBOOT and RECIDIVE accept 0 or 1."

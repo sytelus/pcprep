@@ -72,6 +72,21 @@ root as your regular user.
 bash ubuntu/prepare_new_vps.sh
 ```
 
+**Your SSH key comes first.** After hardening, the server accepts SSH logins
+only with a key, not a password. The server lists the public keys allowed for
+an account in that account's `~/.ssh/authorized_keys`. If yours isn't there
+yet, add it once from your own computer (create a key first with
+`ssh-keygen -t ed25519` if you don't have one):
+
+```powershell
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh shitals@<server> "umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys"
+```
+
+On Linux, macOS or Git Bash, `ssh-copy-id shitals@<server>` does the same.
+Without a key, `prepare_new_vps.sh` still sets up everything else but skips the
+`sy_*` accounts and says how to add them later, and `vps_harden.sh` stops before
+changing anything.
+
 The wrapper first runs [add_vps_users.sh](../ubuntu/add_vps_users.sh), which
 creates `sy_agent`, `sy_dev` and `sy_deploy` with passwordless sudo and the same
 SSH public keys as your account (the plain key lines of your
@@ -239,11 +254,16 @@ deferred integration testing.
 
 The [VPS hardening script](../ubuntu/vps_harden.sh) lists its system changes at the top.
 
-For a VPS serving sites through Cloudflare Tunnel, run the following from the checkout.
+For a VPS serving sites through Cloudflare Tunnel, run the following from the
+checkout, logged in as your admin account with your SSH key.
 
 ```bash
-sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_harden.sh
+sudo bash ubuntu/vps_harden.sh
 ```
+
+The account that runs `sudo` is the admin. To run it from another account, name
+the admin: `sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_harden.sh`. The
+script stops before changing anything if the admin has no SSH key on the server.
 
 SSH uses the existing port (usually 22). The script opens no public web ports.
 Bind each origin to loopback or a private container network. Keep outbound TCP
