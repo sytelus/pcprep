@@ -390,7 +390,11 @@ function codexyolo {
 
 pcprep_unalias codexupdate
 codexupdate() {
-  npm install -g @openai/codex@latest
+  if pcprep_is_macos; then
+    npm install -g @openai/codex@latest
+  else
+    "$HOME/.local/bin/install_codex.sh"
+  fi
 }
 alias claudeupdate="claude update"
 alias z='zellij attach -c "$USER@$(hostname)"'

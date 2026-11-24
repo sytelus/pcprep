@@ -23,10 +23,11 @@ setupbox.sh
   -> ubuntu/prepare_new_box.sh
        -> optional WSL preparation
        -> cp_dotfiles.sh
+       -> gitconfig.sh
        -> min_system.sh
        -> optional WSL utility or CUDA branch
-       -> gitconfig.sh
        -> extra_install.sh
+       -> verify automatic security updates when online with systemd
        -> install_miniconda.sh
        -> Python/DL packages and AI CLIs when online
 ```
@@ -38,21 +39,42 @@ The orchestrator uses these environment variables:
 | `NO_NET` | auto-detected | `1` selects the limited offline path; `0` permits network-dependent work |
 | `user_name` | existing Git value or startup prompt | Global Git user name; set it to bypass the prompt |
 | `user_email` | existing Git value or startup prompt | Global Git email; set it to bypass the prompt |
-| `INSTALL_CUDA` | `0` | Opt in to CUDA installation on non-WSL Linux when a compatible GPU is detected |
+| `INSTALL_CUDA` | `0` | Set to `1` to request the NVIDIA toolkit on supported native hardware and include the optional ML, laptop power-management, and network-filesystem tools listed below |
+| `INSTALL_AZURE_CLI` | `0` | Set to `1` to request Azure CLI and AzCopy together |
 | `CUDA_VERSION` | `13.2` on 24.04; `13.3` on 26.04 | Toolkit-only NVIDIA CUDA version selected from the native repository; override it when compiling against an exact version |
-| `INSTALL_PYTORCH` | `1` | Controls framework installation in the downstream DL script |
+| `INSTALL_PYTORCH` | `1` | Install PyTorch, TorchVision, Keras, and Lightning. A machine without an NVIDIA driver gets CPU PyTorch. Set to `0` to skip these packages |
+| `PYTORCH_ACCELERATOR` | `auto` | Override driver detection with `cpu`, `cu126`, `cu130`, or `cu132` |
+| `NVM_VERSION` | `0.41.0` | NVM release used to install and activate the current Node.js LTS |
 | `PYTHON_VERSION` | `3.14` | Latest stable Python feature series installed into Miniconda base; Conda resolves its newest patch release |
+| `MINICONDA_VERSION` | `26.5.3-1` | Miniconda installer release for a new Python environment |
+| `MINICONDA_PYTHON_SERIES` | `py313` | Python series embedded in the Miniconda installer. The online setup then installs the requested `PYTHON_VERSION` |
+| `MINICONDA_FILE` | download when online | Use a local Miniconda installer file |
 | `PYTORCH_VERSION` | `2.13.0` | Reviewed stable PyTorch release |
 | `TORCHVISION_VERSION` | `0.28.0` | TorchVision release paired with the reviewed PyTorch version |
 | `WSL_DISTRO_NAME` | inherited from WSL | Selects WSL-specific SSH, browser, apt, and Windows credential-manager integration; `/proc/version` is used as a fallback |
 | `PCPREP_WIN_GCM_PATH` | auto-detected | Optional WSL path to a nonstandard Windows `git-credential-manager.exe` installation |
 | `PCPREP_AUDIT_DIR` | `~/.pcprep` | Private directory containing one complete audit log for every orchestrator run |
-| `ALLOW_UNSUPPORTED_AZURE_CLI` | `0` | Set to `1` when no native Azure CLI package exists to allow an explicitly unsupported cross-release repository |
+| `ALLOW_UNSUPPORTED_AZURE_CLI` | `0` | With `INSTALL_AZURE_CLI=1`, permit an unsupported cross-release repository if the running release has no native Azure CLI package |
 | `AZURE_CLI_FALLBACK_SUITE` | `noble` | `noble` or `jammy` suite used only when the unsupported Azure CLI fallback is enabled |
 | `INSTALL_TOOLCHAIN_TEST_PPA` | `0` | Opt in to the Ubuntu Toolchain test-build PPA instead of staying on supported archive packages |
+| `INSTALL_FUN_PACKAGES` | `0` | Install optional desktop and novelty programs such as `cowsay` and `cmatrix` |
 | `REMOVE_LEGACY_TOOLCHAIN_TEST_PPA` | `0` | Remove the test-build PPA left by an older pcprep run; ignored when installation of that PPA is enabled |
 | `RUSAGE_URL` | reviewed Cosmopolitan binary | Override the optional portable `rusage` download location together with `RUSAGE_SHA256` |
 | `RUSAGE_SHA256` | reviewed digest | Required SHA-256 for the `rusage` asset; a changed upstream binary is not installed silently |
+
+For a VPS used for web hosting and agent development, run this from the repository
+root as your regular user.
+
+```bash
+bash ubuntu/prepare_new_vps.sh
+```
+
+The wrapper sets `INSTALL_CUDA=0`, `INSTALL_PYTORCH=0`, and `INSTALL_AZURE_CLI=0`.
+This keeps Git, compilers, Node.js, Python, Codex, and Claude Code. With
+`INSTALL_CUDA=0`, setup skips Jupyter, TensorBoard, Transformers, Accelerate,
+TLP (including `tlp-rdw`), NVIDIA PRIME, `nvtop`, `nvitop`, the NFS and CIFS
+clients, and the CIFS mount helper. These switches control new installations.
+Packages and running services from earlier setups require separate review.
 
 Before installing packages, the orchestrator completes one startup questionnaire:
 the WSL manual-step confirmation when applicable, Git identity, and the offline
@@ -122,15 +144,30 @@ the bootstrap. Run the orchestrator as the regular WSL user, not with `sudo`.
 
 The orchestrator and child package scripts now acquire sudo explicitly and fail
 instead of silently skipping required system work. A final required-command
-manifest prevents a partial run from reporting “ready.” Azure CLI installation
-first verifies that Microsoft's repository contains a package for the running
-Ubuntu codename and architecture. Ubuntu 24.04 uses its native Noble package.
-Ubuntu 26.04 skips Azure CLI while Microsoft's Resolute index is empty; a Noble
-or Jammy fallback is available only through the explicit unsupported opt-in.
-When native packages appear, a rerun replaces a stale cross-release source with
-the native suite. Node.js is installed through NVM 0.40.6 using the current LTS
-release, and the Codex CLI is installed into that user-owned NVM tree rather
-than through Ubuntu's older system npm.
+manifest checks for missing tools. Git removes the exact global rule from
+older pcprep runs that redirected all GitHub HTTPS URLs to SSH. Each clone URL
+then uses the protocol you chose unless you configured another rewrite yourself.
+
+When Azure tools are enabled, setup checks Microsoft's repository for the
+running Ubuntu release and CPU architecture. If the native package is missing,
+it reports that Azure CLI was skipped and still attempts AzCopy. Node.js uses
+the current LTS through NVM. Codex setup and the Linux `codexupdate` command
+use OpenAI's standalone installer and verify `~/.local/bin/codex --version`.
+
+On an online Ubuntu host running systemd, setup checks that APT's automatic
+refresh and upgrade settings are enabled and both timers are enabled and active.
+It checks the services those timers start for masking or a recorded failure,
+refreshes the package lists, checks that the running release's Ubuntu
+security repository is eligible, and simulates an unattended upgrade. A failed
+check stops setup. Offline and non-systemd runs report that verification was
+skipped. To run just the check, use this command from the repository root.
+
+```bash
+/usr/bin/python3 -I ubuntu/verify_security_updates.py
+```
+
+The check displays the packages the updater would install. It does not install
+the updates or reboot the server.
 
 The Ubuntu Toolchain test-build PPA is disabled by default on both releases.
 Set `INSTALL_TOOLCHAIN_TEST_PPA=1` only when test compiler packages are
@@ -182,10 +219,13 @@ PyTorch 2.13.0/TorchVision 0.28.0 `cu126`, `cu130`, `cu132`, or CPU wheel on
 amd64 or arm64 and verifies a real tensor operation. Miniconda 26.5.3-1 is
 upgraded to the latest Python 3.14 patch available from Anaconda's defaults
 channel. TensorFlow is removed because its current stable release has no Python
-3.14 wheel; Keras is retained with its PyTorch backend and TensorBoard remains
-available. Native GPU validation remains part of deferred integration testing.
+3.14 wheel. Keras uses its PyTorch backend when PyTorch is selected. TensorBoard
+is installed only with `INSTALL_CUDA=1`. Native GPU validation remains part of
+deferred integration testing.
 
 ### Storage, mounts, network, and system administration
+
+The [VPS setup script](../ubuntu/vps_setup.sh) lists its system changes at the top.
 
 `azmount.sh`, `azunmount.sh`, `mount_cifs.sh`, `wsl_vpn.py`, `killer_wifi.sh`,
 `cpu_cap.sh`, `update_dsvm.sh`, `vps_setup.sh`, `security_status.sh`,
@@ -211,8 +251,9 @@ local-bin content. User-owned configuration files are copied only when absent,
 but they still become the user's active defaults on a new machine. The explicit
 helper-command list under `~/.local/bin` is pcprep-managed and is refreshed on
 every run so compatibility and security fixes propagate to existing machines.
-A rerun also removes the two exact obsolete `set ...` Readline lines written by
-older pcprep `.bashrc` versions; all other user shell customizations are kept.
+A rerun also removes two obsolete `set ...` Readline lines from older pcprep
+`.bashrc` versions and updates the original npm-based `codexupdate` function in
+an existing Ubuntu `.bash_aliases`. Customized function bodies are preserved.
 
 Review these files before copying anything:
 

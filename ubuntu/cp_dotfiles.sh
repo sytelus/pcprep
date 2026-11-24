@@ -1,6 +1,7 @@
 #!/bin/bash
 #fail if any errors
 set -e
+. "$(dirname -- "${BASH_SOURCE[0]}")/bootstrap_options.sh"
 set -o xtrace
 
 USER_BASHRC="$HOME/.bashrc"
@@ -80,12 +81,26 @@ fi
 # Refresh them on every run so fixes reach machines that were bootstrapped by
 # an older revision, while the dotfiles above retain no-clobber semantics.
 helpers=(
-  rundocker.sh azmount.sh azunmount.sh mount_cifs.sh start_tmux.sh sysinfo.sh
+  install_codex.sh rundocker.sh azmount.sh azunmount.sh start_tmux.sh sysinfo.sh
   treesize.sh measure_flops.py kill_vscode_srv.sh security_status.sh unban.sh
 )
+if bool_is_true "$INSTALL_CUDA"; then
+  helpers+=(mount_cifs.sh)
+fi
 for helper in "${helpers[@]}"; do
   install -v -m 0755 -- "$helper" "$HOME/.local/bin/$helper"
 done
+
+# Older copies would reinstall npm Codex on the next update. Match only the
+# original three-line function, after the native update helper is in place.
+if [[ -f ~/.bash_aliases && ! -L ~/.bash_aliases ]] &&
+    grep -Fxq '  npm install -g @openai/codex@latest' ~/.bash_aliases; then
+    sed -i '/^codexupdate() {$/ {
+        N
+        N
+        /\n  npm install -g @openai\/codex@latest\n}$/s|npm install -g @openai/codex@latest|"$HOME/.local/bin/install_codex.sh"|
+    }' ~/.bash_aliases
+fi
 
 AZ_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pcprep"
 mkdir -p "$AZ_CONFIG_DIR"

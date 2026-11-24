@@ -34,10 +34,10 @@ grep -Fq 'https://repo.anaconda.com/pkgs/r' "$SCRIPT_DIR/install_miniconda.sh"
 grep -Fq 'PYTORCH_VERSION=${PYTORCH_VERSION:-2.13.0}' "$SCRIPT_DIR/install_dl_frameworks.sh"
 grep -Fq 'TORCHVISION_VERSION=${TORCHVISION_VERSION:-0.28.0}' "$SCRIPT_DIR/install_dl_frameworks.sh"
 ! grep -Eq 'pip install[^#]*tensorflow' "$SCRIPT_DIR/install_dl_frameworks.sh"
-grep -Fq 'NVM_VERSION=${NVM_VERSION:-0.40.6}' "$SCRIPT_DIR/min_system.sh"
+grep -Fq 'NVM_VERSION=${NVM_VERSION:-0.41.0}' "$SCRIPT_DIR/min_system.sh"
 grep -Fq 'nvm/v${NVM_VERSION}/install.sh' "$SCRIPT_DIR/min_system.sh"
 ! grep -Eq '^[[:space:]]*npm nodejs' "$SCRIPT_DIR/min_system.sh"
-grep -Fq 'npm install -g @openai/codex@latest' "$SCRIPT_DIR/prepare_new_box.sh"
+grep -Fq 'bash install_codex.sh' "$SCRIPT_DIR/prepare_new_box.sh"
 ! grep -Fq 'sudo npm' "$SCRIPT_DIR/prepare_new_box.sh"
 ! grep -qi 'tensorflow' "$SCRIPT_DIR/../tests/cuda.py"
 grep -Fq 'KERAS_BACKEND' "$SCRIPT_DIR/../tests/cuda.py"
@@ -105,6 +105,125 @@ sudo_validation_line=$(grep -n '^sudo -n true ' "$SCRIPT_DIR/prepare_new_box.sh"
 gitconfig_line=$(grep -n '^bash gitconfig.sh$' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
 [[ -n $startup_input_line && -n $sudo_validation_line && -n $gitconfig_line ]]
 (( startup_input_line < sudo_validation_line && startup_input_line < gitconfig_line ))
+min_system_line=$(grep -n '^bash min_system.sh$' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
+(( gitconfig_line < min_system_line ))
+
+# Exercise the actual pip and system package selection without installing anything.
+(
+  unset INSTALL_CUDA INSTALL_AZURE_CLI
+  source "$SCRIPT_DIR/bootstrap_options.sh"
+  [[ $INSTALL_CUDA == 0 && $INSTALL_AZURE_CLI == 0 ]]
+  export PACKAGE_LOG="$TEST_ROOT/packages"
+  cat > "$TEST_ROOT/record-python" <<'SH'
+#!/usr/bin/env bash
+if [[ $1 == -m && $2 == pip && $3 == install ]]; then
+  printf '%s\n' "$@" >> "$PACKAGE_LOG"
+fi
+SH
+  chmod +x "$TEST_ROOT/record-python"
+  source <(sed -n '/^install_power_and_hardware_packages()/,/^}/p; /^install_azure_cli()/,/^}/p' "$SCRIPT_DIR/min_system.sh")
+  source <(sed -n '/^install_filesystems()/,/^}/p' "$SCRIPT_DIR/extra_install.sh")
+  install_pkg() { printf '%s\n' "$@" >> "$PACKAGE_LOG"; }
+  install_packages() { install_pkg "$@"; }
+  log() { :; }
+  skip() { :; }
+  warn() { echo "$*" >&2; }
+  azure_cli_configured_suite() { :; }
+  azure_cli_repo_has_package() { install_pkg azure-repo-probe; }
+  run_azure_cli_installer() { install_pkg azure-cli; }
+  IS_WSL=0 ARCH=x86_64
+  for flag in 0 1; do
+    export INSTALL_CUDA=$flag
+    for torch in 0 1; do
+      : > "$PACKAGE_LOG"
+      INSTALL_PYTORCH=$torch NO_NET=0 PYTORCH_ACCELERATOR=cpu PYTHON="$TEST_ROOT/record-python" \
+        bash "$SCRIPT_DIR/install_dl_frameworks.sh"
+      install_power_and_hardware_packages
+      install_filesystems
+      grep -Fxq pandas "$PACKAGE_LOG"
+      for package in jupyter tensorboard transformers tlp tlp-rdw nvtop nvidia-prime nfs-common cifs-utils; do
+        if [[ $flag == 1 ]]; then
+          grep -Fxq "$package" "$PACKAGE_LOG"
+        elif grep -Fxq "$package" "$PACKAGE_LOG"; then
+          echo "Disabled package requested: $package" >&2
+          exit 1
+        fi
+      done
+      if [[ $flag == 1 && $torch == 1 ]]; then
+        grep -Fxq accelerate "$PACKAGE_LOG"
+      elif grep -Fxq accelerate "$PACKAGE_LOG"; then
+        exit 1
+      fi
+      if [[ $torch == 1 ]]; then
+        grep -Fxq https://download.pytorch.org/whl/cpu "$PACKAGE_LOG"
+      elif grep -Fq 'torch==' "$PACKAGE_LOG"; then
+        exit 1
+      fi
+    done
+    # Azure is independent of the CUDA switch, including its repository probe.
+    INSTALL_AZURE_CLI=$((1 - flag))
+    : > "$PACKAGE_LOG"
+    (bash() { install_pkg "$@"; }; install_azure_cli)
+    if [[ $INSTALL_AZURE_CLI == 0 ]]; then
+      [[ ! -s $PACKAGE_LOG ]]
+    else
+      for operation in azure-repo-probe azure-cli install_azcopy.sh; do
+        grep -Fxq "$operation" "$PACKAGE_LOG"
+      done
+    fi
+  done
+)
+
+# Exercise an existing npm install and an existing .bash_aliases using only a
+# temporary home and a fake downloaded installer.
+(
+  export HOME="$TEST_ROOT/codex-migration" XDG_CONFIG_HOME="$TEST_ROOT/codex-config"
+  export NVM_BIN="$HOME/.nvm/versions/node/v24.0.0/bin"
+  prefix=${NVM_BIN%/bin}
+  mkdir -p "$NVM_BIN" "$prefix/lib/node_modules/@openai/codex/bin"
+  touch "$prefix/lib/node_modules/@openai/codex/bin/codex.js"
+  ln -s ../lib/node_modules/@openai/codex/bin/codex.js "$NVM_BIN/codex"
+  printf '%s\n' '#!/bin/sh' 'echo "$@" >> "$HOME/npm-calls"' > "$NVM_BIN/npm"
+  chmod +x "$NVM_BIN/npm"
+  printf '%s\n' 'export PATH="$HOME/.local/bin:$PATH"' > "$HOME/.bashrc"
+  printf '%s\n' 'codexupdate() {' '  npm install -g @openai/codex@latest' '}' 'alias mine=true' > "$HOME/.bash_aliases"
+  cd "$SCRIPT_DIR"
+  INSTALL_CUDA=0 bash cp_dotfiles.sh > "$TEST_ROOT/dotfiles.log" 2>&1
+  [[ ! -e $HOME/.local/bin/mount_cifs.sh && -x $HOME/.local/bin/install_codex.sh ]]
+  grep -Fxq '  "$HOME/.local/bin/install_codex.sh"' "$HOME/.bash_aliases"
+  grep -Fxq 'alias mine=true' "$HOME/.bash_aliases"
+
+  curl() {
+    [[ ${!#} == https://chatgpt.com/codex/install.sh ]] || return 1
+    while [[ $# -gt 1 && $1 != -o ]]; do shift; done
+    [[ $1 == -o ]] || return 1
+    cat > "$2" <<'INSTALLER'
+set -eu
+test "$CODEX_NON_INTERACTIVE" = true
+test "$CODEX_INSTALL_DIR" = "$HOME/.local/bin"
+printf '%s\n' '#!/bin/sh' 'test "$1" = --version' > "$CODEX_INSTALL_DIR/codex"
+chmod +x "$CODEX_INSTALL_DIR/codex"
+INSTALLER
+  }
+  export -f curl
+  source "$HOME/.bash_aliases"
+  codexupdate
+  grep -Fxq "uninstall --global --prefix $prefix --ignore-scripts @openai/codex" "$HOME/npm-calls"
+  "$HOME/.local/bin/codex" --version
+
+  curl() { return 22; }
+  export -f curl
+  if codexupdate; then
+    echo "Codex update accepted a failed download." >&2
+    exit 1
+  fi
+  [[ $(wc -l < "$HOME/npm-calls") -eq 1 ]]
+  printf '%s\n' 'codexupdate() {' '  npm install -g @openai/codex@latest' '  echo customized' '}' > "$HOME/.bash_aliases"
+  cp "$HOME/.bash_aliases" "$TEST_ROOT/custom.aliases"
+  INSTALL_CUDA=1 bash cp_dotfiles.sh >> "$TEST_ROOT/dotfiles.log" 2>&1
+  cmp "$TEST_ROOT/custom.aliases" "$HOME/.bash_aliases"
+  [[ -x $HOME/.local/bin/mount_cifs.sh ]]
+)
 
 # Resolve release-specific native CUDA defaults without touching the network.
 cuda_fixture_bin="$TEST_ROOT/cuda-fixture-bin"
@@ -149,10 +268,10 @@ HOME="$identity_home" git config --global user.email 'existing@example.invalid'
   export HOME="$identity_home"
   user_name=
   user_email=
-  collect_git_identity
+  collect_git_identity <<< $'\n\n'
   [[ $user_name == 'Existing User' ]]
   [[ $user_email == 'existing@example.invalid' ]]
-) <<< $'\n\n'
+)
 (
   user_name='Automated User'
   user_email='automated@example.invalid'
@@ -305,6 +424,7 @@ run_audit_failure_fixture() (
   IS_WSL=1
   NO_NET=""
   INSTALL_CUDA=0
+  INSTALL_AZURE_CLI=0
   CUDA_VERSION=13.2
   INSTALL_PYTORCH=1
   PYTHON_VERSION=3.14
@@ -337,6 +457,7 @@ audit_log=${audit_logs[0]}
 [[ -L $audit_dir/prepare_new_box.latest.log ]]
 [[ $(readlink "$audit_dir/prepare_new_box.latest.log") == "$(basename "$audit_log")" ]]
 grep -Fqx 'event=run_started' "$audit_log"
+grep -Fqx 'config.INSTALL_AZURE_CLI=0' "$audit_log"
 grep -Fqx 'isolated-audit-test-marker' "$audit_log"
 grep -Fqx 'event=run_finished' "$audit_log"
 grep -Fqx 'result=failed' "$audit_log"

@@ -27,7 +27,10 @@ fi
 # Set global Git configurations using the user's input
 git config --global user.name "$user_name"
 git config --global user.email "$user_email"
-git config --global url.ssh://git@github.com/.insteadOf https://github.com/
+# Remove only the exact rewrite installed by older Ubuntu bootstraps.
+# Git returns 5 when there is nothing to remove. Propagate other errors.
+git config --global --fixed-value --unset-all url.ssh://git@github.com/.insteadOf https://github.com/ \
+    || { status=$?; [ "$status" -eq 5 ] || exit "$status"; }
 
 # set default line ending to LF
 git config --global core.eol lf

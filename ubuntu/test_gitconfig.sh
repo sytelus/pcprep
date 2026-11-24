@@ -14,10 +14,17 @@ chmod +x "$TEST_ROOT/bin/code"
 export HOME="$TEST_ROOT/home"
 mkdir -p "$HOME"
 export GIT_CONFIG_GLOBAL="$TEST_ROOT/gitconfig"
+export GIT_CONFIG_NOSYSTEM=1
 export PATH="$TEST_ROOT/bin:$PATH"
 export user_name='pcprep test'
 export user_email='pcprep-test@example.invalid'
+rewrite=url.ssh://git@github.com/.insteadOf
+git config --global --add "$rewrite" https://github.com/
+git config --global --add "$rewrite" https://git-mirror.example.invalid/
 bash "$SCRIPT_DIR/gitconfig.sh" </dev/null
+bash "$SCRIPT_DIR/gitconfig.sh" </dev/null
+[[ $(git config --global --get-all "$rewrite") == https://git-mirror.example.invalid/ ]]
+[[ $(git -C "$TEST_ROOT" ls-remote --get-url https://github.com/nvm-sh/nvm.git) == https://github.com/nvm-sh/nvm.git ]]
 
 [[ $(git config --global core.editor) == 'code --new-window --wait' ]]
 [[ $(git config --global mergetool.vscode.cmd) == 'code --wait "$MERGED"' ]]

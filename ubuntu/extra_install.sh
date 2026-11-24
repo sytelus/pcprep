@@ -10,6 +10,7 @@ set -euo pipefail
 # - Skips select packages on WSL (not installable/useful there)
 # - Supports architectures: x86_64/amd64, arm64/aarch64, armhf/armv7l
 
+. "$(dirname -- "${BASH_SOURCE[0]}")/bootstrap_options.sh"
 export DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
 NO_NET=${NO_NET:-}
 
@@ -224,8 +225,12 @@ install_filesystems() {
   else
     install_pkg sshfs || true
   fi
-  install_pkg nfs-common || true
-  install_pkg cifs-utils || true
+  if bool_is_true "$INSTALL_CUDA"; then
+    install_pkg nfs-common || true
+    install_pkg cifs-utils || true
+  else
+    skip "NFS and CIFS clients (INSTALL_CUDA=$INSTALL_CUDA)"
+  fi
   install_pkg mergerfs || true
   install_pkg lsof || true
   # pstree is a command shipped by the psmisc package.

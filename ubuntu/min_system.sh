@@ -3,10 +3,11 @@
 set -euo pipefail
 #set -o xtrace
 
+. "$(dirname -- "${BASH_SOURCE[0]}")/bootstrap_options.sh"
 export DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
 export NO_NET=${NO_NET:-0}
 export INSTALL_FUN_PACKAGES=${INSTALL_FUN_PACKAGES:-0}
-export NVM_VERSION=${NVM_VERSION:-0.40.6}
+export NVM_VERSION=${NVM_VERSION:-0.41.0}
 export ALLOW_UNSUPPORTED_AZURE_CLI=${ALLOW_UNSUPPORTED_AZURE_CLI:-0}
 export AZURE_CLI_FALLBACK_SUITE=${AZURE_CLI_FALLBACK_SUITE:-noble}
 export INSTALL_TOOLCHAIN_TEST_PPA=${INSTALL_TOOLCHAIN_TEST_PPA:-0}
@@ -16,17 +17,6 @@ export RUSAGE_SHA256=${RUSAGE_SHA256:-270e10853812f6c650f0eb4773354070a398f41738
 
 log() { echo "[min_system] $*"; }
 warn() { echo "[min_system][WARN] $*" >&2; }
-
-bool_is_true() {
-    case "${1:-0}" in
-        1|y|Y|yes|YES|true|TRUE|on|ON)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
 
 # Detect architecture
 ARCH=$(uname -m)
@@ -132,7 +122,7 @@ enable_ubuntu_components() {
 install_core_packages() {
     install_packages \
         git curl wget xclip xsel xz-utils tar apt-transport-https trash-cli bash-completion pciutils \
-        ufw fail2ban unattended-upgrades at \
+        ufw fail2ban python3-systemd nftables unattended-upgrades at \
         htop procps build-essential cmake g++ libopencv-dev libopenmpi-dev zlib1g-dev \
         fdupes keychain pass micro zlib1g \
         ca-certificates gnupg lsb-release \
@@ -160,7 +150,12 @@ install_power_and_hardware_packages() {
         return 0
     fi
 
-    install_packages tlp powertop tlp-rdw inxi nvtop powerstat
+    install_packages powertop inxi powerstat
+    if ! bool_is_true "$INSTALL_CUDA"; then
+        log "Skipping TLP and GPU utilities (INSTALL_CUDA=$INSTALL_CUDA)."
+        return 0
+    fi
+    install_packages tlp tlp-rdw nvtop
 
     # Install nvidia-prime only on x86_64 architecture.
     if [ "$ARCH" = "x86_64" ]; then
@@ -261,6 +256,11 @@ run_azure_cli_installer() {
 install_azure_cli() {
     local os_id="" os_codename="" configured_suite="" native_available=0
 
+    if ! bool_is_true "$INSTALL_AZURE_CLI"; then
+        log "Skipping Azure CLI and AzCopy. Set INSTALL_AZURE_CLI=1 to install both."
+        return 0
+    fi
+
     os_id=$(. /etc/os-release; printf '%s' "${ID:-}")
     os_codename=$(. /etc/os-release; printf '%s' "${VERSION_CODENAME:-}")
     configured_suite=$(azure_cli_configured_suite || true)
@@ -300,14 +300,6 @@ install_azure_cli() {
         warn "Azure CLI remains configured from unsupported suite '$configured_suite'; native '$os_codename' packages are not available yet."
     else
         warn "Azure CLI is installed, but no native $os_codename repository package is currently available."
-    fi
-
-    if command -v az >/dev/null 2>&1; then
-        az config set extension.use_dynamic_install=yes_without_prompt || warn "Unable to configure Azure CLI dynamic extension installs."
-        _sudo mkdir -p /opt/az/extensions/
-        _sudo chmod 1777 /opt/az/extensions/
-    else
-        warn "Azure CLI is still unavailable; skipping Azure CLI configuration."
     fi
 
     bash install_azcopy.sh || warn "AzCopy installation failed."
@@ -357,7 +349,7 @@ install_user_tools() {
 
     if [ "$installed_nvm_version" != "$NVM_VERSION" ]; then
         log "Installing NVM $NVM_VERSION (found ${installed_nvm_version:-none})."
-        curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" \
+        curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" \
             | bash \
             || warn "nvm installer failed."
     fi

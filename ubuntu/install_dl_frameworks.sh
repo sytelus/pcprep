@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+. "$(dirname -- "${BASH_SOURCE[0]}")/bootstrap_options.sh"
 NO_NET=${NO_NET:-0}
 INSTALL_PYTORCH=${INSTALL_PYTORCH:-1}
 PYTORCH_ACCELERATOR=${PYTORCH_ACCELERATOR:-auto}
@@ -22,17 +23,16 @@ case $(uname -m) in
 esac
 
 "$PYTHON" -m pip install -q --upgrade pip setuptools wheel
-"$PYTHON" -m pip install -q --upgrade \
-  pandas scikit-learn matplotlib jupyter tensorboard
+science_packages=(pandas scikit-learn matplotlib)
+if bool_is_true "$INSTALL_CUDA"; then
+  science_packages+=(jupyter tensorboard)
+fi
+"$PYTHON" -m pip install -q --upgrade "${science_packages[@]}"
 
 # TensorFlow 2.21 does not publish Python 3.14 wheels. Remove old variants so
 # the latest stable Python environment has one coherent Keras/PyTorch backend.
 "$PYTHON" -m pip uninstall -q -y \
   tensorflow tensorflow-cpu tensorflow-intel tf-nightly || true
-
-bool_is_true() {
-  case ${1:-0} in 1|y|Y|yes|YES|true|TRUE|on|ON) return 0 ;; *) return 1 ;; esac
-}
 
 version_ge() {
   printf '%s\n%s\n' "$2" "$1" | sort -V -C
@@ -130,10 +130,17 @@ else
   echo "INSTALL_PYTORCH=$INSTALL_PYTORCH; skipping PyTorch."
 fi
 
-"$PYTHON" -m pip install -q --upgrade \
-  transformers datasets wandb accelerate einops tokenizers sentencepiece
-if bool_is_true "$INSTALL_PYTORCH"; then
-  "$PYTHON" -m pip install -q --upgrade lightning
+ml_packages=(datasets wandb einops tokenizers sentencepiece)
+if bool_is_true "$INSTALL_CUDA"; then
+  ml_packages+=(transformers)
+  # Accelerate requires Torch and would defeat an explicit PyTorch opt-out.
+  if bool_is_true "$INSTALL_PYTORCH"; then
+    ml_packages+=(accelerate)
+  fi
 fi
+if bool_is_true "$INSTALL_PYTORCH"; then
+  ml_packages+=(lightning)
+fi
+"$PYTHON" -m pip install -q --upgrade "${ml_packages[@]}"
 
 "$PYTHON" -m pip check

@@ -5,11 +5,11 @@ set -Eeuo pipefail # -o xtrace # fail if any command fails
 INVOCATION_DIR=$PWD
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cd "$SCRIPT_DIR"
+. "$SCRIPT_DIR/bootstrap_options.sh"
 
 export NO_NET=${NO_NET:-}
 export user_name=${user_name:-}
 export user_email=${user_email:-}
-export INSTALL_CUDA=${INSTALL_CUDA:-0}
 if [ -z "${CUDA_VERSION:-}" ]; then
     case $(. /etc/os-release 2>/dev/null; printf '%s' "${VERSION_ID:-}") in
         26.04) CUDA_VERSION=13.3 ;;
@@ -134,6 +134,7 @@ start_run_audit() {
     printf 'wsl=%s\n' "$IS_WSL"
     printf 'config.NO_NET=%s\n' "${NO_NET:-auto}"
     printf 'config.INSTALL_CUDA=%s\n' "$INSTALL_CUDA"
+    printf 'config.INSTALL_AZURE_CLI=%s\n' "$INSTALL_AZURE_CLI"
     printf 'config.CUDA_VERSION=%s\n' "$CUDA_VERSION"
     printf 'config.INSTALL_PYTORCH=%s\n' "$INSTALL_PYTORCH"
     printf 'config.PYTHON_VERSION=%s\n' "$PYTHON_VERSION"
@@ -330,17 +331,6 @@ activate_nvm_lts() {
         return 1
     }
     set -u
-}
-
-bool_is_true() {
-    case "${1:-0}" in
-        1|y|Y|yes|YES|true|TRUE|on|ON)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
 }
 
 apt_has_candidate() {
@@ -548,6 +538,14 @@ bash cp_dotfiles.sh
 if [ "$IS_WSL" = "1" ]; then
     bash ssh_perms.sh
 fi
+
+# The NVM installer can fetch from GitHub. Remove pcprep's old URL rewrite
+# before that fetch, including on minimal images where Git is not preinstalled.
+if ! command -v git >/dev/null 2>&1 && [ "$NO_NET" = "0" ]; then
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends git
+fi
+bash gitconfig.sh
 bash min_system.sh
 
 if [ "$IS_WSL" = "1" ]; then
@@ -576,9 +574,16 @@ else
     fi
 fi
 
-bash gitconfig.sh
 #bash install_fzf.sh
 bash extra_install.sh
+
+if [[ $NO_NET != 0 ]]; then
+    echo "Offline setup: Ubuntu security updates were not verified."
+elif [[ ! -d /run/systemd/system ]]; then
+    echo "No running systemd: Ubuntu automatic security updates were not verified."
+else
+    /usr/bin/python3 -I "$SCRIPT_DIR/verify_security_updates.py"
+fi
 
 bash install_miniconda.sh
 
@@ -593,18 +598,19 @@ if [ "$NO_NET" = "0" ]; then
     #curl -sSL https://install.python-poetry.org | python3 -
 
     # pip installs
-    "$HOME/miniconda3/bin/python" -m pip install -q --upgrade nvitop rich pytest
+    "$HOME/miniconda3/bin/python" -m pip install -q --upgrade rich pytest
+    if bool_is_true "$INSTALL_CUDA"; then
+        "$HOME/miniconda3/bin/python" -m pip install -q --upgrade nvitop
+    fi
 
     PYTHON="$HOME/miniconda3/bin/python" bash install_dl_frameworks.sh
 
     # install Claude Code
     curl -fsSL https://claude.ai/install.sh | bash
 
-    # min_system.sh runs as a child process, so load its NVM installation in
-    # this shell before installing Node-based tools. This avoids Ubuntu's older
-    # system npm and keeps the global package in the user's NVM tree.
+    # Load the Node LTS installed by the child process for the final checks.
     activate_nvm_lts
-    npm install -g @openai/codex@latest
+    bash install_codex.sh
 fi
 
 required_commands=(git curl npm node)
