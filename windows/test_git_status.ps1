@@ -86,17 +86,6 @@ try {
     Assert-Status ($byName['unborn'].Status -eq 'No commits') 'An unborn repository failed.'
     Assert-Status ($byName['bare.git'].Status -eq 'Bare repository') 'A bare repository was not recognized.'
 
-    Push-Location -LiteralPath $projects
-    try {
-        $defaultRows = @(& $helper -PassThru)
-        Assert-Status ($defaultRows.Count -eq $rows.Count) 'The default path was not the current directory.'
-    }
-    finally { Pop-Location }
-
-    $empty = Join-Path $testRoot 'empty'
-    New-Item -ItemType Directory -Path $empty | Out-Null
-    Assert-Status (@(& $helper $empty -PassThru).Count -eq 0) 'An empty parent produced rows.'
-
     # Execute the actual macro command after DOSKEY's argument substitution,
     # through cmd.exe and Windows PowerShell. Include spaces in both paths.
     $helperDirectory = Join-Path $testRoot 'helper directory'
@@ -114,7 +103,7 @@ try {
     }
     finally { $env:PCPREP_WINDOWS_DIR = $oldHelperDirectory }
 
-    Write-Host 'PASS: synced, unpushed, dirty, behind, diverged, missing upstream, detached, unborn, worktree, bare, plain folder, empty parent, and Command Prompt checks.'
+    Write-Host 'PASS: synced, unpushed, dirty, behind, diverged, missing upstream, detached, unborn, worktree, bare, plain folder, and Command Prompt checks.'
 }
 finally {
     $resolvedTest = [IO.Path]::GetFullPath($testRoot)

@@ -92,8 +92,8 @@ outside the copied default and opt in only for a specific trusted task.
 The review parsed PowerShell and Bash sources, JSON and TOML, the bookmarklet
 JavaScript, and Python syntax; inspected every text/configuration file; and
 identified and removed the bundled ELF binary. Tailscale is now correctly named
-shell source. Focused tests exercised only temporary data: the two-process
-archive lock, Docker dry-run, Git tool arguments, and helper checks. No installer,
+shell source. The offline test suites ([Tests](REPOSITORY_GUIDE.md#tests))
+exercise only temporary data and fakes. No installer,
 package-manager change, container build, service migration, registry operation,
 or real mount was run.
 

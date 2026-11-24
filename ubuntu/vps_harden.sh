@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
 # Harden an Ubuntu 24.04 or 26.04 VPS serving websites via Cloudflare Tunnel.
-# Run after min_system.sh: sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_harden.sh
+# Run after prepare_new_vps.sh: sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_harden.sh
 #
-# - Allows key login for the admin and retains previously approved SSH users.
+# - Allows key login for the admin. Without an existing SSH allowlist, it also keeps
+#   every account that has its own "Match User" block in sshd_config (add_user.sh
+#   writes one per account); an existing allowlist is kept as it is.
+# - After the new login is confirmed, disables (never deletes) the provider's default
+#   account, such as ubuntu, and other cloud-init sudo accounts.
 # - Disables root, password and keyboard-interactive SSH login and X11 forwarding by default.
 # - Keeps the current SSH port and startup mode; set SSH_PORT to request a port move.
 # - Restores previous SSH and firewall settings unless a new login confirms access in ten minutes.
 # - Enables an incoming-deny, outgoing-allow firewall, keeping SSH source restrictions.
 # - Opens no website ports and leaves operator-created firewall rules in place.
 # - Bans repeated SSH failures for one hour by default; week-long all-port bans are opt-in.
-# - Enables and tests daily security updates; automatic reboots are opt-in.
+# - Enables and tests daily security updates, plus updates from the cloudflared, Caddy
+#   and GitHub CLI repositories when configured. Reboots when required at 03:30.
 # - Reports network listeners, published containers, agent privileges and pending reboots.
 # - Saves private logs and copies of settings changed by this script.
 #
-# Optional: AUTO_REBOOT=1, AUTO_REBOOT_TIME=03:30, RECIDIVE=1, AGENT_USERS="agent dev",
+# Optional: AUTO_REBOOT=0, AUTO_REBOOT_TIME=03:30 (server time), RECIDIVE=1,
+# AGENT_USERS="sy_agent sy_dev",
 # TUNNEL_HOSTNAME=www.example.com. See docs/UBUNTU.md for the external origin check.
 set -Eeuo pipefail
 export LC_ALL=C
@@ -30,7 +36,7 @@ for cmd in sshd ufw nft fail2ban-client unattended-upgrade systemd-run ss sudo f
     command -v "$cmd" >/dev/null || die "Missing $cmd; install the VPS prerequisites."
 done
 /usr/bin/python3 -c 'from systemd import journal' || die "Install python3-systemd."
-auto_reboot=${AUTO_REBOOT:-0}
+auto_reboot=${AUTO_REBOOT:-1}
 recidive=${RECIDIVE:-0}
 [[ $auto_reboot =~ ^[01]$ && $recidive =~ ^[01]$ ]] || die "AUTO_REBOOT and RECIDIVE accept 0 or 1."
 reboot_time=${AUTO_REBOOT_TIME:-03:30}
@@ -41,6 +47,8 @@ flock -n 8 || die "Another VPS setup is running."
 [[ ! -e /run/pcprep-vps-pending ]] || die "Confirm the pending SSH change or wait for rollback."
 backup=$(mktemp -d "/root/vps_setup_backup_$(date +%Y%m%d_%H%M%S)_XXXXXX")
 log="/var/log/${backup##*/}.log"
+# Output goes through tee, so tell the audit report whether the terminal shows color.
+if [[ -t 1 && -z ${NO_COLOR:-} ]]; then export PCPREP_COLOR=1; fi
 exec > >(tee -a "$log" 8>&-) 2>&1
 printf 'Backups: %s\nLog: %s\n' "$backup" "$log"
 [[ -d /run/sshd ]] || install -d -m 0755 /run/sshd
@@ -50,7 +58,9 @@ port=$(awk '$1 == "port" {print $2}' <<<"$effective" | sort -u)
 [[ $port =~ ^[0-9]+$ ]] || die "Multiple existing SSH ports require a manual migration."
 
 # Replace only pcprep's own snippets. Save a copy for rollback and avoid
-# disturbing other files maintained by the operator.
+# disturbing other files maintained by the operator. Ownership is the first
+# line, "Managed by pcprep vps_setup.sh". vps_setup.sh was this script's old
+# name; the marker stays unchanged so files from older releases still match.
 put_config() {
     local src=$1 dest=$2
     if [[ -e $dest ]]; then
@@ -67,7 +77,9 @@ undo_config() {
 }
 
 # A later APT snippet also supersedes earlier pcprep versions that enabled
-# reboots in 52unattended-upgrades-local, without editing that file.
+# reboots in 52unattended-upgrades-local, without editing that file. Ubuntu
+# updates only its own archives automatically; the patterns add the internet-
+# facing tools' own repositories and match nothing when they are not configured.
 apt_file=/etc/apt/apt.conf.d/92pcprep-updates
 cat >"$backup/updates" <<EOF
 // Managed by pcprep vps_setup.sh
@@ -75,6 +87,11 @@ APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 Unattended-Upgrade::Automatic-Reboot "$([[ $auto_reboot == 1 ]] && echo true || echo false)";
 Unattended-Upgrade::Automatic-Reboot-Time "$reboot_time";
+Unattended-Upgrade::Origins-Pattern {
+    "site=pkg.cloudflare.com,origin=cloudflared";
+    "site=dl.cloudsmith.io,origin=cloudsmith/caddy/stable";
+    "site=cli.github.com,origin=gh";
+};
 EOF
 put_config "$backup/updates" "$apt_file"
 systemctl enable --now unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer

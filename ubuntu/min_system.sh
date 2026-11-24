@@ -14,6 +14,8 @@ export INSTALL_TOOLCHAIN_TEST_PPA=${INSTALL_TOOLCHAIN_TEST_PPA:-0}
 export REMOVE_LEGACY_TOOLCHAIN_TEST_PPA=${REMOVE_LEGACY_TOOLCHAIN_TEST_PPA:-0}
 export RUSAGE_URL=${RUSAGE_URL:-https://cosmo.zip/pub/cosmos/bin/rusage}
 export RUSAGE_SHA256=${RUSAGE_SHA256:-270e10853812f6c650f0eb4773354070a398f41738b95c4cb9f7e2f918d4833b}
+# Set ZELLIJ_SHA256_X86_64 or ZELLIJ_SHA256_AARCH64 with a different version.
+export ZELLIJ_VERSION=${ZELLIJ_VERSION:-0.46.0}
 
 log() { echo "[min_system] $*"; }
 warn() { echo "[min_system][WARN] $*" >&2; }
@@ -114,28 +116,41 @@ enable_ubuntu_components() {
     fi
 
     _sudo add-apt-repository -y universe || warn "Unable to enable universe repository."
-    _sudo add-apt-repository -y multiverse || warn "Unable to enable multiverse repository."
+    # Multiverse is non-free software without Ubuntu security support.
+    if bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+        _sudo add-apt-repository -y multiverse || warn "Unable to enable multiverse repository."
+    fi
     APT_UPDATED=0
     apt_update_once
 }
 
 install_core_packages() {
     install_packages \
-        git curl wget xclip xsel xz-utils tar apt-transport-https trash-cli bash-completion pciutils \
+        git curl wget xz-utils tar apt-transport-https trash-cli bash-completion pciutils \
         ufw fail2ban python3-systemd nftables unattended-upgrades at \
-        htop procps build-essential cmake g++ libopencv-dev libopenmpi-dev zlib1g-dev \
+        htop procps build-essential cmake g++ zlib1g-dev \
         fdupes keychain pass micro zlib1g \
         ca-certificates gnupg lsb-release \
-        bzip2 libxext6 libsm6 libxrender1 mercurial subversion \
-        virt-what sudo freeglut3-dev libx11-dev \
-        libxmu-dev libxi-dev libglu1-mesa-dev \
-        libfreeimage-dev vmtouch \
+        bzip2 virt-what sudo vmtouch \
         tmux screen vim nano pv pipx bubblewrap unzip
 
     install_first_available libglib2.0-0t64 libglib2.0-0 || true
-    install_first_available libfreeimage3t64 libfreeimage3 || true
     install_first_available plocate locate || true
     install_first_available fastfetch neofetch || true
+}
+
+# Clipboard, X11/OpenGL, image and MPI libraries and older version-control systems.
+install_workstation_packages() {
+    if ! bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+        log "Skipping workstation packages (INSTALL_WORKSTATION_PACKAGES=$INSTALL_WORKSTATION_PACKAGES)."
+        return 0
+    fi
+    install_packages \
+        xclip xsel libopencv-dev libopenmpi-dev \
+        libxext6 libsm6 libxrender1 mercurial subversion \
+        freeglut3-dev libx11-dev libxmu-dev libxi-dev libglu1-mesa-dev \
+        libfreeimage-dev
+    install_first_available libfreeimage3t64 libfreeimage3 || true
 }
 
 install_desktop_and_fun_packages() {
@@ -150,7 +165,9 @@ install_power_and_hardware_packages() {
         return 0
     fi
 
-    install_packages powertop inxi powerstat
+    if bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+        install_packages powertop inxi powerstat
+    fi
     if ! bool_is_true "$INSTALL_CUDA"; then
         log "Skipping TLP and GPU utilities (INSTALL_CUDA=$INSTALL_CUDA)."
         return 0
@@ -378,24 +395,38 @@ install_zellij() {
         return 0
     fi
 
-    local zellij_arch=""
+    # Zellij publishes the SHA-256 of the binary inside each release archive.
+    local zellij_arch="" zellij_sha256=""
     case "$ARCH" in
-        x86_64) zellij_arch="x86_64" ;;
-        aarch64|arm64) zellij_arch="aarch64" ;;
+        x86_64)
+            zellij_arch="x86_64"
+            zellij_sha256=${ZELLIJ_SHA256_X86_64:-afb6bfb5f9fdc3d9e9d094ce21866bc99d37073a5fbe75bb612e21fc9b96033d}
+            ;;
+        aarch64|arm64)
+            zellij_arch="aarch64"
+            zellij_sha256=${ZELLIJ_SHA256_AARCH64:-09cc9f60eb122987c10221fa559aa00c441333a23ba53d727c807f36c5222147}
+            ;;
         *)
             warn "Skipping Zellij installation; no release asset configured for $ARCH."
             return 0
             ;;
     esac
+    if ! [[ $zellij_sha256 =~ ^[0-9a-f]{64}$ ]]; then
+        warn "Skipping Zellij installation; its SHA-256 must be 64 lowercase hexadecimal characters."
+        return 0
+    fi
 
     local tmpdir
     tmpdir="$(mktemp -d)"
     (
         cd "$tmpdir"
-        curl -fLO "https://github.com/zellij-org/zellij/releases/latest/download/zellij-${zellij_arch}-unknown-linux-musl.tar.gz"
-        tar -xzf "zellij-${zellij_arch}-unknown-linux-musl.tar.gz"
+        curl -fsSL --retry 3 -o zellij.tar.gz \
+            "https://github.com/zellij-org/zellij/releases/download/v${ZELLIJ_VERSION}/zellij-${zellij_arch}-unknown-linux-musl.tar.gz"
+        tar -xzf zellij.tar.gz --no-same-owner zellij
+        printf '%s  %s\n' "$zellij_sha256" zellij | sha256sum -c - >/dev/null
         install -m 0755 zellij "$HOME/.local/bin/zellij"
-    ) || warn "Zellij installation failed."
+        log "Installed checksum-verified Zellij $ZELLIJ_VERSION."
+    ) || warn "Zellij installation failed or did not match its SHA-256; skipping it."
     rm -rf "$tmpdir"
 }
 
@@ -440,6 +471,7 @@ log "Arch(uname)=$ARCH, Arch(deb)=$ARCH_DEB, WSL=$IS_WSL, NO_NET=$NO_NET"
 
 enable_ubuntu_components
 install_core_packages
+install_workstation_packages
 if bool_is_true "$INSTALL_FUN_PACKAGES"; then
     install_desktop_and_fun_packages
 else

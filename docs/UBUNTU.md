@@ -41,6 +41,7 @@ The orchestrator uses these environment variables:
 | `user_email` | existing Git value or startup prompt | Global Git email; set it to bypass the prompt |
 | `INSTALL_CUDA` | `0` | Set to `1` to request the NVIDIA toolkit on supported native hardware and include the optional ML, laptop power-management, and network-filesystem tools listed below |
 | `INSTALL_AZURE_CLI` | `0` | Set to `1` to request Azure CLI and AzCopy together |
+| `INSTALL_WORKSTATION_PACKAGES` | `1` (`0` in `prepare_new_vps.sh`) | Desktop, media and hardware packages a server does not need: clipboard and X11/OpenGL/OpenCV/MPI libraries, Mercurial and Subversion, `ffmpeg`, `ghostscript`, `pdftk-java`, `nmap`, removable-media and FUSE filesystems, sensors, disk-health and power tools, terminal fonts, and the multiverse repository |
 | `CUDA_VERSION` | `13.2` on 24.04; `13.3` on 26.04 | Toolkit-only NVIDIA CUDA version selected from the native repository; override it when compiling against an exact version |
 | `INSTALL_PYTORCH` | `1` | Install PyTorch, TorchVision, Keras, and Lightning. A machine without an NVIDIA driver gets CPU PyTorch. Set to `0` to skip these packages |
 | `PYTORCH_ACCELERATOR` | `auto` | Override driver detection with `cpu`, `cu126`, `cu130`, or `cu132` |
@@ -49,6 +50,8 @@ The orchestrator uses these environment variables:
 | `MINICONDA_VERSION` | `26.5.3-1` | Miniconda installer release for a new Python environment |
 | `MINICONDA_PYTHON_SERIES` | `py313` | Python series embedded in the Miniconda installer. The online setup then installs the requested `PYTHON_VERSION` |
 | `MINICONDA_FILE` | download when online | Use a local Miniconda installer file |
+| `MINICONDA_SHA256` | digest of the default installer | Required SHA-256 of a downloaded installer when `MINICONDA_VERSION` or `MINICONDA_PYTHON_SERIES` changes; a mismatched download is deleted before it runs |
+| `ZELLIJ_VERSION` | `0.46.0` | Zellij release; set `ZELLIJ_SHA256_X86_64` or `ZELLIJ_SHA256_AARCH64` (the published binary digest) with another version |
 | `PYTORCH_VERSION` | `2.13.0` | Reviewed stable PyTorch release |
 | `TORCHVISION_VERSION` | `0.28.0` | TorchVision release paired with the reviewed PyTorch version |
 | `WSL_DISTRO_NAME` | inherited from WSL | Selects WSL-specific SSH, browser, apt, and Windows credential-manager integration; `/proc/version` is used as a fallback |
@@ -69,7 +72,16 @@ root as your regular user.
 bash ubuntu/prepare_new_vps.sh
 ```
 
-The wrapper sets `INSTALL_CUDA=0`, `INSTALL_PYTORCH=0`, and `INSTALL_AZURE_CLI=0`.
+The wrapper first runs [add_vps_users.sh](../ubuntu/add_vps_users.sh), which
+creates `sy_agent`, `sy_dev` and `sy_deploy` with passwordless sudo and the same
+SSH public keys as your account (the plain key lines of your
+`~/.ssh/authorized_keys`; lines with options such as `from=` are skipped and
+reported). Existing accounts are left unchanged. The new accounts get no
+toolchain of their own; to install it, log in as the account, clone this
+repository, and run `bash ubuntu/prepare_new_box.sh` with the same switches.
+
+The wrapper sets `INSTALL_CUDA=0`, `INSTALL_PYTORCH=0`, `INSTALL_AZURE_CLI=0`, and
+`INSTALL_WORKSTATION_PACKAGES=0`.
 This keeps Git, compilers, Node.js, Python, Codex, and Claude Code. With
 `INSTALL_CUDA=0`, setup skips Jupyter, TensorBoard, Transformers, Accelerate,
 TLP (including `tlp-rdw`), NVIDIA PRIME, `nvtop`, `nvitop`, the NFS and CIFS
@@ -246,12 +258,40 @@ For a port move, allow the new port at the provider first. Setup copies simple
 UFW source restrictions and asks for a manual migration on complex policies.
 Review any operator-owned old-port rules after a successful move.
 
+**Who keeps SSH access.** If no `AllowUsers` list exists yet, the script
+creates one with the admin plus every existing non-root account that has its
+own `Match User <name>` block in `sshd_config` or `sshd_config.d/*.conf`.
+`add_user.sh` writes such a block for each account it creates, so `sy_agent`,
+`sy_dev` and `sy_deploy` keep access. The script prints the accounts it adds.
+An account created another way loses SSH access unless you give it a
+`Match User` block or an `AllowUsers` entry first. An existing `AllowUsers`
+list is left as it is, apart from adding the admin.
+
+**Provider account.** After the new login is confirmed (or on a rerun with
+nothing to change), the cloud image's default account, such as `ubuntu`, and any
+other account in cloud-init's `/etc/sudoers.d/90-cloud-init-users` are disabled,
+not deleted: the password is locked, the account expires (which also blocks SSH
+keys) and the shell becomes `nologin`. The admin, the invoking `sudo` user and
+the accounts kept in the SSH allowlist are never disabled. The script prints the
+command that re-enables each account.
+
+**Updates.** Ubuntu's own security updates install daily, and a required reboot
+happens at 03:30 server time. Packages from the cloudflared, Caddy and GitHub
+CLI repositories update automatically too, once those repositories are set up.
+Other third-party repositories are not updated automatically.
+
+**Exposure report.** The report marks public TCP listeners other than SSH, and
+Docker ports published past the firewall, as `CRITICAL` in bold red, and other
+public UDP listeners as yellow warnings. It does not stop the script. Set
+`NO_COLOR=1` for plain text.
+
 | Optional setting | Effect |
 |---|---|
 | `SSH_PORT=2222` | Move SSH to this port after confirming a fresh login. |
-| `AUTO_REBOOT=1` | Allow required reboots at `AUTO_REBOOT_TIME` (default 03:30 server time). |
+| `AUTO_REBOOT=0` | Never reboot automatically. By default required reboots happen at `AUTO_REBOOT_TIME`. |
+| `AUTO_REBOOT_TIME=04:00` | Reboot time in the server's own timezone (default 03:30). |
 | `RECIDIVE=1` | Enable week-long, all-port bans for repeat offenders. |
-| `AGENT_USERS="agent dev"` | Report passwordless sudo rules and Docker group membership for these accounts. |
+| `AGENT_USERS="sy_agent sy_dev"` | Report passwordless sudo rules and Docker group membership for these accounts. |
 | `TUNNEL_HOSTNAME=www.example.com` | Check HTTPS through Cloudflare after the site is deployed. |
 
 Test direct exposure from a computer outside the VPS network. Supply your own
@@ -296,6 +336,9 @@ an existing Ubuntu `.bash_aliases`. Customized function bodies are preserved.
 
 Review these files before copying anything:
 
+- `gitconfig.sh` makes `~/.local/bin/git_editor.sh` Git's editor: VS Code in a
+  VS Code terminal, WSL or a desktop session, otherwise `$VISUAL`, `$EDITOR`,
+  `micro`, `vim` or `nano`, so commits work over plain SSH;
 - `.ssh/config` uses normal known-host verification;
 - `.codex/config.toml` requires approval, workspace sandboxing, and secret-name
   environment filtering;
@@ -336,7 +379,9 @@ the WSL distribution. Existing terminals must source the updated alias file;
 the dotfile installer's no-clobber behavior preserves an existing copy.
 
 Run `python3 ubuntu/test_codex_shortcuts.py` from the repository root for offline
-tests using a fake native Codex executable; no model requests are made.
+tests using a fake native Codex executable; no model requests are made. Every
+Ubuntu test suite is listed under
+[Tests](REPOSITORY_GUIDE.md#tests).
 
 ## Archived material
 

@@ -185,14 +185,19 @@ install_system_hw() {
     skip "Skipping linux-tools-generic, nvme-cli, and acpi on WSL"
   else
     install_pkg linux-tools-generic || true  # provides perf
-    install_pkg nvme-cli || true
-    install_pkg acpi || true
+    if bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+      install_pkg nvme-cli || true
+      install_pkg acpi || true
+    fi
   fi
 
   install_pkg numactl || true
   install_pkg hwloc || true
-  install_pkg lm-sensors || true
-  install_pkg smartmontools || true
+  # Physical-hardware sensors and disk health; a VPS has virtual hardware.
+  if bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+    install_pkg lm-sensors || true
+    install_pkg smartmontools || true
+  fi
 }
 
 # ----- Networking / SSH -----
@@ -202,7 +207,10 @@ install_networking() {
   # install_pkg mosh || true
   # mtr-tiny is a smaller CLI variant; fallback to mtr if needed
   if apt_has_pkg mtr-tiny; then install_pkg mtr-tiny; else install_pkg mtr || true; fi
-  install_pkg nmap || true
+  # A network scanner is a workstation tool, and useful to an intruder.
+  if bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+    install_pkg nmap || true
+  fi
   install_pkg traceroute || true
   install_pkg tcpdump || true
   install_pkg net-tools || true
@@ -217,13 +225,19 @@ install_networking() {
 
 # ----- Filesystems / Storage -----
 install_filesystems() {
-  install_pkg exfatprogs || true
-  install_pkg exfat-fuse || true
-  install_pkg ntfs-3g || true
-  if [ "$IS_WSL" = "1" ]; then
-    skip "Skipping sshfs on WSL"
+  # Removable-media and FUSE filesystems are workstation tools.
+  if bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+    install_pkg exfatprogs || true
+    install_pkg exfat-fuse || true
+    install_pkg ntfs-3g || true
+    if [ "$IS_WSL" = "1" ]; then
+      skip "Skipping sshfs on WSL"
+    else
+      install_pkg sshfs || true
+    fi
+    install_pkg mergerfs || true
   else
-    install_pkg sshfs || true
+    skip "Removable-media and FUSE filesystems (INSTALL_WORKSTATION_PACKAGES=$INSTALL_WORKSTATION_PACKAGES)"
   fi
   if bool_is_true "$INSTALL_CUDA"; then
     install_pkg nfs-common || true
@@ -231,7 +245,6 @@ install_filesystems() {
   else
     skip "NFS and CIFS clients (INSTALL_CUDA=$INSTALL_CUDA)"
   fi
-  install_pkg mergerfs || true
   install_pkg lsof || true
   # pstree is a command shipped by the psmisc package.
   install_pkg psmisc || true
@@ -266,12 +279,20 @@ install_editors_shell() {
   # if apt_has_pkg neovim; then install_pkg neovim; elif apt_has_pkg emacs-nox; then install_pkg emacs-nox; else warn "Neither neovim nor emacs-nox available"; fi
   install_pkg direnv || true
   install_pkg starship || true
-  install_pkg fonts-powerline || true
-  install_pkg fonts-firacode || true
+  if bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+    install_pkg fonts-powerline || true
+    install_pkg fonts-firacode || true
+  fi
 }
 
 # ----- Media / Docs -----
+# Media and document converters parse complex, often untrusted files and get
+# frequent security fixes; pdftk-java also brings a Java runtime.
 install_media_docs() {
+  if ! bool_is_true "$INSTALL_WORKSTATION_PACKAGES"; then
+    skip "Media and document tools (INSTALL_WORKSTATION_PACKAGES=$INSTALL_WORKSTATION_PACKAGES)"
+    return 0
+  fi
   # install_pkg imagemagick || true
   install_pkg ffmpeg || true
   # install_pkg pandoc || true

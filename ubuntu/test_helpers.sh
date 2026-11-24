@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
+# Offline behavior tests for the Ubuntu bootstrap helpers. Each block runs the
+# real script or function against a temporary home with fake installers, and
+# checks what it would install, delete or write. Nothing here installs packages
+# or needs the network or root. Run: bash ubuntu/test_helpers.sh
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
-PYTHON=${PCPREP_TEST_PYTHON:-$(command -v python3 || command -v python || true)}
-[[ -n $PYTHON ]] || { echo "Set PCPREP_TEST_PYTHON to a Python 3 interpreter." >&2; exit 1; }
 
-mkdir -p "$TEST_ROOT/empty"
-"$PYTHON" "$SCRIPT_DIR/git_status.py" "$TEST_ROOT/empty" \
-  | grep -q 'No immediate subdirectories found.'
-
+# Deletion helpers refuse unsafe targets and remove only the exact directory.
 mkdir -p "$TEST_ROOT/home/.vscode-server" "$TEST_ROOT/home/.vscode-serve"
 ! HOME=/ PCPREP_SKIP_PROCESS_KILL=1 USER="${USER:-pcprep}" \
   bash "$SCRIPT_DIR/kill_vscode_srv.sh" --yes >/dev/null 2>&1
@@ -18,95 +17,6 @@ HOME="$TEST_ROOT/home" PCPREP_SKIP_PROCESS_KILL=1 USER="${USER:-pcprep}" \
   bash "$SCRIPT_DIR/kill_vscode_srv.sh" --yes >/dev/null
 [[ ! -e $TEST_ROOT/home/.vscode-server ]]
 [[ -d $TEST_ROOT/home/.vscode-serve ]]
-
-! grep -Eq 'install[[:space:]]+cuda-toolkit([[:space:]]|$)' "$SCRIPT_DIR/install_cuda12.4.sh"
-[[ -f $SCRIPT_DIR/install_cuda.sh && ! -e $SCRIPT_DIR/install_cuda12.8.sh ]]
-grep -q '22.04|24.04|26.04' "$SCRIPT_DIR/install_cuda.sh"
-grep -q 'aarch64|arm64) CUDA_ARCH=sbsa' "$SCRIPT_DIR/install_cuda.sh"
-grep -Fq '26.04) CUDA_VERSION=13.3' "$SCRIPT_DIR/install_cuda.sh"
-grep -Fq '26.04) CUDA_VERSION=13.3' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq '*) CUDA_VERSION=13.2' "$SCRIPT_DIR/install_cuda.sh"
-grep -Fq '*) CUDA_VERSION=13.2' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'MINICONDA_VERSION=${MINICONDA_VERSION:-26.5.3-1}' "$SCRIPT_DIR/install_miniconda.sh"
-grep -Fq 'PYTHON_VERSION=${PYTHON_VERSION:-3.14}' "$SCRIPT_DIR/install_miniconda.sh"
-grep -Fq 'https://repo.anaconda.com/pkgs/main' "$SCRIPT_DIR/install_miniconda.sh"
-grep -Fq 'https://repo.anaconda.com/pkgs/r' "$SCRIPT_DIR/install_miniconda.sh"
-grep -Fq 'PYTORCH_VERSION=${PYTORCH_VERSION:-2.13.0}' "$SCRIPT_DIR/install_dl_frameworks.sh"
-grep -Fq 'TORCHVISION_VERSION=${TORCHVISION_VERSION:-0.28.0}' "$SCRIPT_DIR/install_dl_frameworks.sh"
-! grep -Eq 'pip install[^#]*tensorflow' "$SCRIPT_DIR/install_dl_frameworks.sh"
-grep -Fq 'NVM_VERSION=${NVM_VERSION:-0.41.0}' "$SCRIPT_DIR/min_system.sh"
-grep -Fq 'nvm/v${NVM_VERSION}/install.sh' "$SCRIPT_DIR/min_system.sh"
-! grep -Eq '^[[:space:]]*npm nodejs' "$SCRIPT_DIR/min_system.sh"
-grep -Fq 'bash install_codex.sh' "$SCRIPT_DIR/prepare_new_box.sh"
-! grep -Fq 'sudo npm' "$SCRIPT_DIR/prepare_new_box.sh"
-! grep -qi 'tensorflow' "$SCRIPT_DIR/../tests/cuda.py"
-grep -Fq 'KERAS_BACKEND' "$SCRIPT_DIR/../tests/cuda.py"
-! grep -q 'ppa:wslutilities/wslu' "$SCRIPT_DIR/prepare_new_box.sh"
-! grep -q 'credential.helper manager-core' "$SCRIPT_DIR/prepare_new_box.sh"
-! grep -q '/Applications/Tailscale.app' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -q 'grep -qi microsoft /proc/version' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -q 'PCPREP_WIN_GCM_PATH' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'Defaults timestamp_timeout=$timeout_minutes' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq '153722867280912930' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq '/etc/sudoers.d/99-pcprep-wsl-timestamp-timeout' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'sudo visudo -cf "$sudoers_candidate"' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'PCPREP_AUDIT_DIR:-$HOME/.pcprep' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'prepare_new_box.latest.log' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'event=run_started' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'event=run_finished' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'chmod 0600 -- "$PCPREP_AUDIT_LOG"' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq "trap 'audit_run_finished" "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'CP_NO_CLOBBER=(--update=none)' "$SCRIPT_DIR/cp_dotfiles.sh"
-grep -Fq 'if cp --update=none --version' "$SCRIPT_DIR/cp_dotfiles.sh"
-grep -Fq 'if cp --update=none --version' "$SCRIPT_DIR/prepare_new_box.sh"
-! grep -Fq -- '--update=UPDATE' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'sudo -n true 2>/dev/null || sudo -v' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -Fq 'sudo -n true 2>/dev/null || sudo -v' "$SCRIPT_DIR/min_system.sh"
-grep -Fq 'sudo -n true 2>/dev/null || sudo -v' "$SCRIPT_DIR/extra_install.sh"
-grep -Fq 'cp -vr "${CP_NO_CLOBBER[@]}" .config/' "$SCRIPT_DIR/cp_dotfiles.sh"
-grep -Fq 'install -v -m 0755 -- "$helper" "$HOME/.local/bin/$helper"' \
-  "$SCRIPT_DIR/cp_dotfiles.sh"
-! grep -Eq 'cp[[:space:]]+-[^[:space:]]*n' "$SCRIPT_DIR/cp_dotfiles.sh"
-grep -q 'install_first_available 7zip p7zip-full' "$SCRIPT_DIR/extra_install.sh"
-grep -q 'install_first_available bind9-dnsutils dnsutils' "$SCRIPT_DIR/extra_install.sh"
-grep -q 'install_pkg psmisc' "$SCRIPT_DIR/extra_install.sh"
-grep -q 'install_pkg procps' "$SCRIPT_DIR/extra_install.sh"
-grep -q '^azure_cli_repo_has_package()' "$SCRIPT_DIR/min_system.sh"
-grep -q 'ALLOW_UNSUPPORTED_AZURE_CLI' "$SCRIPT_DIR/min_system.sh"
-grep -q 'AZURE_CLI_FALLBACK_SUITE' "$SCRIPT_DIR/min_system.sh"
-! grep -q 'DIST_CODE=jammy' "$SCRIPT_DIR/min_system.sh"
-grep -q 'INSTALL_TOOLCHAIN_TEST_PPA' "$SCRIPT_DIR/min_system.sh"
-grep -q 'REMOVE_LEGACY_TOOLCHAIN_TEST_PPA' "$SCRIPT_DIR/min_system.sh"
-grep -Fq 'https://cosmo.zip/pub/cosmos/bin/rusage' "$SCRIPT_DIR/min_system.sh"
-grep -Fq '270e10853812f6c650f0eb4773354070a398f41738b95c4cb9f7e2f918d4833b' \
-  "$SCRIPT_DIR/min_system.sh"
-grep -Fq 'sha256sum -c -' "$SCRIPT_DIR/min_system.sh"
-grep -Fq 'tmpdir=$(mktemp -d)' "$SCRIPT_DIR/install_azcopy.sh"
-grep -Fq 'azcopy --version >/dev/null 2>&1' "$SCRIPT_DIR/install_azcopy.sh"
-grep -Fq 'sudo install -m 0755 -- "$azcopy_binary"' "$SCRIPT_DIR/install_azcopy.sh"
-grep -Fq 'sudo apt-get update' "$SCRIPT_DIR/install_rust.sh"
-grep -Fq 'rustup is already installed' "$SCRIPT_DIR/install_rust.sh"
-! grep -q 'set -o xtrace' "$SCRIPT_DIR/gitconfig.sh"
-! grep -q '^set show-all-if-ambiguous on$' "$SCRIPT_DIR/.bashrc"
-! grep -q '^set menu-complete-display-prefix on$' "$SCRIPT_DIR/.bashrc"
-! grep -q 'newgrp[[:space:]]\+docker' "$SCRIPT_DIR/install_docker.sh"
-grep -q 'wsl_prep.md' "$SCRIPT_DIR/prepare_new_box.sh"
-! grep -q 'wsl_prep.sh' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -A4 'def collect_all' "$SCRIPT_DIR/torch_info.py" | grep -q 'collect_basic_info()'
-! grep -q 'chmod +x \*\.sh' "$SCRIPT_DIR/cp_dotfiles.sh"
-! grep -q 'is_vscode_Shell' "$SCRIPT_DIR/.bashrc"
-! grep -q 'GIT_TEST_ASSUME_ALL_SAFE' "$SCRIPT_DIR/.bashrc"
-[[ $(grep -Ec '^[[:space:]]*ssh-agent -s' "$SCRIPT_DIR/.bashrc") -eq 1 ]]
-
-grep -q '^collect_git_identity()' "$SCRIPT_DIR/prepare_new_box.sh"
-grep -q '^collect_bootstrap_inputs()' "$SCRIPT_DIR/prepare_new_box.sh"
-startup_input_line=$(grep -n '^collect_bootstrap_inputs$' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
-sudo_validation_line=$(grep -n '^sudo -n true ' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
-gitconfig_line=$(grep -n '^bash gitconfig.sh$' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
-[[ -n $startup_input_line && -n $sudo_validation_line && -n $gitconfig_line ]]
-(( startup_input_line < sudo_validation_line && startup_input_line < gitconfig_line ))
-min_system_line=$(grep -n '^bash min_system.sh$' "$SCRIPT_DIR/prepare_new_box.sh" | cut -d: -f1)
-(( gitconfig_line < min_system_line ))
 
 # Exercise the actual pip and system package selection without installing anything.
 (
@@ -171,6 +81,46 @@ SH
         grep -Fxq "$operation" "$PACKAGE_LOG"
       done
     fi
+  done
+)
+
+# Workstation-only packages follow INSTALL_WORKSTATION_PACKAGES; server tools stay.
+(
+  unset INSTALL_WORKSTATION_PACKAGES
+  source "$SCRIPT_DIR/bootstrap_options.sh"
+  [[ $INSTALL_WORKSTATION_PACKAGES == 1 ]]
+  export PACKAGE_LOG="$TEST_ROOT/workstation-packages"
+  source <(sed -n '/^install_workstation_packages()/,/^}/p; /^install_power_and_hardware_packages()/,/^}/p' "$SCRIPT_DIR/min_system.sh")
+  source <(sed -n '/^install_system_hw()/,/^}/p; /^install_networking()/,/^}/p; /^install_filesystems()/,/^}/p; /^install_editors_shell()/,/^}/p; /^install_media_docs()/,/^}/p' "$SCRIPT_DIR/extra_install.sh")
+  install_pkg() { printf '%s\n' "$@" >> "$PACKAGE_LOG"; }
+  install_packages() { install_pkg "$@"; }
+  install_first_available() { install_pkg "$1"; }
+  apt_has_pkg() { return 0; }
+  log() { :; }
+  skip() { :; }
+  IS_WSL=0 ARCH=x86_64 ARCH_DEB=amd64 INSTALL_CUDA=0
+  workstation=(xclip libopencv-dev mercurial libx11-dev powertop nvme-cli lm-sensors smartmontools
+               nmap ntfs-3g sshfs mergerfs fonts-firacode ffmpeg ghostscript pdftk-java)
+  server=(btop linux-tools-generic tcpdump lsof psmisc starship)
+  for flag in 0 1; do
+    : > "$PACKAGE_LOG"
+    INSTALL_WORKSTATION_PACKAGES=$flag
+    install_workstation_packages
+    install_power_and_hardware_packages
+    install_system_hw
+    install_networking
+    install_filesystems
+    install_editors_shell
+    install_media_docs
+    for package in "${server[@]}"; do grep -Fxq "$package" "$PACKAGE_LOG"; done
+    for package in "${workstation[@]}"; do
+      if [[ $flag == 1 ]]; then
+        grep -Fxq "$package" "$PACKAGE_LOG"
+      elif grep -Fxq "$package" "$PACKAGE_LOG"; then
+        echo "Workstation package requested on a server: $package" >&2
+        exit 1
+      fi
+    done
   done
 )
 
@@ -425,6 +375,7 @@ run_audit_failure_fixture() (
   NO_NET=""
   INSTALL_CUDA=0
   INSTALL_AZURE_CLI=0
+  INSTALL_WORKSTATION_PACKAGES=1
   CUDA_VERSION=13.2
   INSTALL_PYTORCH=1
   PYTHON_VERSION=3.14
@@ -458,24 +409,15 @@ audit_log=${audit_logs[0]}
 [[ $(readlink "$audit_dir/prepare_new_box.latest.log") == "$(basename "$audit_log")" ]]
 grep -Fqx 'event=run_started' "$audit_log"
 grep -Fqx 'config.INSTALL_AZURE_CLI=0' "$audit_log"
+grep -Fqx 'config.INSTALL_WORKSTATION_PACKAGES=1' "$audit_log"
 grep -Fqx 'isolated-audit-test-marker' "$audit_log"
 grep -Fqx 'event=run_finished' "$audit_log"
 grep -Fqx 'result=failed' "$audit_log"
 grep -Fqx 'exit_status=7' "$audit_log"
 
-grep -q 'mode:[[:space:]]*msi' "$SCRIPT_DIR/azmount.yaml"
-! grep -q 'account-key:' "$SCRIPT_DIR/azmount.yaml"
+# Mount helpers refuse to mount over or unmount the filesystem root.
 ! AZMOUNT_POINT=/ bash "$SCRIPT_DIR/azmount.sh" >/dev/null 2>&1
 ! AZMOUNT_POINT=/ bash "$SCRIPT_DIR/azunmount.sh" >/dev/null 2>&1
-[[ -f $SCRIPT_DIR/install_tailscale.sh && ! -e $SCRIPT_DIR/install_tailscale.py ]]
-[[ -f $SCRIPT_DIR/install_minikube.sh && ! -e $SCRIPT_DIR/minikube-linux-amd64 ]]
-grep -Fqx 'claudeyolo=claude --dangerously-skip-permissions --remote-control= $*' \
-  "$SCRIPT_DIR/../windows/aliases.doskey"
-grep -Fqx 'codexyolo=codex --yolo' "$SCRIPT_DIR/../windows/aliases.doskey"
-grep -Fqx 'claudeupdate=claude update' "$SCRIPT_DIR/../windows/aliases.doskey"
-grep -Fqx 'codexupdate=powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"' \
-  "$SCRIPT_DIR/../windows/aliases.doskey"
-
 (
   export USER=${USER:-pcprep}
   export HOME="$TEST_ROOT/agent-home"

@@ -3,7 +3,8 @@
 #   sudo bash ubuntu/add_user.sh
 #   sudo bash ubuntu/add_user.sh dev yes ./id_ed25519_vps.pub
 #   sudo bash ubuntu/add_user.sh guest no ''     # passwd prompts for the password
-# The third argument can also be a quoted OpenSSH public key. The script prompts
+# The third argument can also be a quoted OpenSSH public key. A key file may
+# list several keys, one per line. The script prompts
 # for omitted arguments. Press Enter at the key prompt to use password login.
 set -euo pipefail
 umask 077
@@ -29,13 +30,21 @@ esac
 if (( $# < 3 )); then
     IFS= read -rp 'SSH public key or file (Enter for password): ' key || die "No login method supplied."
 fi
+# A key file may hold several keys, one per line, in authorized_keys format
+# without options. Blank lines and comments are ignored.
+keys=()
 if [[ -n $key ]]; then
     if [[ -f $key ]]; then key=$(< "$key"); fi
-    key=${key%$'\r'}  # Also accept .pub files copied from Windows.
-    read -r key_type key_data _ <<< "$key"
-    [[ $key != *$'\n'* && $key_type =~ ^(ssh-|ecdsa-|sk-) ]] ||
-        die "Supply one OpenSSH public key or the path to its .pub file."
-    ssh-keygen -lf - <<< "$key_type $key_data" >/dev/null || die "Invalid SSH public key."
+    while IFS= read -r line; do
+        line=${line%$'\r'}  # Also accept .pub files copied from Windows.
+        [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+        read -r key_type key_data _ <<< "$line"
+        [[ $key_type =~ ^(ssh-|ecdsa-|sk-) ]] ||
+            die "Supply OpenSSH public keys, one per line without options, or the path to a .pub file."
+        ssh-keygen -lf - <<< "$key_type $key_data" >/dev/null || die "Invalid SSH public key."
+        keys+=("$line")
+    done <<< "$key"
+    (( ${#keys[@]} )) || die "No SSH public key found."
 fi
 
 main=/etc/ssh/sshd_config
@@ -104,7 +113,7 @@ accepts_password() {
         grep -Eq '^authenticationmethods( [^ ]+)* (any|password)( |$)' <<< "$1"
 }
 options=()
-if [[ -n $key ]]; then
+if (( ${#keys[@]} )); then
     options=('PubkeyAuthentication yes' 'AuthorizedKeysFile .ssh/authorized_keys'
              'AuthenticationMethods publickey' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no')
 elif ! accepts_password "$global" || ! accepts_password "$effective"; then
@@ -180,7 +189,7 @@ if (( ${#changed_files[@]} )); then
 fi
 
 # Enable the chosen credential once SSH and sudo have passed validation.
-if [[ -n $key ]]; then
+if (( ${#keys[@]} )); then
     # Write as the account owner, including when /etc/skel supplies .ssh.
     runuser -u "$username" -- sh -ec '
         cd "$1"
@@ -188,7 +197,7 @@ if [[ -n $key ]]; then
         install -d -m 0700 .ssh
         cat > .ssh/authorized_keys
         chmod 0600 .ssh/authorized_keys
-    ' sh "$user_home" <<< "$key"
+    ' sh "$user_home" < <(printf '%s\n' "${keys[@]}")
 else
     passwd "$username"
 fi

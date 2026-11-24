@@ -26,7 +26,25 @@ bash "$SCRIPT_DIR/gitconfig.sh" </dev/null
 [[ $(git config --global --get-all "$rewrite") == https://git-mirror.example.invalid/ ]]
 [[ $(git -C "$TEST_ROOT" ls-remote --get-url https://github.com/nvm-sh/nvm.git) == https://github.com/nvm-sh/nvm.git ]]
 
-[[ $(git config --global core.editor) == 'code --new-window --wait' ]]
+[[ $(git config --global core.editor) == "$HOME/.local/bin/git_editor.sh" ]]
+[[ -x $HOME/.local/bin/git_editor.sh ]]
+cat > "$TEST_ROOT/bin/micro" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' micro "$@" > "$PCPREP_CODE_ARGS"
+FAKE
+chmod +x "$TEST_ROOT/bin/micro"
+clean_env=(env -u DISPLAY -u WAYLAND_DISPLAY -u WSL_DISTRO_NAME -u VSCODE_IPC_HOOK_CLI
+           -u TERM_PROGRAM -u VISUAL -u EDITOR)
+
+# A VS Code terminal opens VS Code; plain SSH falls back to a terminal editor.
+export PCPREP_CODE_ARGS="$TEST_ROOT/editor.args"
+"${clean_env[@]}" TERM_PROGRAM=vscode \
+  sh -c "$(git config --global core.editor) \"\$@\"" editor "$TEST_ROOT/COMMIT MSG"
+mapfile -t editor_args < "$PCPREP_CODE_ARGS"
+[[ ${editor_args[*]} == "--new-window --wait $TEST_ROOT/COMMIT MSG" ]]
+"${clean_env[@]}" sh -c "$(git config --global core.editor) \"\$@\"" editor "$TEST_ROOT/COMMIT MSG"
+mapfile -t editor_args < "$PCPREP_CODE_ARGS"
+[[ ${editor_args[0]} == micro && ${editor_args[1]} == "$TEST_ROOT/COMMIT MSG" ]]
 [[ $(git config --global mergetool.vscode.cmd) == 'code --wait "$MERGED"' ]]
 [[ $(git config --global difftool.vscode.cmd) == 'code --wait --diff "$LOCAL" "$REMOTE"' ]]
 

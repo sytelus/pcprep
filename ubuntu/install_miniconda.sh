@@ -29,9 +29,11 @@ ARCH=$(uname -m)
 case $ARCH in
     x86_64)
         MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_PYTHON_SERIES}_${MINICONDA_VERSION}-Linux-x86_64.sh"
+        DEFAULT_MINICONDA_SHA256=7358a5961dc6a4941d087281cd70313728fcc68695735e18a337321bc31c7f51
         ;;
     aarch64|arm64)
         MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_PYTHON_SERIES}_${MINICONDA_VERSION}-Linux-aarch64.sh"
+        DEFAULT_MINICONDA_SHA256=4eaf1f2d83ede3ad010afa6ad19bef69893ca4667ba5996f51efb3080c08a70d
         ;;
     ppc64le|s390x)
         echo "Unsupported architecture for the current Python $PYTHON_VERSION stack: $ARCH" >&2
@@ -43,6 +45,12 @@ case $ARCH in
         exit 1
         ;;
 esac
+# The default digests belong to the default version and Python series. Set
+# MINICONDA_SHA256 from repo.anaconda.com/miniconda when changing either.
+if [ "$MINICONDA_VERSION" = 26.5.3-1 ] && [ "$MINICONDA_PYTHON_SERIES" = py313 ]; then
+    MINICONDA_SHA256=${MINICONDA_SHA256:-$DEFAULT_MINICONDA_SHA256}
+fi
+MINICONDA_SHA256=${MINICONDA_SHA256:-}
 
 # Preserve a working installation on reruns. Reapplying an older bootstrap
 # installer over an upgraded base can downgrade Python and leave mixed package
@@ -59,8 +67,18 @@ else
             # Create directory for miniconda installation
             mkdir -p "$(dirname "$MINICONDA_FILE")"
 
-            # Download miniconda installer
+            # Download the installer and check the SHA-256 that Anaconda
+            # publishes for it before running anything from it.
+            if ! [[ $MINICONDA_SHA256 =~ ^[0-9a-f]{64}$ ]]; then
+                echo "Set MINICONDA_SHA256 to the installer's 64-character SHA-256 from repo.anaconda.com/miniconda." >&2
+                exit 1
+            fi
             wget "$MINICONDA_URL" -O "$MINICONDA_FILE"
+            if ! printf '%s  %s\n' "$MINICONDA_SHA256" "$MINICONDA_FILE" | sha256sum -c - >/dev/null; then
+                rm -f -- "$MINICONDA_FILE"
+                echo "The Miniconda installer does not match MINICONDA_SHA256; it was deleted." >&2
+                exit 1
+            fi
         else
             echo "MINICONDA_FILE is not set but NO_NET is set so won't install miniconda"
             exit 0

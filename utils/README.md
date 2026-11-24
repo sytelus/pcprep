@@ -460,7 +460,7 @@ per-file `DEBUG` detail when you need to trace an individual file. Warnings
 ## Tests
 
 ```bash
-python test_small2zip.py                  # stdlib unittest, no dependencies
+python test_small2zip.py                  # unittest; needs only requirements.txt
 python -m pytest test_small2zip.py -q     # if pytest is installed
 ```
 

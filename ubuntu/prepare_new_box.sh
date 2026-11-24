@@ -135,6 +135,7 @@ start_run_audit() {
     printf 'config.NO_NET=%s\n' "${NO_NET:-auto}"
     printf 'config.INSTALL_CUDA=%s\n' "$INSTALL_CUDA"
     printf 'config.INSTALL_AZURE_CLI=%s\n' "$INSTALL_AZURE_CLI"
+    printf 'config.INSTALL_WORKSTATION_PACKAGES=%s\n' "$INSTALL_WORKSTATION_PACKAGES"
     printf 'config.CUDA_VERSION=%s\n' "$CUDA_VERSION"
     printf 'config.INSTALL_PYTORCH=%s\n' "$INSTALL_PYTORCH"
     printf 'config.PYTHON_VERSION=%s\n' "$PYTHON_VERSION"

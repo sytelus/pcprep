@@ -105,13 +105,37 @@ script and back up owned configuration before use.
   input, and concurrent execution before calling a workflow unattended-safe.
 - Move superseded tools into `archived/` rather than leaving multiple plausible
   entry points in the active platform directory.
+- Test behavior, not source text. A test runs the real script or function
+  against temporary files and fakes, and checks what it installs, deletes or
+  writes. Don't add tests that grep a script for a string or version number.
+- Keep each suite fast: start one shell or process per scenario and check
+  several cases in it, rather than one process per assertion.
+
+## Tests
+
+Every suite is offline. None needs root, a network connection or real
+installers, and each finishes in seconds. Run the Linux suites on Ubuntu or in
+WSL, from the repository root.
+
+| Suite | What it protects | Run | Time |
+| --- | --- | --- | --- |
+| `ubuntu/test_helpers.sh` | Package selection switches, dotfile and Codex-update migration, CUDA release defaults, startup prompts, Miniconda reruns, the run audit log, deletion and mount guards, agent shortcuts | `bash ubuntu/test_helpers.sh` | ~3 s |
+| `ubuntu/test_gitconfig.sh` | Git identity validation, removal of the old URL rewrite, the editor fallback, merge and diff commands | `bash ubuntu/test_gitconfig.sh` | <1 s |
+| `ubuntu/test_codex_shortcuts.py` | The `ask`/`act` shortcuts: request quoting, sandbox choice, credential removal, help | `python3 ubuntu/test_codex_shortcuts.py` | ~3 s |
+| `ubuntu/test_vps_access.py` | VPS SSH staging, confirmation and rollback, firewall migration, the SSH allowlist, the provider account, the exposure report | `cd ubuntu && python3 -m unittest test_vps_access` | <1 s |
+| `ubuntu/test_verify_security_updates.py` | The automatic security-update check | `cd ubuntu && python3 -m unittest test_verify_security_updates` | <1 s |
+| `ubuntu/docker/cpu-devbox/test_docker_move_data.sh` | Docker data-root migration: dry run changes nothing, paths stay contained | `bash ubuntu/docker/cpu-devbox/test_docker_move_data.sh` | <1 s |
+| `utils/test_small2zip.py` | `small2zip` never deletes a source that isn't safely archived: verification, cancellation, cross-process locks, appends, metadata, CLI guards. Needs `utils/requirements.txt` | `cd utils && python test_small2zip.py` | 1–3 s |
+| `windows/test_codex_shortcuts.ps1` | The PowerShell `ask`/`act` shortcuts | `powershell -NoProfile -File windows\test_codex_shortcuts.ps1` | ~2 s |
+| `windows/test_git_status.ps1` | `gstatall` status for each repository state, using local repositories only | `powershell -NoProfile -File windows\test_git_status.ps1` | ~5 s |
+
+`tests/atari.py` and `tests/cuda.py` are manual smoke scripts for ML stacks and
+GPUs, not part of these suites.
 
 ## Validation model
 
-This work used static parsing/source inspection on Windows plus isolated tests
-for the `small2zip` cross-process lock, Docker dry-run, Git tool commands, and
-helper regressions. It did not install packages or exercise macOS, Ubuntu, WSL,
-CUDA, real Docker/systemd migration, Homebrew, apt, WinGet, mounts, or hardware
-paths. The full Rich-dependent `small2zip` suite was not available, but its new
-stdlib-only two-process safety test passed. Native CI and disposable integration
-tests remain necessary; parsing is not evidence that a bootstrap completed.
+The suites above check script logic with fakes. They do not install packages or
+exercise macOS, real Ubuntu or WSL bootstraps, CUDA, Docker or systemd
+migrations, Homebrew, apt, WinGet, mounts, SSH changes on a real server, or
+hardware. Native CI and disposable integration machines remain necessary;
+passing tests are not evidence that a bootstrap completed.

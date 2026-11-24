@@ -63,8 +63,76 @@ ufw allow 60000:61000/udp"""
             m.enter_context(patch.object(access, "run", side_effect=lambda *a, **kw: responses[a]))
             m.enter_context(patch.object(access, "validate"))
             m.enter_context(patch.object(access, "check_listeners"))
+            m.enter_context(patch.object(access, "provider_users", return_value=["ubuntu"]))
+            disable = m.enter_context(patch.object(access, "disable_provider_users"))
             access.stage(folder, "shitals")
             self.assertEqual(list(folder.iterdir()), [drop])
+            disable.assert_called_once_with(["ubuntu"])
+
+    def test_match_blocks_name_single_accounts_only(self):
+        text = """Port 22
+Match User sy_dev
+    AuthenticationMethods publickey
+  match user sy_agent # added by add_user.sh
+Match User a,b
+Match User sy_*
+Match User sy_deploy Address 192.0.2.0/24
+Match Group admins"""
+        self.assertEqual(access.match_users([text, "Match User sy_dev\n"]), ["sy_dev", "sy_agent"])
+
+    def test_first_allowlist_keeps_match_block_accounts(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as m:
+            folder = Path(tmp)
+            main = folder / "sshd_config"
+            (folder / "sshd_config.d").mkdir()
+            main.write_text("Match User sy_dev\n    PasswordAuthentication no\nMatch User gone\n")
+            (folder / "sshd_config.d/50-cloud-init.conf").write_text("Match User sy_agent\n")
+            m.enter_context(patch.object(access, "SSH", main))
+            accounts = {"shitals": 1000, "sy_dev": 1001, "sy_agent": 1002}
+            m.enter_context(patch.object(access, "local_user", side_effect=lambda name: (
+                type("Entry", (), {"pw_uid": accounts[name]}) if name in accounts else None)))
+            self.assertEqual(access.approved_users("shitals"), ["shitals", "sy_dev", "sy_agent"])
+
+    def test_provider_accounts_exclude_kept_and_system_accounts(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as m:
+            sudoers = Path(tmp) / "90-cloud-init-users"
+            sudoers.write_text("# Created by cloud-init\nubuntu ALL=(ALL) NOPASSWD:ALL\n"
+                               "admin ALL=(ALL) NOPASSWD:ALL\nsyslog ALL=(ALL) ALL\n")
+            m.enter_context(patch.object(access, "CLOUD_SUDOERS", sudoers))
+            accounts = {"ubuntu": 1000, "admin": 1001, "syslog": 104}
+            m.enter_context(patch.object(access, "local_user", side_effect=lambda name: (
+                type("Entry", (), {"pw_uid": accounts[name]}) if name in accounts else None)))
+            self.assertEqual(access.provider_users(["admin"]), ["ubuntu"])
+            self.assertEqual(access.provider_users(["ubuntu"]), ["admin"])
+
+    def test_disabling_locks_and_expires_without_deleting(self):
+        with patch.object(access, "run") as command:
+            access.disable_provider_users(["ubuntu"])
+        command.assert_called_once_with("usermod", "--lock", "--expiredate", "1",
+                                        "--shell", "/usr/sbin/nologin", "ubuntu")
+
+    def test_audit_flags_public_tcp_but_not_ssh_or_dhcp(self):
+        ssh = 'tcp LISTEN 0 4096 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=1,fd=3))'
+        socket_ssh = 'tcp LISTEN 0 4096 [::]:22 [::]:* users:(("systemd",pid=1,fd=50))'
+        web = 'tcp LISTEN 0 511 0.0.0.0:3000 0.0.0.0:* users:(("node",pid=9,fd=20))'
+        dhcp = 'udp UNCONN 0 0 0.0.0.0:68 0.0.0.0:* users:(("systemd-network",pid=5,fd=20))'
+        other_udp = 'udp UNCONN 0 0 0.0.0.0:41641 0.0.0.0:* users:(("tailscaled",pid=7,fd=9))'
+        fake_ssh = 'tcp LISTEN 0 5 0.0.0.0:22 0.0.0.0:* users:(("nc",pid=8,fd=3))'
+        kinds = [audit.classify(row, {"22"}) for row in (ssh, socket_ssh, web, dhcp, other_udp, fake_ssh)]
+        self.assertEqual(kinds, ["ssh", "ssh", "critical", "dhcp", "warning", "critical"])
+        self.assertEqual(audit.published_ports("127.0.0.1:8080->80/tcp, 0.0.0.0:8443->443/tcp, 80/tcp"),
+                         ["0.0.0.0:8443->443/tcp"])
+
+    def test_critical_output_is_red_and_bold_on_request(self):
+        import io
+        stream = io.StringIO()
+        with patch.dict(os.environ, PCPREP_COLOR="1", NO_COLOR=""):
+            audit.critical("exposed", stream)
+        self.assertEqual(stream.getvalue(), "\033[1;31mCRITICAL: exposed\033[0m\n")
+        stream = io.StringIO()
+        with patch.dict(os.environ, PCPREP_COLOR="", NO_COLOR=""):
+            audit.critical("exposed", stream)
+        self.assertEqual(stream.getvalue(), "CRITICAL: exposed\n")
 
     def test_network_report_separates_loopback_from_other_bindings(self):
         for address in ["[::1]:3000", "127.0.0.2:80", "[::ffff:127.0.0.1]:8000"]:
@@ -117,7 +185,10 @@ ufw allow 60000:61000/udp"""
             state = dict(admin="shitals", new="2222", original="", ready_ticks=1,
                          migrate=True, final=access.POLICY + "Port 2222\n", socket=True,
                          jail_final="port = 2222\n", cleanup=[["allow", "22/tcp"]], unit="test")
+            state["providers"] = ["ubuntu"]
             access.confirm(folder, state, "192.0.2.1 45000 192.0.2.2 2222")
+            command.assert_any_call("usermod", "--lock", "--expiredate", "1",
+                                    "--shell", "/usr/sbin/nologin", "ubuntu")
             self.assertFalse(access.PENDING.exists())
             self.assertEqual(access.DROP.read_text(), state["final"])
             self.assertEqual(access.JAIL.read_text(), state["jail_final"])

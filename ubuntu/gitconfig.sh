@@ -41,7 +41,12 @@ git config --global merge.tool vscode
 git config --global mergetool.vscode.cmd 'code --wait "$MERGED"'
 git config --global diff.tool vscode
 git config --global difftool.vscode.cmd 'code --wait --diff "$LOCAL" "$REMOTE"'
-git config --global core.editor "code --new-window --wait"
+# VS Code when it can open a window, otherwise a terminal editor (plain SSH).
+editor_path="$HOME/.local/bin/git_editor.sh"
+mkdir -p "$HOME/.local/bin"
+install -m 0755 "$(dirname -- "${BASH_SOURCE[0]}")/git_editor.sh" "$editor_path"
+printf -v editor_command '%q' "$editor_path"
+git config --global core.editor "$editor_command"
 
 # if repo doesn't have latest, by default try rebase first
 git config --global pull.rebase true

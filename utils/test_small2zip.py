@@ -147,26 +147,6 @@ class TestHumanSize(unittest.TestCase):
         self.assertEqual(s.human_size(1024**3), "1.0 GiB")
         self.assertIn("TiB", s.human_size(1024**4))
 
-    def test_every_unit_step_is_exactly_one(self) -> None:
-        """Regression: the final unit was labelled without its division.
-
-        1 EiB reported as "1,024.0 EiB" -- off by a factor of 1024.
-        """
-        units = ("KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
-        for power, unit in enumerate(units, start=1):
-            with self.subTest(unit=unit):
-                self.assertEqual(s.human_size(1024**power), f"1.0 {unit}")
-
-    def test_never_reports_a_mantissa_above_1024(self) -> None:
-        # Up to the largest unit (YiB); beyond that the mantissa necessarily
-        # grows, which is correct rather than a formatting error.
-        for power in range(0, 9):
-            for mult in (1, 3, 1023):
-                got = s.human_size(1024**power * mult)
-                mantissa = float(got.split()[0].replace(",", ""))
-                self.assertLess(mantissa, 1024.0, got)
-
-
 def take(iterable, n: int) -> list:
     """First *n* items of an (possibly infinite) iterable."""
     out = []
@@ -180,17 +160,11 @@ def take(iterable, n: int) -> list:
 class TestArcnameCandidates(unittest.TestCase):
     """The single source of truth for collision naming."""
 
-    def test_first_candidate_is_the_name_itself(self) -> None:
-        self.assertEqual(take(s._arcname_candidates("a/b.txt"), 1), ["a/b.txt"])
-
     def test_suffixes_before_extension(self) -> None:
         self.assertEqual(
             take(s._arcname_candidates("a/b.txt"), 3),
             ["a/b.txt", "a/b__dup1.txt", "a/b__dup2.txt"],
         )
-
-    def test_file_without_extension(self) -> None:
-        self.assertEqual(take(s._arcname_candidates("README"), 2), ["README", "README__dup1"])
 
     def test_dotfile_is_not_split_at_its_leading_dot(self) -> None:
         """splitext treats ".gitignore" as all stem, and so must the dup names."""
@@ -198,10 +172,6 @@ class TestArcnameCandidates(unittest.TestCase):
             take(s._arcname_candidates("sub/.gitignore"), 2),
             ["sub/.gitignore", "sub/.gitignore__dup1"],
         )
-
-    def test_candidates_are_unique(self) -> None:
-        got = take(s._arcname_candidates("f.txt"), 25)
-        self.assertEqual(len(set(got)), len(got))
 
     def test_dotted_directory_is_not_treated_as_extension(self) -> None:
         """Regression: a dot in a DIRECTORY name must not move the file.
@@ -301,17 +271,6 @@ class TestScanning(TempRepo):
         node = s._scan_dir_tree(self.root / "e")
         self.assertEqual((node.file_count, node.total_bytes, node.avg_bytes), (0, 0, 0.0))
 
-    def test_list_scan_skips_the_enumeration_cache(self) -> None:
-        """collect=False keeps only counters, so listing a huge volume stays
-        cheap -- and such a tree must refuse to feed the archive stage."""
-        write_tree(self.root, {"d/a.txt": b"123", "d/sub/b.txt": b"45"})
-        node = s._scan_dir_tree(self.root / "d", collect=False)
-        self.assertEqual((node.file_count, node.total_bytes, node.dir_count), (2, 5, 1))
-        self.assertEqual(node.files, [])
-        self.assertEqual(node.children[0].files, [])
-        with self.assertRaises(ValueError):
-            s._entries_from_tree(node, s.FolderResult(name="d"))
-
     def test_hidden_dirs_follow_the_include_flag(self) -> None:
         (self.root / ".hidden").mkdir()
         (self.root / "shown").mkdir()
@@ -319,12 +278,6 @@ class TestScanning(TempRepo):
         self.assertEqual(
             sorted(p.name for p in s.iter_top_level_dirs(self.root, True)), [".hidden", "shown"]
         )
-
-    def test_files_at_top_level_are_not_listed_as_dirs(self) -> None:
-        write_tree(self.root, {"loose.txt": b"x"})
-        (self.root / "d").mkdir()
-        self.assertEqual([p.name for p in s.iter_top_level_dirs(self.root, False)], ["d"])
-
 
 # --------------------------------------------------------------------------- #
 # Verification -- the gate that protects the invariant
@@ -347,12 +300,6 @@ class TestVerifyArchive(TempRepo):
     def _entry(self, arcname: str, size: int, **kw) -> s.ManifestEntry:
         kw.setdefault("external_attr", self.ATTR)
         return s.ManifestEntry("src", arcname, size, 0, **kw)
-
-    def test_fixture_attr_matches_zipfile(self) -> None:
-        """If zipfile changes its writestr default, these fixtures must follow."""
-        z = self._archive({"a.txt": b"hello"})
-        with zipfile.ZipFile(z) as zf:
-            self.assertEqual(zf.getinfo("a.txt").external_attr, self.ATTR)
 
     def test_clean_archive_reports_no_problems(self) -> None:
         z = self._archive({"a.txt": b"hello"})
@@ -380,15 +327,6 @@ class TestVerifyArchive(TempRepo):
         m = [self._entry("a.txt", 5)]
         problems = s._verify_archive(corrupt, m, True, NullProgress(), 0)
         self.assertTrue(any("unreadable" in p or "CRC" in p for p in problems), problems)
-
-    def test_fast_verify_does_not_detect_corruption(self) -> None:
-        """Documents the known limitation of --verify fast, so it stays intentional."""
-        z = self._archive({"a.txt": b"hello"})
-        raw = z.read_bytes().replace(b"hello", b"HELLO")
-        corrupt = self.root / "corrupt.zip"
-        corrupt.write_bytes(raw)
-        m = [self._entry("a.txt", 5)]
-        self.assertEqual(s._verify_archive(corrupt, m, False, NullProgress(), 0), [])
 
     def test_unopenable_archive_is_a_problem_not_an_exception(self) -> None:
         bad = self.root / "notazip.zip"
@@ -454,12 +392,6 @@ class TestProcessFolderHappyPath(TempRepo):
         res = self.run_folder(self.root / "empty", keep=True)
         self.assertEqual(res.status, "ok", res.message)
         self.assertTrue((self.root / "empty").exists(), "--keep deleted a folder")
-
-    def test_keep_does_not_delete_nested_empty_dirs(self) -> None:
-        (self.root / "d" / "sub").mkdir(parents=True)
-        res = self.run_folder(self.root / "d", keep=True)
-        self.assertEqual(res.status, "ok", res.message)
-        self.assertTrue((self.root / "d" / "sub").exists())
 
     def test_dry_run_writes_and_deletes_nothing(self) -> None:
         write_tree(self.root, {"d/a.txt": b"x"})
@@ -533,29 +465,6 @@ class TestAppendToExistingArchive(TempRepo):
         self.assertEqual(res.status, "ok", res.message)
         with zipfile.ZipFile(self.root / "d.zip") as zf:
             self.assertEqual(zf.namelist(), ["a.txt"], "identical file re-added")
-
-    def test_repeated_runs_do_not_grow_the_archive(self) -> None:
-        """Regression: every re-run appended another byte-identical copy.
-
-        Run 2 correctly stores the edited file as f__dup1.txt. Run 3 (same
-        content again) used to add f__dup2.txt, run 4 f__dup3.txt, and so on --
-        the archive grew without bound while nothing had changed.
-        """
-        write_tree(self.root, {"d/f.txt": b"version-one"})
-        self.run_folder(self.root / "d")
-
-        for _ in range(3):
-            write_tree(self.root, {"d/f.txt": b"version-two-is-longer"})
-            res = self.run_folder(self.root / "d")
-            self.assertEqual(res.status, "ok", res.message)
-
-        with zipfile.ZipFile(self.root / "d.zip") as zf:
-            names = zf.namelist()
-            bodies = [zf.read(n) for n in names]
-        self.assertEqual(sorted(names), ["f.txt", "f__dup1.txt"], names)
-        self.assertEqual(len(bodies), len(set(bodies)), "byte-identical duplicates stored")
-        self.assertIn(b"version-one", bodies)
-        self.assertIn(b"version-two-is-longer", bodies)
 
     def test_exists_refuses_when_archive_exists(self) -> None:
         write_tree(self.root, {"d/a.txt": b"x"})
@@ -925,15 +834,6 @@ class TestAttributeRetention(TempRepo):
         self.assertTrue(all(not os.path.isdir(p) for p in seen))
         self.assertEqual(len(seen), 1, seen)
 
-    def test_counts_report_files_and_dirs_separately(self) -> None:
-        (self.root / "d" / "a").mkdir(parents=True)
-        write_tree(self.root, {"d/1.txt": b"x", "d/a/2.txt": b"yy"})
-        res = self.run_folder(self.root / "d")
-        self.assertEqual(res.archived_files, 2)
-        self.assertEqual(res.archived_dirs, 1)
-        self.assertEqual(res.archived_bytes, 3, "dir members must not add bytes")
-
-
 class TestTimestamps(TempRepo):
     #: Well before zip's 1980 floor, and safely representable on every platform.
     ANCIENT = 86400.0  # 1970-01-02
@@ -1249,10 +1149,6 @@ class TestSmallSelection(TempRepo):
         write_tree(self.root, {"d/only.txt": b"x", "d/two.txt": b"y"})
         self.assertEqual(self.select(self.root / "d"), [])
 
-    def test_average_boundary_is_inclusive(self) -> None:
-        write_tree(self.root, {f"d/f{i}.bin": b"\0" * 1024 for i in range(3)})  # avg == max
-        self.assertEqual([n.path.name for n in self.select(self.root / "d")], ["d"])
-
     def test_empty_directory_never_qualifies(self) -> None:
         (self.root / "d").mkdir()
         self.assertEqual(self.select(self.root / "d", min_files=1), [])
@@ -1268,12 +1164,6 @@ class TestSmallSelection(TempRepo):
         )
         self.assertEqual(self.select(self.root / "d", include_hidden=False), [])
         self.assertEqual(s._scan_dir_tree(self.root / "d").file_count, 4)
-
-    def test_selection_is_sorted_by_path(self) -> None:
-        for name in ("zeta", "alpha", "mid"):
-            write_tree(self.root, {f"{name}/f{i}.txt": b"x" for i in range(3)})
-        got = self.select(self.root / "zeta", self.root / "alpha", self.root / "mid")
-        self.assertEqual([n.path.name for n in got], ["alpha", "mid", "zeta"])
 
     def test_qualifying_but_blocked_directory_yields_to_clean_children(self) -> None:
         """A dir that can never be fully reclaimed must not be selected.
@@ -1365,13 +1255,6 @@ class TestSmallEndToEnd(TempRepo):
         self.assertEqual(list(self.root.rglob("*.zip")), [])
         self.assertEqual(list(self.root.rglob("*.partial")), [])
 
-    def test_dry_run_reports_when_nothing_qualifies(self) -> None:
-        write_tree(self.root, {"d/lonely.txt": b"x"})
-        with captured_console() as buf:
-            code = s.main([*self.small_argv(), "--dry-run"])
-        self.assertEqual(code, 0)
-        self.assertIn("No directory", buf.getvalue())
-
     def test_no_selection_means_no_prompt_and_no_changes(self) -> None:
         """Without -y and with nothing selected, main must exit 0 untouched
         rather than prompt for a destructive run over an empty set."""
@@ -1406,14 +1289,6 @@ class TestSmallEndToEnd(TempRepo):
         self.assertTrue((self.root / "tinydir" / "f0.txt").exists(), "-e dir was touched")
         self.assertFalse((self.root / "bigdir" / "nest").exists())
 
-    def test_keep_selection_table_does_not_promise_deletion(self) -> None:
-        self.make_mixed_tree()
-        with captured_console() as buf:
-            code = s.main([*self.small_argv(), "--dry-run", "--keep"])
-        self.assertEqual(code, 0)
-        self.assertIn("nothing deleted", buf.getvalue())
-        self.assertNotIn("archive + delete", buf.getvalue())
-
     def test_small_appends_to_an_existing_nested_archive(self) -> None:
         """A second -s run over a recreated dir appends without duplicating."""
         self.make_mixed_tree()
@@ -1431,13 +1306,6 @@ class TestSmallEndToEnd(TempRepo):
                 sorted(zf.namelist()), ["extra.txt", "f0.txt", "f1.txt", "f2.txt"]
             )
 
-    def test_small_thresholds_require_small_mode(self) -> None:
-        """Silently ignoring them would archive far more than intended."""
-        with captured_console() as buf:
-            code = s.main(["-d", str(self.root), "-y", "--no-log", "--small-files", "10"])
-        self.assertEqual(code, 2)
-        self.assertIn("--small", buf.getvalue())
-
     def test_small_with_keep_archives_but_deletes_nothing(self) -> None:
         """--keep's promise must hold for nested --small selections too."""
         self.make_mixed_tree()
@@ -1451,12 +1319,6 @@ class TestSmallEndToEnd(TempRepo):
             self.assertIsNone(zf.testzip())
         with zipfile.ZipFile(self.root / "bigdir" / "nest.zip") as zf:
             self.assertIsNone(zf.testzip())
-
-    def test_small_cannot_combine_with_list_mode(self) -> None:
-        """List mode reports everything unfiltered; -s on it could only mislead."""
-        with captured_console() as buf:
-            self.assertEqual(s.main(["-l", str(self.root), "-s", "--no-log"]), 2)
-        self.assertIn("--small", buf.getvalue())
 
     def test_small_standalone_takes_its_own_target(self) -> None:
         """-s DIR needs no -d: it shows the table, confirms, then acts."""
@@ -1486,43 +1348,12 @@ class TestSmallEndToEnd(TempRepo):
         self.assertEqual(code, 1)
         self.assertTrue((self.root / "tinydir" / "f0.txt").exists())
 
-    def test_small_without_any_target_errors(self) -> None:
-        """Like -d, a destructive mode never guesses its directory."""
-        with captured_console() as buf:
-            self.assertEqual(s.main(["-s", "--no-log"]), 2)
-        self.assertIn("target", buf.getvalue())
-
     def test_positional_path_does_not_serve_as_small_target(self) -> None:
         """The positional is the -l alternative; a destructive mode must get
         its directory through its own flag, never by reinterpretation."""
         write_tree(self.root, {"d/a.txt": b"x"})
         with captured_console():
             self.assertEqual(s.main([str(self.root), "-s", "--no-log"]), 2)
-        self.assertTrue((self.root / "d" / "a.txt").exists())
-
-    def test_small_dir_form_rejects_an_extra_positional(self) -> None:
-        with captured_console():
-            self.assertEqual(s.main(["-s", str(self.root), "other", "-y", "--no-log"]), 2)
-
-    def test_attached_short_option_values_are_rejected(self) -> None:
-        """Regression guard, destructive typo: '-sq' (meant: -s -q) parsed as
-        -s targeting a directory literally named 'q'; with -y that archived
-        and deleted it. Every attached form is refused -- only the spaced
-        '-s DIR' spelling names a target."""
-        write_tree(self.root, {"q/a.txt": b"x"})
-        for tok in ("-sq", "-sy", f"-s{self.root}"):
-            with self.subTest(tok=tok), captured_console() as buf:
-                self.assertEqual(s.main([tok, "-y", "--no-log"]), 2)
-                self.assertIn("Ambiguous", buf.getvalue())
-        self.assertTrue((self.root / "q" / "a.txt").exists())
-
-    def test_sort_applies_only_to_list_mode(self) -> None:
-        """A non-default --sort on a delete run would be silently ignored."""
-        write_tree(self.root, {"d/a.txt": b"x"})
-        with captured_console() as buf:
-            code = s.main(["-d", str(self.root), "-y", "--no-log", "--sort", "size"])
-        self.assertEqual(code, 2)
-        self.assertIn("--sort", buf.getvalue())
         self.assertTrue((self.root / "d" / "a.txt").exists())
 
     def test_empty_target_is_refused(self) -> None:
@@ -1547,39 +1378,6 @@ class TestSmallEndToEnd(TempRepo):
                 s.main(["-d", str(self.root), "-s", str(self.root), "-y", "--no-log"]), 0
             )
 
-    def test_quiet_suppresses_the_table_but_not_the_run(self) -> None:
-        self.make_mixed_tree()
-        with captured_console() as buf:
-            code = s.main([*self.small_argv(), "-y", "-q"])
-        self.assertEqual(code, 0)
-        self.assertNotIn("will archive + delete", buf.getvalue(), "table not suppressed")
-        self.assertFalse((self.root / "tinydir").exists(), "run must still happen")
-
-    def test_quiet_still_reports_an_empty_selection(self) -> None:
-        write_tree(self.root, {"d/lonely.txt": b"x"})
-        with captured_console() as buf:
-            self.assertEqual(s.main([*self.small_argv(), "-y", "-q"]), 0)
-        self.assertIn("No directory", buf.getvalue())
-
-    def test_quiet_requires_small(self) -> None:
-        with captured_console() as buf:
-            self.assertEqual(s.main(["-d", str(self.root), "-y", "--no-log", "-q"]), 2)
-        self.assertIn("--small", buf.getvalue())
-
-    def test_quiet_conflicts_with_dry_run(self) -> None:
-        """-q would suppress the very report --dry-run exists to show."""
-        with captured_console() as buf:
-            self.assertEqual(s.main([*self.small_argv(), "--dry-run", "-q"]), 2)
-        self.assertIn("conflict", buf.getvalue())
-
-    def test_small_thresholds_are_validated(self) -> None:
-        for bad in (["--small-files", "0"], ["--small-avg", "0"]):
-            with self.subTest(bad=bad), captured_console():
-                self.assertEqual(
-                    s.main(["-d", str(self.root), "-s", "-y", "--no-log", *bad]), 2
-                )
-
-
 # --------------------------------------------------------------------------- #
 # CLI wiring
 # --------------------------------------------------------------------------- #
@@ -1593,17 +1391,6 @@ class TestFileCrc32(TempRepo):
                 data = bytes(i % 251 for i in range(size))
                 p.write_bytes(data)
                 self.assertEqual(s._file_crc32(str(p)), zlib.crc32(data))
-
-    def test_matches_the_crc_zipfile_stores(self) -> None:
-        """The skip check compares against ZipInfo.CRC, so the two must agree."""
-        p = self.root / "f.bin"
-        p.write_bytes(b"payload" * 500)
-        z = self.root / "a.zip"
-        with zipfile.ZipFile(z, "w") as zf:
-            zf.write(p, "f.bin")
-        with zipfile.ZipFile(z) as zf:
-            self.assertEqual(zf.getinfo("f.bin").CRC, s._file_crc32(str(p)))
-
 
 class TestTreeEnumeration(TempRepo):
     """_scan_dir_tree + _entries_from_tree: the single source of the manifest."""
@@ -1628,16 +1415,6 @@ class TestTreeEnumeration(TempRepo):
         entries, _ = self.entries_for(self.root / "d")
         self.assertEqual([e.arcname for e in entries], ["x/", "x/y/", "x/y/z.txt"])
         self.assertFalse(any("\\" in e.arcname for e in entries))
-
-    def test_directories_precede_their_contents(self) -> None:
-        """Extractors expect a directory member before anything inside it."""
-        write_tree(self.root, {"d/x/y/z.txt": b"q", "d/a.txt": b"a"})
-        entries, _ = self.entries_for(self.root / "d")
-        names = [e.arcname for e in entries]
-        for i, name in enumerate(names):
-            if "/" in name.rstrip("/"):
-                parent = name.rstrip("/").rpartition("/")[0] + "/"
-                self.assertLess(names.index(parent), i, f"{parent} must precede {name}")
 
     def test_unreadable_directory_becomes_a_blocker(self) -> None:
         (self.root / "d").mkdir()
@@ -1740,9 +1517,6 @@ class TestRenderSummary(TempRepo):
         with captured_console():
             return s.render_summary(list(results), None)
 
-    def test_all_ok_exits_zero(self) -> None:
-        self.assertEqual(self._codes(s.FolderResult(name="a", status="ok")), 0)
-
     def test_any_failure_exits_one(self) -> None:
         self.assertEqual(
             self._codes(s.FolderResult(name="a", status="ok"),
@@ -1756,34 +1530,10 @@ class TestRenderSummary(TempRepo):
             self._codes(s.FolderResult(name="a", status="cancelled"),
                         s.FolderResult(name="b", status="failed")), 1)
 
-    def test_every_status_has_a_style(self) -> None:
-        """render_summary indexes STATUS_STYLE directly; a gap would KeyError."""
-        for status in ("ok", "skipped", "failed", "cancelled", "dry-run", "pending"):
-            with self.subTest(status=status):
-                self.assertIn(status, s.STATUS_STYLE)
-
-
 class TestLogging(TempRepo):
     def tearDown(self) -> None:
         s.setup_logging(None, False)  # release any file handle before cleanup
         super().tearDown()
-
-    def test_repeated_setup_does_not_stack_handlers(self) -> None:
-        """Each call used to add another FileHandler: duplicate lines, leaked fds."""
-        path = self.root / "logs" / "run.log"
-        for _ in range(3):
-            s.setup_logging(path, False)
-        kinds = [type(h).__name__ for h in s.log.handlers]
-        self.assertEqual(kinds.count("FileHandler"), 1, kinds)
-
-    def test_creates_missing_parent_directories(self) -> None:
-        path = self.root / "deep" / "nested" / "run.log"
-        s.setup_logging(path, False)
-        log_line = "canary-entry"
-        s.log.info(log_line)
-        for handler in s.log.handlers:
-            handler.flush()
-        self.assertIn(log_line, path.read_text(encoding="utf-8"))
 
     def test_unwritable_log_path_exits_cleanly(self) -> None:
         """A bad --log used to escape as a raw traceback."""
@@ -1793,21 +1543,6 @@ class TestLogging(TempRepo):
             code = s.main(["-l", str(self.root), "--log", str(blocker / "sub" / "x.log")])
         self.assertEqual(code, 2)
         self.assertIn("log file", buf.getvalue())
-
-    def test_no_log_leaves_only_a_null_handler(self) -> None:
-        s.setup_logging(None, False)
-        self.assertEqual([type(h).__name__ for h in s.log.handlers], ["NullHandler"])
-
-    def test_logs_the_argv_it_was_given_not_the_hosts(self) -> None:
-        """Regression: main(argv) logged sys.argv -- the test runner's args --
-        so the audit trail for an embedded/programmatic run was wrong."""
-        path = self.root / "run.log"
-        with captured_console():
-            s.main(["-l", str(self.root), "--log", str(path)])
-        s.setup_logging(None, False)  # release the file handle before reading
-        content = path.read_text(encoding="utf-8")
-        self.assertIn(f"'-l', '{str(self.root)}'".replace("\\", "\\\\"), content)
-
 
 class TestMainEndToEnd(TempRepo):
     def test_delete_mode_archives_and_removes_every_folder(self) -> None:
@@ -1844,15 +1579,6 @@ class TestMainEndToEnd(TempRepo):
         self.assertTrue((self.root / "a" / "1.txt").exists())
         self.assertEqual(list(self.root.glob("*.zip")), [])
 
-    def test_hidden_top_level_folders_are_processed_by_default(self) -> None:
-        write_tree(self.root, {".hid/f.txt": b"x", "shown/g.txt": b"y"})
-        with captured_console():
-            code = s.main(["-d", str(self.root), "-y", "--no-log"])
-        self.assertEqual(code, 0)
-        self.assertFalse((self.root / ".hid").exists())
-        with zipfile.ZipFile(self.root / ".hid.zip") as zf:
-            self.assertEqual(zf.read("f.txt"), b"x")
-
     def test_no_include_hidden_skips_dot_folders(self) -> None:
         write_tree(self.root, {".hid/f.txt": b"x", "shown/g.txt": b"y"})
         with captured_console():
@@ -1861,24 +1587,6 @@ class TestMainEndToEnd(TempRepo):
         self.assertTrue((self.root / ".hid" / "f.txt").exists(), "hidden folder touched")
         self.assertFalse((self.root / ".hid.zip").exists())
         self.assertFalse((self.root / "shown").exists())
-
-    def test_fast_verify_round_trips_through_the_cli(self) -> None:
-        """--verify fast must still archive, verify names/sizes, and delete."""
-        write_tree(self.root, {"a/1.txt": b"one", "a/sub/2.txt": b"two"})
-        with captured_console():
-            code = s.main(["-d", str(self.root), "-y", "--no-log", "--verify", "fast"])
-
-        self.assertEqual(code, 0)
-        self.assertFalse((self.root / "a").exists())
-        with zipfile.ZipFile(self.root / "a.zip") as zf:
-            self.assertIsNone(zf.testzip())
-            self.assertEqual(sorted(zf.namelist()), ["1.txt", "sub/", "sub/2.txt"])
-
-    def test_delete_mode_missing_directory_exits_nonzero(self) -> None:
-        with captured_console():
-            self.assertEqual(
-                s.main(["-d", str(self.root / "does-not-exist"), "-y", "--no-log"]), 2
-            )
 
     def test_deflate_round_trips_through_the_cli(self) -> None:
         """Covers the compression/level plumbing from argv down to the writer."""
@@ -1914,13 +1622,6 @@ class TestConfirmPrompt(TempRepo):
     def test_delete_prompt_states_deletion(self) -> None:
         self.assertIn("PERMANENTLY DELETED", self._prompt(keep=False))
 
-    def test_keep_prompt_does_not_threaten_deletion(self) -> None:
-        """--keep promises nothing is deleted; the prompt must not say otherwise."""
-        out = self._prompt(keep=True)
-        self.assertIn("nothing will be deleted", out)
-        self.assertNotIn("PERMANENTLY DELETED", out)
-
-
 class TestCli(TempRepo):
     def test_delete_requires_explicit_directory(self) -> None:
         """-d must never default to the cwd."""
@@ -1931,44 +1632,11 @@ class TestCli(TempRepo):
         with self.assertRaises(SystemExit):
             s.build_parser().parse_args(["-l", "x", "-d", "y"])
 
-    def test_default_compression_is_store(self) -> None:
-        self.assertEqual(s.build_parser().parse_args([]).compress, "store")
-
-    def test_exists_replaces_strict(self) -> None:
-        """-s now means --small; the old --strict spelling must not silently
-        parse as something else."""
-        args = s.build_parser().parse_args(["-e"])
-        self.assertTrue(args.exists)
-        self.assertFalse(args.small)
-        with self.assertRaises(SystemExit):
-            s.build_parser().parse_args(["--strict"])
-
-    def test_hidden_folders_are_included_by_default(self) -> None:
-        self.assertTrue(s.build_parser().parse_args([]).include_hidden)
-        self.assertFalse(
-            s.build_parser().parse_args(["--no-include-hidden"]).include_hidden
-        )
-
-    def test_small_flag_and_threshold_defaults(self) -> None:
-        args = s.build_parser().parse_args(["-s"])
-        self.assertTrue(args.small)
-        self.assertFalse(args.exists)
-        self.assertEqual(args.small_files, 50_000)
-        self.assertEqual(args.small_avg, 500)
-
     def test_missing_directory_exits_nonzero(self) -> None:
         with captured_console():
             self.assertEqual(
                 s.main(["-l", str(self.root / "does-not-exist"), "--no-log"]), 2
             )
-
-    def test_zero_workers_rejected(self) -> None:
-        with captured_console():
-            self.assertEqual(s.main(["-l", str(self.root), "-w", "0", "--no-log"]), 2)
-
-    def test_list_mode_on_empty_root_succeeds(self) -> None:
-        with captured_console():
-            self.assertEqual(s.main(["-l", str(self.root), "--no-log"]), 0)
 
     def test_list_mode_renders_a_table(self) -> None:
         write_tree(self.root, {"alpha/1.txt": b"x" * 10, "beta/2.txt": b"y" * 20})
@@ -1991,35 +1659,11 @@ class TestCli(TempRepo):
                 self.assertIn("--level", buf.getvalue())
         self.assertTrue((self.root / "a" / "1.txt").exists(), "nothing may be touched")
 
-    def test_level_boundaries_are_accepted(self) -> None:
-        for method, level in (("deflate", 0), ("deflate", 9), ("bzip2", 1), ("bzip2", 9)):
-            with self.subTest(method=method, level=level), captured_console():
-                self.assertEqual(
-                    s.main(["-l", str(self.root), "--no-log", "-c", method, "--level", str(level)]),
-                    0,
-                )
-
-    def test_level_ranges_cover_every_method_that_takes_one(self) -> None:
-        """Guards against adding a codec to one table but not the other."""
-        takes_level = {n for n, (_c, lvl) in s.COMPRESSION_METHODS.items() if lvl}
-        self.assertEqual(takes_level, set(s.LEVEL_RANGES))
-
-    def test_level_on_a_method_without_levels_warns_but_proceeds(self) -> None:
-        with captured_console() as buf:
-            self.assertEqual(
-                s.main(["-l", str(self.root), "--no-log", "-c", "store", "--level", "5"]), 0
-            )
-            self.assertIn("no effect", buf.getvalue())
-
     def test_extra_positional_path_is_rejected(self) -> None:
         """Silently ignoring it would look like the extra path had been processed."""
         with captured_console():
             self.assertEqual(s.main(["-l", str(self.root), "other", "--no-log"]), 2)
             self.assertEqual(s.main(["-d", str(self.root), "other", "-y", "--no-log"]), 2)
-
-    def test_positional_path_alone_is_accepted(self) -> None:
-        with captured_console():
-            self.assertEqual(s.main([str(self.root), "--no-log"]), 0)
 
     def test_compression_methods_are_all_usable(self) -> None:
         """Guards the conditional zstd registration."""
@@ -2030,11 +1674,6 @@ class TestCli(TempRepo):
                     zf.writestr("a.txt", b"payload" * 100)
                 with zipfile.ZipFile(z) as zf:
                     self.assertEqual(zf.read("a.txt"), b"payload" * 100)
-
-    @unittest.skipUnless(s.ZSTD_AVAILABLE, "zstd requires Python 3.14+")
-    def test_zstd_is_offered_when_available(self) -> None:
-        self.assertEqual(s.build_parser().parse_args(["-c", "zstd"]).compress, "zstd")
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

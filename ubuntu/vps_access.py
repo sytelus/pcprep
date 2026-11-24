@@ -4,6 +4,7 @@ import fnmatch
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import shlex
 import shutil
@@ -20,6 +21,12 @@ UFW = [Path("/etc/default/ufw"), Path("/etc/ufw/ufw.conf"),
        Path("/etc/ufw/user.rules"), Path("/etc/ufw/user6.rules")]
 TAG = "pcprep SSH"
 JAIL = Path("/etc/fail2ban/jail.d/90-pcprep.local")
+CLOUD_SUDOERS = Path("/etc/sudoers.d/90-cloud-init-users")
+# A single-user Match block, as add_user.sh writes for each account it creates.
+MATCH_USER = re.compile(r"(?im)^[ \t]*Match[ \t]+User[ \t]+([a-z_][a-z0-9_-]*)[ \t]*(?:#.*)?$")
+# The first line marks files pcprep owns. Older releases wrote it from
+# vps_setup.sh, which vps_harden.sh replaced; keep the text unchanged so reruns
+# still recognize and update files written by those releases.
 POLICY = """# Managed by pcprep vps_setup.sh
 PermitRootLogin no
 PasswordAuthentication no
@@ -73,6 +80,55 @@ def admin_covered(entries, admin):
     # Never turn a restricted grant into an unrestricted one.
     return any(fnmatch.fnmatchcase(admin, entry.partition("@")[0].lstrip("!"))
                for entry in entries)
+
+
+def match_users(texts):
+    """Accounts that have their own single-user Match block in sshd_config."""
+    names = []
+    for text in texts:
+        for name in MATCH_USER.findall(text):
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def local_user(name):
+    try:
+        return pwd.getpwnam(name)
+    except KeyError:
+        return None
+
+
+def approved_users(admin):
+    """The admin, then every existing non-root account with its own Match block.
+    Accounts created without add_user.sh need a Match block or AllowUsers entry."""
+    files = [SSH, *sorted(SSH.parent.glob("sshd_config.d/*.conf"))]
+    users = [admin]
+    for name in match_users(read(path) for path in files):
+        entry = local_user(name)
+        if entry and entry.pw_uid != 0 and name not in users:
+            users.append(name)
+    return users
+
+
+def provider_users(keep):
+    """The cloud image's default account and other cloud-init sudo accounts."""
+    names = {"ubuntu"}
+    for line in read(CLOUD_SUDOERS).splitlines():
+        match = re.match(r"\s*([a-z_][a-z0-9_-]*)\s+ALL\s*=", line)
+        if match:
+            names.add(match[1])
+    return [name for name in sorted(names - set(keep))
+            if (entry := local_user(name)) and entry.pw_uid >= 1000]
+
+
+def disable_provider_users(names):
+    # Disable without deleting: lock the password, expire the account (which
+    # also blocks SSH keys through PAM) and remove the login shell.
+    for name in names:
+        run("usermod", "--lock", "--expiredate", "1", "--shell", "/usr/sbin/nologin", name)
+        print(f"Provider account {name} is disabled; its home and files are kept. To undo:\n"
+              f"  sudo usermod --unlock --expiredate '' --shell /bin/bash {name}")
 
 
 def port_number(text):
@@ -219,10 +275,11 @@ def check_listeners(ports):
     raise ValueError(f"SSH listener missing or conflicting on {port}")
 
 
-def validate(ports, user, target):
+def validate(ports, user, target, others=()):
     config = run("sshd", "-T", capture=True)
-    if ssh_ports(config) != set(ports) or not admin_covered(values(config, "allowusers"), user):
-        raise ValueError("SSH includes conflict with the intended ports or approved user.")
+    allowed = values(config, "allowusers")
+    if ssh_ports(config) != set(ports) or not all(admin_covered(allowed, u) for u in (user, *others)):
+        raise ValueError("SSH includes conflict with the intended ports or approved users.")
     connection = os.environ.get("SSH_CONNECTION", "").split()
     client, local = (connection[0], connection[2]) if len(connection) == 4 else ("127.0.0.1", "127.0.0.1")
     opts = run("sshd", "-T", "-C", f"user={user},host={client},addr={client},laddr={local},lport={target}", capture=True)
@@ -287,6 +344,7 @@ def confirm(folder, state, connection):
             run("ufw", "--force", "delete", *rule)
     finish(state)
     print("SSH login and sudo confirmed. Changes are permanent.")
+    disable_provider_users(state.get("providers", []))
 
 
 def stage(folder, admin):
@@ -313,8 +371,16 @@ def stage(folder, admin):
     changes = {}
     if owned != staged:
         changes[DROP] = staged
-    if not admin_covered(values(global_config, "allowusers"), admin):
-        changes[USERS] = read(USERS) + f"\nAllowUsers {admin}\n"
+    # Without an allowlist every account can log in. Keep the admin and the
+    # accounts sshd_config gives their own Match block. An existing allowlist
+    # is the operator's, so only the admin is added to it.
+    existing = values(global_config, "allowusers")
+    keep = approved_users(admin) if not existing else [admin]
+    missing = [user for user in keep if not admin_covered(existing, user)]
+    if missing:
+        changes[USERS] = read(USERS) + f"\nAllowUsers {' '.join(missing)}\n"
+        print("SSH allowlist adds: " + " ".join(missing))
+    providers = provider_users([*approved_users(admin), os.environ.get("SUDO_USER", "")])
     if migrate:
         main = read(SSH)
         candidate = migrate_main(main, old)
@@ -333,10 +399,11 @@ def stage(folder, admin):
         validate([new], admin, new)
         check_listeners([new])
         print("SSH access and firewall already configured.")
+        disable_provider_users(providers)
         return
     state = dict(old=old, new=new, final=final, migrate=migrate, enabled=enabled,
                  socket=active("ssh.socket"), admin=admin, firewall=firewall, cleanup=cleanup,
-                 original=os.environ.get("SSH_CONNECTION", ""), backups={},
+                 original=os.environ.get("SSH_CONNECTION", ""), backups={}, providers=providers,
                  unit="pcprep-vps-" + folder.name.replace("_", "-"))
     if migrate:
         state["jail_final"] = current_jail.replace(port_line, f"port = {new}\n", 1)
@@ -354,7 +421,7 @@ def stage(folder, admin):
     try:
         for path, data in changes.items():
             write(path, data, 0o644 if path == JAIL else 0o600)
-        validate([old, new], admin, new)
+        validate([old, new], admin, new, missing)
         if migrate:
             run("fail2ban-client", "reload", "--restart", "sshd")
         if firewall:

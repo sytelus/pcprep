@@ -6,8 +6,8 @@
 # required (`X | Y` unions, dataclass(slots=True)); `-c zstd` additionally needs
 # 3.14+ and is hidden on older interpreters.
 #
-# The test suite (test_small2zip.py) needs nothing beyond this -- it runs on
-# stdlib unittest, with pytest optional.
+# The test suite (test_small2zip.py) needs nothing beyond this file -- it runs
+# on stdlib unittest, with pytest optional.
 
 # Terminal tables, progress bars and logging.
 # Floor is conservative: TaskProgressColumn landed in 12.3, but 13.0 is the

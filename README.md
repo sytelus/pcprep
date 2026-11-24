@@ -75,5 +75,5 @@ hidden configuration and the former bundled binary. The remediation pass added
 static parsing plus isolated tests for cross-process archive locking, Docker
 dry-run non-mutation, Git tool arguments, and helper regressions. It did not run
 installers, apt changes, real mounts, service/data-root migration, container
-builds, or hardware paths. The full Rich-dependent `small2zip` suite remains
-unexecuted locally; its new stdlib-only two-process safety regression passed.
+builds, or hardware paths. The offline test suites, and how to run them, are
+listed under [Tests](docs/REPOSITORY_GUIDE.md#tests).
