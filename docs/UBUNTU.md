@@ -225,12 +225,12 @@ deferred integration testing.
 
 ### Storage, mounts, network, and system administration
 
-The [VPS setup script](../ubuntu/vps_setup.sh) lists its system changes at the top.
+The [VPS hardening script](../ubuntu/vps_harden.sh) lists its system changes at the top.
 
 For a VPS serving sites through Cloudflare Tunnel, run the following from the checkout.
 
 ```bash
-sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_setup.sh
+sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_harden.sh
 ```
 
 SSH uses the existing port (usually 22). The script opens no public web ports.
@@ -267,7 +267,7 @@ the public route, while the direct checks independently test the listed origin
 ports. An authenticated site may redirect to its sign-in page.
 
 `azmount.sh`, `azunmount.sh`, `mount_cifs.sh`, `wsl_vpn.py`, `killer_wifi.sh`,
-`cpu_cap.sh`, `update_dsvm.sh`, `vps_setup.sh`, `security_status.sh`,
+`cpu_cap.sh`, `update_dsvm.sh`, `vps_harden.sh`, `security_status.sh`,
 `unban.sh`, `system.sh`, `sysinfo.sh`, `treesize.sh`, and
 `kill_vscode_srv.sh` are standalone operations, not one supported workflow.
 Some require root, alter persistent configuration, stop services, or delete

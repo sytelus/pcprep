@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Harden an Ubuntu 24.04 or 26.04 VPS serving websites via Cloudflare Tunnel.
-# Run after min_system.sh: sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_setup.sh
+# Run after min_system.sh: sudo env SSH_ALLOWED_USER=shitals bash ubuntu/vps_harden.sh
 #
 # - Allows key login for the admin and retains previously approved SSH users.
 # - Disables root, password and keyboard-interactive SSH login and X11 forwarding by default.

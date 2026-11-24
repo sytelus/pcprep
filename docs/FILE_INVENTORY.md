@@ -176,7 +176,7 @@ ubuntu/uninstall_cuda.sh
 ubuntu/uninstall_miniconda.sh
 ubuntu/update_dsvm.sh
 ubuntu/verify_cuda.sh
-ubuntu/vps_setup.sh
+ubuntu/vps_harden.sh
 ubuntu/wsl_prep.md
 ubuntu/wsl_vpn.py
 ```

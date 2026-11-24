@@ -5,7 +5,7 @@
 #   sudo bash ubuntu/add_user.sh guest no ''     # passwd prompts for the password
 # The third argument can also be a quoted OpenSSH public key. The script prompts
 # for omitted arguments. Press Enter at the key prompt to use password login.
-# If using vps_setup.sh, run it first. It sets the initial SSH allowlist.
+# If using vps_harden.sh, run it first. It sets the initial SSH allowlist.
 set -euo pipefail
 umask 077
 export LC_ALL=C
