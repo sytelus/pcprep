@@ -7,7 +7,9 @@
 #   writes one per account); an existing allowlist is kept as it is.
 # - After the new login is confirmed, disables (never deletes) the provider's default
 #   account, such as ubuntu, and other cloud-init sudo accounts.
-# - Disables root, password and keyboard-interactive SSH login and X11 forwarding by default.
+# - Disables root, password and keyboard-interactive SSH login, X11 and agent forwarding;
+#   allows 3 key attempts and 30 s to log in, drops dead sessions after 15 min,
+#   and logs which key each login used.
 # - Keeps the current SSH port and startup mode; set SSH_PORT to request a port move.
 # - Restores previous SSH and firewall settings unless a new login confirms access in ten minutes.
 # - Enables an incoming-deny, outgoing-allow firewall, keeping SSH source restrictions.

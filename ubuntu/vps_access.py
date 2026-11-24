@@ -27,6 +27,15 @@ MATCH_USER = re.compile(r"(?im)^[ \t]*Match[ \t]+User[ \t]+([a-z_][a-z0-9_-]*)[ 
 # The first line marks files pcprep owns. Older releases wrote it from
 # vps_setup.sh, which vps_harden.sh replaced; keep the text unchanged so reruns
 # still recognize and update files written by those releases.
+# OpenSSH already chooses modern ciphers and key exchange, and from 10.x (Ubuntu
+# 26.04) slows repeat offenders with PerSourcePenalties; fail2ban covers 24.04.
+# On top of key-only login, the policy:
+# - blocks agent forwarding, so root on this server (or an agent with sudo)
+#   can't use the SSH keys on your computer;
+# - allows 3 key attempts per connection and 30 seconds to log in;
+# - closes sessions whose client stops answering for 15 minutes;
+# - logs the fingerprint of the key used for each login (LogLevel VERBOSE),
+#   which tells apart accounts that share keys.
 POLICY = """# Managed by pcprep vps_setup.sh
 PermitRootLogin no
 PasswordAuthentication no
@@ -34,6 +43,12 @@ KbdInteractiveAuthentication no
 PubkeyAuthentication yes
 AuthenticationMethods publickey
 X11Forwarding no
+AllowAgentForwarding no
+MaxAuthTries 3
+LoginGraceTime 30
+ClientAliveInterval 300
+ClientAliveCountMax 3
+LogLevel VERBOSE
 """
 
 
@@ -285,7 +300,8 @@ def validate(ports, user, target, others=()):
     opts = run("sshd", "-T", "-C", f"user={user},host={client},addr={client},laddr={local},lport={target}", capture=True)
     for key, value in (("passwordauthentication", "no"), ("kbdinteractiveauthentication", "no"),
                        ("pubkeyauthentication", "yes"), ("authenticationmethods", "publickey"),
-                       ("x11forwarding", "no"), ("permitrootlogin", "no")):
+                       ("x11forwarding", "no"), ("permitrootlogin", "no"),
+                       ("allowagentforwarding", "no"), ("maxauthtries", "3")):
         if values(opts, key) != [value]:
             raise ValueError(f"SSH configuration overrides {key} for {user}")
 

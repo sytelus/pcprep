@@ -258,6 +258,16 @@ For a port move, allow the new port at the provider first. Setup copies simple
 UFW source restrictions and asks for a manual migration on complex policies.
 Review any operator-owned old-port rules after a successful move.
 
+**SSH settings.** Login is key-only, with no root login and no X11 or agent
+forwarding. Port forwarding stays on, for VS Code Remote and `ssh -L`. Each
+connection gets 3 key attempts and 30 seconds to log in; a session whose client
+stops answering for 15 minutes is closed; and the log records the fingerprint
+of the key each login used. If your SSH agent holds several keys and login
+fails with "Too many authentication failures", name the key for this server in
+`~/.ssh/config` with `IdentityFile` and `IdentitiesOnly yes`. OpenSSH already
+uses modern ciphers, and on Ubuntu 26.04 it also slows down repeated failures
+from one address; fail2ban adds bans on both releases.
+
 **Who keeps SSH access.** If no `AllowUsers` list exists yet, the script
 creates one with the admin plus every existing non-root account that has its
 own `Match User <name>` block in `sshd_config` or `sshd_config.d/*.conf`.
